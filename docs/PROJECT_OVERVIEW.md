@@ -12,23 +12,26 @@ e infraestrutura de qualidade para evoluções posteriores.
 - React Hook Form e Zod.
 - Vitest, Testing Library, MSW e Playwright.
 
-## Escopo desta fundação
+## Escopo implementado
 
-- Login somente visual e com validação local.
-- Seleção de organização explicitamente indisponível.
+- Login real e restauração de sessão pelo contrato cookie-only de refresh.
+- Access token somente em memória, CSRF e coordenação segura entre abas.
+- Bootstrap e seleção de Organization ativa validada.
+- Cliente HTTP, guards, isolamento de cache tenant e infraestrutura de
+  ETag/idempotência.
 - Shell administrativo responsivo e rotas canônicas.
 - Estados vazios, indisponíveis, de carregamento e de erro reutilizáveis.
 - Pipeline de validação local e CI.
 
 ## Fora do escopo
 
-Autenticação real, autorização, persistência de sessão, integração com API,
-telemetria, dados de organizações, dados de leads e deploy remoto.
+Autorização real continua no backend. Telemetria, dados e mutações de CRM,
+persistência de Query Cache e deploy remoto permanecem fora do escopo.
 
 ## Destinos planejados
 
 O domínio planejado é `app.agenciagenesis.com.br` e o destino de deploy é a
 Vercel. O único backend oficial é `arthurportodev/genesis-platform-api`. A
-integração do navegador está planejada para a `0.7.1.2`, preferencialmente por
-path same-origin/proxy da Vercel e sujeita ao Gate 1. Nada disso está configurado
-ou publicado nesta fundação.
+integração do navegador usa path relativo `/api/v1` e proxy Vite local. O proxy
+externo da Vercel, domínio, DNS e deploy continuam não configurados; previews
+permanecem fail-closed e não acessam produção.

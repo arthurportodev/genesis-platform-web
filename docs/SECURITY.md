@@ -1,53 +1,53 @@
 # Segurança
 
-## Fronteiras atuais da 0.7.1.1
+## Sessão web implementada
 
-Este frontend não autentica usuários, não recebe tokens, não mantém sessão e não
-consulta a API. A tela de login valida formato apenas no navegador e descarta os
-valores; não representa nem simula autenticação.
+- Access token curto permanece somente em memória privada do coordenador.
+- Refresh trafega exclusivamente no cookie `HttpOnly` do backend e nunca é
+  lido, persistido ou enviado em body/header/query pelo frontend.
+- Cookies CSRF reconhecidos possuem fonte única e são validados como base64url;
+  duplicidade ou divergência body/cookie falha fechada.
+- Login, refresh, logout e logout-all usam `X-CSRF-Token`, com uma única
+  renovação após `403`. O frontend nunca define `Origin`.
+- Web Locks serializam emissão de CSRF e rotação de refresh. Timeout não permite
+  operação concorrente.
+- BroadcastChannel valida versão, UUIDs, geração e payload. Access trafega apenas
+  de modo efêmero same-origin; geração antiga é rejeitada.
+- Sem Web Locks, nenhum refresh automático ocorre, preservando reuse detection.
 
-## Regras permanentes
+## Tenant e navegação
 
-- Nunca versionar `.env`, tokens, cookies, credenciais ou dados de clientes.
-- Nunca guardar tokens em `localStorage`, `sessionStorage` ou IndexedDB.
-- Não registrar credenciais, PII, tokens ou respostas completas de API.
-- Não inventar permissões nem confiar em ocultação visual como autorização.
-- Variáveis `VITE_*` são públicas no bundle e não podem conter segredos.
-- Dependências novas exigem origem, versão, lockfile e auditoria revisados.
-- Redirecionamentos internos precisam ser validados antes de navegar.
-- HTML de terceiros não deve ser renderizado sem sanitização e contrato explícito.
+- Bootstrap autenticado é a fonte única de user, Organizations, membership e
+  role; nenhum desses dados é derivado do JWT.
+- Somente `genesis.activeOrganizationId.v1`, contendo UUID, pode ser persistido.
+- A preferência nunca concede autorização e sempre é confrontada com bootstrap.
+- Cache autenticado é segmentado e removido em troca, logout ou expiração.
+- `returnTo` aceita somente `/app` e `/app/**`, sem URL absoluta, esquema,
+  host, barra invertida ou controle.
+- Shell e not found administrativo permanecem protegidos sem flash.
 
-## Contrato futuro aprovado para a 0.7.1.2
+## HTTP e dados
 
-Os controles abaixo pertencem à tarefa `0.7.1.2` e ainda não foram implementados:
+- Browser chama apenas paths relativos canonicalizados dentro de `/api/v1` com
+  credentials; segmentos que escapariam do namespace são rejeitados.
+- Resposta HTML ou content type inesperado em API é erro de protocolo.
+- Bodies de resposta possuem limite defensivo e `429` impõe cooldown local sem
+  presumir `Retry-After`.
+- Nenhum componente/página executa fetch diretamente.
+- Nenhum token, senha, cookie, bootstrap completo ou PII é registrado.
+- ETag permanece opaco; If-Match e Idempotency-Key são enviados somente quando
+  solicitados pela feature.
 
-- access token somente em memória;
-- refresh token exclusivamente em cookie `HttpOnly` controlado pela API;
-- proteção CSRF cookie-to-header e validação de `Origin` pela API;
-- nenhum token em `localStorage`, `sessionStorage` ou IndexedDB;
-- bootstrap autenticado de usuário e Organizations;
-- `X-Organization-Id` em requests tenant-scoped;
-- backend como autoridade sobre Membership e papel;
-- cache sempre segmentado por `organizationId`, com limpeza e cancelamento de
-  dados ao trocar de Organization;
-- refresh single-flight dentro da aba, coordenação entre abas e propagação de
-  logout entre abas;
-- tratamento seguro da rotação de refresh;
-- controle de concorrência com `ETag` e `If-Match`;
-- idempotência com `Idempotency-Key`;
-- redirecionamentos internos validados;
-- nenhuma PII ou token em logs.
+## Ambientes
 
-O risco residual de refresh concorrente entre abas será tratado no frontend
-futuro. A reuse detection do backend continua sendo uma garantia obrigatória e
-não será enfraquecida pela coordenação cliente.
+`GENESIS_API_PROXY_TARGET` é server-only no Vite e rejeita credenciais, paths,
+queries, fragmentos e protocolos diferentes de HTTP(S). Variáveis `VITE_*` são
+públicas e não podem conter segredos. Previews permanecem sem acesso à API e
+nunca apontam para produção. Proxy Vercel, domínio e deploy não estão
+configurados.
 
-O acesso futuro do navegador à API deve preferir path same-origin/proxy da
-Vercel, sujeito ao Gate 1 da `0.7.1.2`. Proxy, API, Vercel, domínio e ambientes
-publicados ainda não estão configurados.
+## Fronteira de autorização
 
-## Incidentes
-
-Interrompa a tarefa ao encontrar segredo, exposição de dados ou comportamento de
-sessão não aprovado. Preserve evidências sem reproduzir valores sensíveis e
-reporte pelo canal privado definido pela equipe.
+O backend NestJS continua validando sessão, Organization, membership e papel em
+cada request. Guards e menus frontend são apenas experiência de navegação e não
+substituem autorização.

@@ -1,28 +1,27 @@
 # Estado atual
 
-Atualizado para a tarefa `0.7.1.1`.
+Atualizado para o candidato local da tarefa `0.7.1.2`.
 
 ## Disponível
 
-- Projeto React/Vite/TypeScript com Node 24.
-- Tema claro, tokens semânticos e componentes compartilhados.
-- Rotas públicas, shell administrativo e navegação móvel.
-- TanStack Query configurado, sem consultas remotas.
-- Formulário de login validado localmente, sem envio de credenciais.
-- Testes unitários, de integração, ferramentas de tarefa e smoke E2E.
-- CI `Validate frontend` e rewrite SPA para Vercel.
+- React/Vite/TypeScript estrito, shell administrativo e design system inicial.
+- Cliente HTTP centralizado sobre `fetch`, paths `/api/v1`, timeout/abort e
+  erros tipados.
+- Login real, access somente em memória, refresh cookie-only e CSRF.
+- Restauração, Web Locks, BroadcastChannel, single-flight e fallback seguro.
+- Bootstrap, zero/uma/várias Organizations, preferência UUID e troca atômica.
+- Guards reais, `returnTo` seguro, logout e logout-all.
+- Query keys tenant-scoped, limpeza de cache, ETag e idempotência opt-in.
+- Vitest/MSW, concorrência e Playwright Chromium com stub HTTP same-origin.
+- Proxy Vite local por `GENESIS_API_PROXY_TARGET`, fail-closed sem target.
 
 ## Não disponível
 
-- Sessão, login real, cookies e refresh de autenticação.
-- Contexto e seleção real de organização.
-- Integração com endpoints do backend.
-- Dados, mutações, permissões e métricas reais.
-- Projeto remoto ou deploy na Vercel.
-- Domínio `app.agenciagenesis.com.br`, DNS ou proxy same-origin configurados.
+- Endpoints e dados reais de Leads, Pipeline, Activities, Notes ou métricas.
+- Autorização frontend por papel; o backend continua sendo a única autoridade.
+- Persistência de access, bootstrap ou Query Cache.
+- Proxy externo e projeto Vercel, domínio, DNS, staging ou deploy.
+- Preview com acesso à API.
 
-Qualquer tarefa que cruze uma dessas fronteiras deve partir de contrato aprovado,
-sem inferir comportamento a partir das telas de fundação.
-
-A integração com `arthurportodev/genesis-platform-api` pertence à `0.7.1.2` e
-depende de Gate 1. Vercel e o domínio são apenas destinos planejados.
+O candidato ainda não possui PR, squash SHA, release ou deploy. Essas operações
+dependem dos Gates posteriores.

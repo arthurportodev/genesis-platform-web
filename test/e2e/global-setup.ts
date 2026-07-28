@@ -1,15 +1,5 @@
-import { preview } from "vite";
+import { startWebSessionServer } from "./web-session-server";
 
 export default async function globalSetup() {
-  const server = await preview({
-    preview: {
-      host: "127.0.0.1",
-      port: 4173,
-      strictPort: true,
-    },
-  });
-
-  return async () => {
-    await server.close();
-  };
+  return startWebSessionServer();
 }

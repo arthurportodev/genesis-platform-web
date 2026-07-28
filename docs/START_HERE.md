@@ -17,6 +17,7 @@ Consulte `ROADMAP.md`, `TASK_LOG.md` e `PROMPT_TEMPLATES.md` conforme a tarefa.
 
 ## Regra de honestidade operacional
 
-O frontend ainda não possui integração de autenticação, sessão, organização ou
-API. Nenhuma tela deve sugerir que essas capacidades existem. Estados vazios e
-indisponíveis são parte do contrato atual.
+O frontend possui integração de autenticação, sessão e Organization com os seis
+endpoints web de `/api/v1/auth`. Isso não torna guards frontend uma fronteira de
+autorização e não torna dados de CRM disponíveis. Estados vazios e indisponíveis
+continuam obrigatórios onde não existe endpoint integrado.

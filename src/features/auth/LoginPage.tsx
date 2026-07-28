@@ -1,5 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Link } from "@tanstack/react-router";
+import { useLocation, useNavigate } from "@tanstack/react-router";
 import { LockKeyhole, Mail } from "lucide-react";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
@@ -17,6 +17,9 @@ import {
 } from "@/shared/ui/Card";
 import { Input } from "@/shared/ui/Input";
 import { Label } from "@/shared/ui/Label";
+import { useSession } from "@/features/auth/session/useSession";
+import { safeReturnTo } from "@/shared/lib/safe-return-to";
+import { toAppError } from "@/shared/api/errors";
 
 const loginSchema = z.object({
   email: z
@@ -30,18 +33,57 @@ const loginSchema = z.object({
 type LoginValues = z.infer<typeof loginSchema>;
 
 export function LoginPage() {
-  const [submitted, setSubmitted] = useState(false);
+  const { session, state } = useSession();
+  const navigate = useNavigate();
+  const search = useLocation({ select: (location) => location.searchStr });
+  const [submissionMessage, setSubmissionMessage] = useState<string | null>(
+    null,
+  );
+  const sessionMessage =
+    state.status === "anonymous" || state.status === "session-expired"
+      ? state.message
+      : undefined;
   const {
     register,
     handleSubmit,
+    reset,
+    setValue,
     formState: { errors, isSubmitting },
   } = useForm<LoginValues>({
     resolver: zodResolver(loginSchema),
     defaultValues: { email: "", password: "" },
   });
 
-  const onSubmit = () => {
-    setSubmitted(true);
+  const onSubmit = async (values: LoginValues) => {
+    setSubmissionMessage(null);
+    try {
+      await session.login(values);
+      reset();
+      const nextState = session.getSnapshot();
+      if (
+        "activeOrganization" in nextState &&
+        nextState.activeOrganization !== null
+      ) {
+        const returnTo = safeReturnTo(
+          new URLSearchParams(search).get("returnTo"),
+        );
+        await navigate({
+          to: (returnTo ?? "/app") as "/app",
+          replace: true,
+        });
+      } else {
+        await navigate({ to: "/select-organization", replace: true });
+      }
+    } catch (error) {
+      const normalized = toAppError(error);
+      if (normalized.kind !== "network" && normalized.kind !== "timeout")
+        setValue("password", "");
+      setSubmissionMessage(
+        normalized.kind === "unauthorized"
+          ? "E-mail ou senha inválidos."
+          : normalized.message,
+      );
+    }
   };
 
   return (
@@ -122,25 +164,15 @@ export function LoginPage() {
               </Button>
             </form>
 
-            {submitted ? (
+            {submissionMessage || sessionMessage ? (
               <div
-                className="mt-4 rounded-lg border border-info/20 bg-info/5 p-3 text-sm leading-5 text-muted-foreground"
-                role="status"
+                className="mt-4 rounded-lg border border-destructive/20 bg-destructive/5 p-3 text-sm leading-5 text-foreground"
+                role="alert"
+                aria-live="assertive"
               >
-                A autenticação será conectada em uma tarefa futura. Nenhuma
-                credencial foi enviada.
+                {submissionMessage ?? sessionMessage}
               </div>
             ) : null}
-
-            <p className="mt-6 text-center text-xs leading-5 text-muted-foreground">
-              Esta interface ainda não possui integração de sessão.{" "}
-              <Link
-                className="font-semibold text-primary hover:underline"
-                to="/app"
-              >
-                Visualizar estrutura administrativa
-              </Link>
-            </p>
           </CardContent>
         </Card>
       </div>
