@@ -1,0 +1,30 @@
+{
+  "version": 1,
+  "task": {
+    "id": "0.0.0",
+    "title": "Descreva a tarefa",
+    "class": "Normal"
+  },
+  "git": {
+    "branch": "feat/0.0.0-descricao",
+    "baseSha": "SUBSTITUA_PELO_SHA_COMPLETO",
+    "requireCleanStage": true
+  },
+  "scope": {
+    "allowedPaths": ["src/**", "test/**"],
+    "protectedPaths": [
+      ".git/**",
+      ".env",
+      ".env.*",
+      "node_modules/**",
+      "dist/**"
+    ]
+  },
+  "artifacts": {
+    "taskPacket": ".codex/task-packets/0.0.0.md"
+  },
+  "validation": {
+    "profile": "focused",
+    "focusedScripts": ["typecheck", "test"]
+  }
+}
