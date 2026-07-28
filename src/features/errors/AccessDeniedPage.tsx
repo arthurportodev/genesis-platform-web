@@ -25,6 +25,7 @@ export function AccessDeniedPage() {
         </p>
         <Link
           to="/login"
+          search={{ returnTo: undefined }}
           className={cn(buttonVariants({ variant: "secondary" }), "mt-7")}
         >
           Voltar ao login

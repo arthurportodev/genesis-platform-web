@@ -2,46 +2,66 @@
 
 ## Camadas
 
-- `src/app`: inicialização, provedores, estilos e árvore de rotas; compõe a
-  aplicação e não é dependência de `features` ou `shared`.
-- `src/features`: páginas e comportamento agrupados por capacidade de produto.
-- `src/shared`: componentes, configuração pública reutilizável, primitivas
-  visuais e utilitários sem regra de domínio.
-- `src/test`: configuração e infraestrutura compartilhada de testes.
-- `test/e2e`: cenários executados contra o build de produção.
-- `scripts`: governança de escopo, preflight, validação e fingerprint.
+- `src/app`: composição de runtime, providers, QueryClient e router.
+- `src/features`: autenticação, sessão, Organizations e páginas de produto.
+- `src/shared`: transporte HTTP, taxonomia de erros, configuração pública,
+  utilitários e componentes sem dependência de features.
+- `src/test` e `test/e2e`: MSW, infraestrutura compartilhada e navegador real.
 
-Dependências apontam de `app` para `features` e `shared`, e de `features` para
-`shared`. `features` e `shared` nunca dependem de `app`; `shared` também não
-depende de `features`. A configuração de ambiente reutilizável possui fonte única
-em `src/shared/config`.
+Dependências seguem `app → features/shared` e `features → shared`.
+`shared` não depende de `app` ou `features`; `features` não depende de
+`app`. O transporte base recebe apenas descritores, enquanto o cliente
+autenticado recebe token, refresh e Organization por injeção na composição de
+`app/providers`.
 
-## Execução
+## Sessão
 
-`main.tsx` monta uma única raiz React. `AppProviders` cria uma instância estável de
-`QueryClient`; o router baseado em código seleciona a página e o shell. Um
-`ErrorBoundary` no topo impede que falhas de renderização deixem uma tela vazia.
+O coordenador mantém access token e geração em closure privada. O snapshot React
+expõe somente status discriminado, user seguro, Organizations, Organization
+ativa e operações. Login, refresh, logout e logout-all usam CSRF cookie-to-header;
+refresh nunca é lido pelo JavaScript.
 
-## Rotas
+A inicialização pede token válido aos peers, usa Web Lock
+`genesis.auth-cookie.v1` antes de qualquer refresh e publica access efêmero no
+BroadcastChannel `genesis.session.v1`. Sem Web Locks, refresh automático fica
+desabilitado; login e logout explícitos permanecem disponíveis. Não existe
+refresh periódico.
 
-- Públicas: `/login`, `/select-organization`, `/access-denied`.
-- Administrativas: `/app`, `/app/leads`, `/app/leads/:leadId`, `/app/pipeline`,
-  `/app/follow-up`, `/app/metrics`, `/app/settings`.
-- Qualquer endereço desconhecido usa a página 404.
+## HTTP
 
-As rotas administrativas não possuem guarda ainda. A existência do shell não
-representa autorização; a integração de sessão definirá esse limite no futuro.
+O navegador usa somente `/api/v1/*`, `credentials: include`, parsing JSON
+estrito, timeout combinado com o AbortSignal do caller e taxonomia segura de
+erros. Paths são canonicalizados dentro de `/api/v1`, bodies são limitados e
+HTML em path de API é erro de protocolo. `429` ativa cooldown local. Bearer é lido imediatamente
+antes do dispatch; `X-Organization-Id` aparece somente em requests
+tenant-scoped. ETag, If-Match e Idempotency-Key são opt-in.
 
-## Dados e estado
+No desenvolvimento, o Vite lê `GENESIS_API_PROXY_TARGET` sem prefixo
+`VITE_` e aceita somente origem HTTP(S) sem credenciais ou path. Ausência do target responde fail-closed. Vercel conserva apenas o
+fallback SPA: external rewrite de produção não foi implementado.
 
-TanStack Query é o mecanismo reservado para estado assíncrono do servidor. Não há
-cliente HTTP nem chamadas remotas nesta etapa. Estado local é usado apenas para
-interações efêmeras de interface, nunca para simular sessão ou dados de domínio.
+## Organization e cache
 
-## Topologia planejada
+Bootstrap é a fonte única de user, memberships, roles e Organizations. Somente o
+UUID validado da preferência ativa usa `localStorage`. Query keys seguem:
 
-O frontend permanece uma SPA sem SSR ou server functions. A Vercel é o destino
-planejado em `app.agenciagenesis.com.br`; o backend NestJS oficial permanece em
-`arthurportodev/genesis-platform-api`. A integração do navegador pertence à
-`0.7.1.2` e deve avaliar path same-origin/proxy no Gate 1. Vercel, domínio, DNS,
-proxy e API ainda não estão conectados.
+- `["public", resource, ...]`;
+- `["account", resource, ...]`;
+- `["organization", organizationId, resource, ...]`.
+
+Troca de Organization bloqueia novo contexto tenant, recusa a troca enquanto
+há mutation não cancelável, cancela queries antigas, remove o cache anterior,
+ativa e persiste o novo UUID e então invalida o router.
+
+## Router
+
+`src/app/router/router.tsx` usa context tipado e `beforeLoad`. Rotas
+`/app/**`, inclusive not found aninhado, aguardam a restauração antes do shell.
+Anônimo retorna a `/login` com `returnTo` interno validado; múltiplas
+Organizations exigem `/select-organization`. Redirects usam replace.
+
+## Limites
+
+NestJS em `arthurportodev/genesis-platform-api` permanece a autoridade de
+identidade, tenant e autorização. Guards frontend são somente UX. CRM real,
+Vercel, domínio, DNS e deploy não fazem parte desta implementação.

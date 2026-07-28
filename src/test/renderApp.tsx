@@ -1,21 +1,27 @@
-import { QueryClientProvider } from "@tanstack/react-query";
 import { RouterProvider, createMemoryHistory } from "@tanstack/react-router";
-import { render } from "@testing-library/react";
+import { act, render } from "@testing-library/react";
 
-import { createAppQueryClient } from "@/app/providers/queryClient";
+import { AppProviders } from "@/app/providers/AppProviders";
+import { createAppRuntime, type AppRuntime } from "@/app/providers/runtime";
 import { createAppRouter } from "@/app/router/router";
+import { registerTestRuntime } from "@/test/runtimeRegistry";
 
-export async function renderAppAt(path: string) {
+export async function renderAppAt(
+  path: string,
+  runtime: AppRuntime = createAppRuntime(),
+) {
+  registerTestRuntime(runtime);
   const history = createMemoryHistory({ initialEntries: [path] });
   const router = createAppRouter(history);
-  const queryClient = createAppQueryClient();
 
   const result = render(
-    <QueryClientProvider client={queryClient}>
-      <RouterProvider router={router} />
-    </QueryClientProvider>,
+    <AppProviders runtime={runtime}>
+      <RouterProvider router={router} context={{ session: runtime.session }} />
+    </AppProviders>,
   );
 
-  await router.load();
-  return { ...result, queryClient, router };
+  await act(async () => {
+    await router.load();
+  });
+  return { ...result, queryClient: runtime.queryClient, router, runtime };
 }

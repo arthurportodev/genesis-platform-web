@@ -1,21 +1,19 @@
 # Roadmap
 
-## Fundação
+## Fundação e sessão web
 
-- [x] Bootstrap do repositório frontend e governança local.
+- [x] Bootstrap do repositório frontend e governança local (`0.7.1.1`).
 - [x] Shell administrativo, rotas e estados operacionais honestos.
-- [x] Testes e CI de validação frontend.
+- [x] Cliente HTTP, sessão web, Organization ativa e guards (`0.7.1.2`).
+- [x] Coordenação segura de refresh entre abas e fallback fail-closed.
+- [x] Testes unitários, MSW, concorrência, CI e Chromium real.
 
-## Próximas decisões, sem compromisso de escopo
+## Próximas tarefas, sem compromisso de escopo
 
-- Contrato de sessão e bootstrap web integrado ao backend oficial na `0.7.1.2`,
-  preferencialmente por path same-origin/proxy da Vercel e sujeito ao Gate 1.
-- Contexto de organização e guards de navegação.
-- Cliente HTTP e tratamento padronizado de falhas.
-- Capacidades de leads, pipeline, follow-up, métricas e configurações.
-- Observabilidade, acessibilidade ampliada e estratégia de deploy.
+- Integração dos endpoints de Leads, Pipeline, Follow-up e métricas.
+- UX de ETag/If-Match e idempotência nas mutações reais.
+- Observabilidade e acessibilidade incremental.
+- Tarefa independente para proxy de produção, projeto Vercel, domínio e deploy.
 
-O destino planejado é Vercel em `app.agenciagenesis.com.br`; projeto, deploy,
-domínio, DNS e proxy ainda não estão configurados.
-
-Cada item requer tarefa própria, contrato aprovado e validação proporcional.
+Previews permanecem sem API e jamais apontam para produção. Cada item exige
+contrato, tarefa e Gates próprios.

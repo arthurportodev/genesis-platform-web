@@ -2,8 +2,8 @@
 
 Frontend oficial da Genesis Platform, construído com React, Vite e TypeScript
 estrito. Este repositório contém a fundação visual e operacional da área
-administrativa; autenticação, sessão, organizações e dados de negócio ainda não
-estão integrados.
+administrativa e a integração web de sessão, Organizations e HTTP com o contrato
+oficial do backend. Dados de CRM continuam indisponíveis.
 
 ## Requisitos
 
@@ -17,8 +17,14 @@ npm ci
 npm run dev
 ```
 
-Copie `.env.example` para `.env.local` apenas quando precisar sobrescrever
-configurações públicas de build. Nunca versione arquivos `.env` reais.
+Copie `.env.example` para `.env.local` e ajuste
+`GENESIS_API_PROXY_TARGET` para o backend local. Essa variável é lida somente
+pelo servidor Vite e nunca entra no bundle. O backend local deve usar
+`FRONTEND_URL=http://localhost:5173`. Nunca versione arquivos `.env` reais.
+
+O navegador chama exclusivamente paths relativos `/api/v1`. Sem target de
+proxy, o Vite responde fail-closed nesses paths. O proxy de produção na Vercel
+ainda não está configurado e previews não podem acessar a API de produção.
 
 ## Validação
 
@@ -42,8 +48,8 @@ Leia [docs/START_HERE.md](docs/START_HERE.md) antes de contribuir.
 - Domínio: `app.agenciagenesis.com.br`.
 - Deploy do frontend: Vercel.
 - Backend oficial: `arthurportodev/genesis-platform-api`.
-- Integração com a API: tarefa `0.7.1.2`, preferencialmente por path
-  same-origin/proxy da Vercel e sujeita ao Gate 1 dessa tarefa.
+- Integração web local: implementada por path same-origin `/api/v1` e proxy
+  Vite na tarefa `0.7.1.2`.
 
-Projeto Vercel, domínio, DNS, proxy, API e ambientes publicados ainda não estão
-configurados.
+Projeto Vercel, domínio, DNS, proxy de produção e ambientes publicados ainda não
+estão configurados.
