@@ -23,6 +23,13 @@ const sessionsByAccess = new Map<string, Session>();
 const retiredRefreshFamilies = new Map<string, string>();
 let refreshCount = 0;
 let sequence = 0;
+let leadRevision = 3;
+let conflictNextLeadMutation = false;
+
+const leadId = "00000000-0000-4000-8000-000000000010";
+const secondLeadId = "00000000-0000-4000-8000-000000000020";
+const cycleId = "00000000-0000-4000-8000-000000000012";
+const entryId = "00000000-0000-4000-8000-000000000013";
 
 function parseCookies(request: IncomingMessage): Map<string, string> {
   const result = new Map<string, string>();
@@ -158,6 +165,7 @@ async function handleApi(
   response: ServerResponse,
   pathname: string,
 ): Promise<void> {
+  const requestUrl = new URL(request.url ?? "/", `http://${host}:${port}`);
   if (pathname === "/api/v1/auth/csrf" && request.method === "GET") {
     const csrfToken = randomBytes(32).toString("base64url");
     json(
@@ -278,7 +286,255 @@ async function handleApi(
     response.end();
     return;
   }
+  const tenant = tenantRequest(request);
+  if (pathname.startsWith("/api/v1/leads") || pathname === "/api/v1/members") {
+    if (!tenant.session) {
+      authError(response, 401, "Unauthorized");
+      return;
+    }
+    if (!tenant.organizationId) {
+      authError(response, 403, "Organization required.");
+      return;
+    }
+  }
+  if (pathname === "/api/v1/leads" && request.method === "GET") {
+    const secondOrganization =
+      tenant.organizationId === "00000000-0000-4000-8000-000000000004";
+    const q = requestUrl.searchParams.get("q")?.toLocaleLowerCase("pt-BR");
+    const lead = leadDetail(
+      secondOrganization ? secondLeadId : leadId,
+      secondOrganization ? "Lead Segunda" : "Lead Exemplo",
+    );
+    const visible =
+      !q || lead.displayName.toLocaleLowerCase("pt-BR").includes(q);
+    json(response, 200, {
+      items: visible ? [leadListItem(lead)] : [],
+      page: {
+        nextCursor: null,
+        limit: Number(requestUrl.searchParams.get("limit") ?? 25),
+        total: visible ? 1 : 0,
+        asOf: "2026-07-28T16:00:00.000Z",
+      },
+    });
+    return;
+  }
+  if (pathname === "/api/v1/members" && request.method === "GET") {
+    json(response, 200, {
+      items: [
+        {
+          id: "00000000-0000-4000-8000-000000000011",
+          name: "Pessoa Responsável",
+          email: "responsavel@example.test",
+          role: "member",
+          status: "active",
+          createdAt: "2026-07-20T12:00:00.000Z",
+          updatedAt: "2026-07-20T12:00:00.000Z",
+        },
+      ],
+      page: { nextCursor: null, limit: 100 },
+    });
+    return;
+  }
+  const detailMatch = /^\/api\/v1\/leads\/([0-9a-f-]{36})$/iu.exec(pathname);
+  if (detailMatch && request.method === "GET") {
+    const name =
+      detailMatch[1] === secondLeadId ? "Lead Segunda" : "Lead Exemplo";
+    const lead = leadDetail(detailMatch[1], name);
+    json(response, 200, lead, { ETag: `"lead:${lead.id}:${lead.revision}"` });
+    return;
+  }
+  if (
+    pathname === `/api/v1/leads/${leadId}/timeline` &&
+    request.method === "GET"
+  ) {
+    json(response, 200, {
+      items: [timelineEvent()],
+      page: { nextCursor: null, limit: 50 },
+    });
+    return;
+  }
+  if (
+    pathname === `/api/v1/leads/${leadId}/next-action` &&
+    request.method === "GET"
+  ) {
+    json(response, 200, {
+      item: null,
+      temporalState: "none",
+      leadRevision: String(leadRevision),
+    });
+    return;
+  }
+  if (
+    pathname === `/api/v1/leads/${leadId}/cycles` &&
+    request.method === "GET"
+  ) {
+    json(response, 200, {
+      items: [leadDetail(leadId, "Lead Exemplo").latestCycle],
+      page: { nextCursor: null, limit: 25 },
+    });
+    return;
+  }
+  if (
+    pathname === `/api/v1/leads/${leadId}/notes` &&
+    request.method === "POST"
+  ) {
+    if (!validLeadMutationHeaders(request)) {
+      authError(response, 428, "If-Match and Idempotency-Key are required.");
+      return;
+    }
+    await readJson(request);
+    if (conflictNextLeadMutation) {
+      conflictNextLeadMutation = false;
+      authError(response, 412, "Lead revision conflict.");
+      return;
+    }
+    leadRevision += 1;
+    json(
+      response,
+      201,
+      { id: "00000000-0000-4000-8000-000000000015" },
+      { ETag: `"lead:${leadId}:${leadRevision}"` },
+    );
+    return;
+  }
   authError(response, 404, "Not found.");
+}
+
+function tenantRequest(request: IncomingMessage): {
+  session: Session | undefined;
+  organizationId: string | undefined;
+} {
+  const authorization = request.headers.authorization;
+  const accessToken = authorization?.startsWith("Bearer ")
+    ? authorization.slice("Bearer ".length)
+    : undefined;
+  return {
+    session: accessToken ? sessionsByAccess.get(accessToken) : undefined,
+    organizationId:
+      typeof request.headers["x-organization-id"] === "string"
+        ? request.headers["x-organization-id"]
+        : undefined,
+  };
+}
+
+function validLeadMutationHeaders(request: IncomingMessage): boolean {
+  return (
+    request.headers["if-match"] === `"lead:${leadId}:${leadRevision}"` &&
+    typeof request.headers["idempotency-key"] === "string"
+  );
+}
+
+function leadDetail(id: string, displayName: string) {
+  const attribution = {
+    source: "manual",
+    sourceDetail: null,
+    utmSource: null,
+    utmMedium: null,
+    utmCampaign: null,
+    utmContent: null,
+    utmTerm: null,
+    receivedAt: "2026-07-20T12:00:00.000Z",
+  };
+  return {
+    id,
+    displayName,
+    primaryPhone: "+5511999999999",
+    email: "lead@example.test",
+    companyName: "Empresa Exemplo",
+    instagram: null,
+    city: "São Paulo",
+    serviceInterest: "Consultoria",
+    responsibleMembershipId: "00000000-0000-4000-8000-000000000003",
+    status: "active",
+    stage: "qualification",
+    latestCycleNumber: "1",
+    returnReviewPending: false,
+    revision: String(leadRevision),
+    createdAt: "2026-07-20T12:00:00.000Z",
+    updatedAt: "2026-07-28T15:00:00.000Z",
+    initialAttribution: attribution,
+    lastAttribution: attribution,
+    nextAction: null,
+    latestEntry: {
+      id: entryId,
+      sequence: "1",
+      intakeChannel: "manual",
+      source: "manual",
+      receivedAt: "2026-07-20T12:00:00.000Z",
+    },
+    latestCycle: {
+      id: cycleId,
+      cycleNumber: "1",
+      openingReason: "created",
+      startingStage: "new",
+      openedByMembershipId: "00000000-0000-4000-8000-000000000003",
+      openedAt: "2026-07-20T12:00:00.000Z",
+      closedByMembershipId: null,
+      closedAt: null,
+      closingStatus: null,
+      stageAtClose: null,
+      lostReason: null,
+      archiveReason: null,
+      reasonNote: null,
+    },
+    pendingReturn: null,
+    counts: { timeline: 1, cycles: 1, activities: 0, notes: 0 },
+  };
+}
+
+function leadListItem(lead: ReturnType<typeof leadDetail>) {
+  return {
+    id: lead.id,
+    displayName: lead.displayName,
+    primaryPhone: lead.primaryPhone,
+    email: lead.email,
+    companyName: lead.companyName,
+    responsibleMembershipId: lead.responsibleMembershipId,
+    status: lead.status,
+    stage: lead.stage,
+    source: "manual",
+    lastEntryAt: lead.latestEntry.receivedAt,
+    nextAction: null,
+    temporalState: "none",
+    returnPending: false,
+    revision: lead.revision,
+    createdAt: lead.createdAt,
+    updatedAt: lead.updatedAt,
+  };
+}
+
+function timelineEvent() {
+  return {
+    id: "00000000-0000-4000-8000-000000000014",
+    sequence: "1",
+    eventType: "lead.created",
+    actorMembershipId: null,
+    leadEntryId: entryId,
+    previousResponsibleMembershipId: null,
+    newResponsibleMembershipId: null,
+    changedFields: null,
+    cycleId,
+    returnReviewId: null,
+    previousStatus: null,
+    newStatus: "active",
+    previousStage: null,
+    newStage: "new",
+    lostReason: null,
+    archiveReason: null,
+    activityId: null,
+    noteId: null,
+    nextActionId: null,
+    previousNextActionStatus: null,
+    newNextActionStatus: null,
+    previousDueAt: null,
+    newDueAt: null,
+    nextActionRevision: null,
+    nextActionCancellationReason: null,
+    activity: null,
+    note: null,
+    nextAction: null,
+    occurredAt: "2026-07-20T12:00:00.000Z",
+  };
 }
 
 const contentTypes: Record<string, string> = {
@@ -323,6 +579,16 @@ export async function startWebSessionServer() {
         retiredRefreshFamilies.clear();
         refreshCount = 0;
         sequence = 0;
+        leadRevision = 3;
+        conflictNextLeadMutation = false;
+        json(response, 200, { ok: true });
+        return;
+      }
+      if (
+        url.pathname === "/__test/lead-conflict" &&
+        request.method === "POST"
+      ) {
+        conflictNextLeadMutation = true;
         json(response, 200, { ok: true });
         return;
       }

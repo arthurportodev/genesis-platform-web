@@ -229,4 +229,69 @@ describe("cliente HTTP autenticado", () => {
     ).rejects.toMatchObject({ kind: "unauthorized" });
     expect(refresh).not.toHaveBeenCalled();
   });
+
+  it("exige If-Match e Idempotency-Key no modo combinado", async () => {
+    const fetch = vi
+      .fn<typeof globalThis.fetch>()
+      .mockResolvedValue(new Response(null, { status: 204 }));
+    const client = createBaseHttpClient({ fetch });
+    const base = {
+      kind: "conditional-idempotent-mutation" as const,
+      method: "POST" as const,
+      accessToken: ["memory", "token"].join("-"),
+      organizationId: "00000000-0000-4000-8000-000000000001",
+    };
+    await expect(
+      client.request("/api/v1/leads/command", {
+        ...base,
+        ifMatch: '"opaque"',
+      }),
+    ).rejects.toMatchObject({ kind: "protocol" });
+    await expect(
+      client.request("/api/v1/leads/command", {
+        ...base,
+        idempotencyKey: "00000000-0000-4000-8000-000000000002",
+      }),
+    ).rejects.toMatchObject({ kind: "protocol" });
+    await expect(
+      client.request("/api/v1/leads/command", {
+        ...base,
+        ifMatch: "*",
+        idempotencyKey: "00000000-0000-4000-8000-000000000002",
+      }),
+    ).rejects.toMatchObject({ kind: "protocol" });
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it("preserva os headers combinados no replay autenticado", async () => {
+    let token = "old";
+    const request = vi
+      .fn()
+      .mockRejectedValueOnce(new AppError("unauthorized", "unauthorized"))
+      .mockResolvedValueOnce({ data: undefined, status: 204 });
+    const client = createAuthenticatedHttpClient(
+      { request },
+      {
+        getAccessToken: () => token,
+        getActiveOrganizationId: () => "00000000-0000-4000-8000-000000000001",
+        refresh: vi.fn(() => {
+          token = "new";
+          return Promise.resolve(true);
+        }),
+        expireSession: vi.fn(),
+        rebootstrap: vi.fn(),
+      },
+    );
+    const options = {
+      kind: "conditional-idempotent-mutation" as const,
+      method: "POST" as const,
+      ifMatch: '"opaque"',
+      idempotencyKey: "00000000-0000-4000-8000-000000000002",
+    };
+    await client.request("/api/v1/leads/command", options);
+    expect(request).toHaveBeenCalledTimes(2);
+    expect(request.mock.calls[1][1]).toEqual(
+      expect.objectContaining({ ...options, accessToken: "new" }),
+    );
+  });
 });

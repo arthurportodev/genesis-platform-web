@@ -4,7 +4,8 @@ export type HttpCallKind =
   | "tenant-scoped"
   | "auth-cookie-mutation"
   | "conditional-mutation"
-  | "idempotent-mutation";
+  | "idempotent-mutation"
+  | "conditional-idempotent-mutation";
 
 export type HttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 
@@ -42,7 +43,8 @@ export interface AuthenticatedRequestOptions extends Omit<
     | "authenticated"
     | "tenant-scoped"
     | "conditional-mutation"
-    | "idempotent-mutation";
+    | "idempotent-mutation"
+    | "conditional-idempotent-mutation";
   replaySafety?: "rejected-before-effects";
 }
 

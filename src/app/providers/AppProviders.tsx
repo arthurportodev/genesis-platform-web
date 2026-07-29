@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 
 import type { AppRuntime } from "@/app/providers/runtime";
 import { SessionProvider } from "@/features/auth/session/SessionProvider";
+import { HttpClientProvider } from "@/shared/api/HttpClientProvider";
 
 export function AppProviders({
   runtime,
@@ -13,7 +14,9 @@ export function AppProviders({
 }) {
   return (
     <QueryClientProvider client={runtime.queryClient}>
-      <SessionProvider session={runtime.session}>{children}</SessionProvider>
+      <HttpClientProvider client={runtime.http}>
+        <SessionProvider session={runtime.session}>{children}</SessionProvider>
+      </HttpClientProvider>
     </QueryClientProvider>
   );
 }

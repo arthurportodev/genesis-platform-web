@@ -10,8 +10,9 @@
 
 ## Próximas tarefas, sem compromisso de escopo
 
-- Integração dos endpoints de Leads, Pipeline, Follow-up e métricas.
-- UX de ETag/If-Match e idempotência nas mutações reais.
+- [ ] Incorporar a Inbox e o detalhe operacional de Leads (`0.7.2`, candidato
+      local concluído, dependente dos Gates de entrega).
+- Integração futura de Pipeline, filas de Follow-up e métricas.
 - Observabilidade e acessibilidade incremental.
 - Tarefa independente para proxy de produção, projeto Vercel, domínio e deploy.
 

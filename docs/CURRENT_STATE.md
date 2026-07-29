@@ -1,6 +1,6 @@
 # Estado atual
 
-Atualizado para o candidato local da tarefa `0.7.1.2`.
+Atualizado para o candidato local da tarefa `0.7.2`.
 
 ## Disponível
 
@@ -14,14 +14,23 @@ Atualizado para o candidato local da tarefa `0.7.1.2`.
 - Query keys tenant-scoped, limpeza de cache, ETag e idempotência opt-in.
 - Vitest/MSW, concorrência e Playwright Chromium com stub HTTP same-origin.
 - Proxy Vite local por `GENESIS_API_PROXY_TARGET`, fail-closed sem target.
+- Inbox real de Leads com busca protegida, filtros, ordenação, paginação por
+  cursor, tabela desktop e cards mobile.
+- Detalhe do Lead, próxima ação, ciclos e histórico incremental em ordem
+  cronológica.
+- Atualização, atribuição, notas, atividades, próxima ação e ciclo comercial com
+  ETag/If-Match e Idempotency-Key conforme o contrato backend.
+- Diretório de responsáveis somente para owner/admin; capacidade frontend é
+  apenas UX e nunca substitui autorização do backend.
 
 ## Não disponível
 
-- Endpoints e dados reais de Leads, Pipeline, Activities, Notes ou métricas.
+- Criação de Lead, Pipeline/Kanban, filas globais, página de Follow-up e métricas.
 - Autorização frontend por papel; o backend continua sendo a única autoridade.
 - Persistência de access, bootstrap ou Query Cache.
 - Proxy externo e projeto Vercel, domínio, DNS, staging ou deploy.
 - Preview com acesso à API.
 
-O candidato ainda não possui PR, squash SHA, release ou deploy. Essas operações
-dependem dos Gates posteriores.
+O candidato `0.7.2` ainda não possui PR, squash SHA, release ou deploy. A
+infraestrutura `0.7.1.2` foi incorporada pelo PR #2 no squash
+`633ace9b55ec25e70f1f88089865f89db464ed5f`.

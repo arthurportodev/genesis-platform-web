@@ -168,18 +168,22 @@ test("zero Organization é estado autenticado válido e bloqueia o shell", async
 });
 
 test("refresh 401 encerra sessão sem tratar falha de rede como expiração", async ({
+  browser,
   page,
 }) => {
   await login(page);
+  const cookies = await page.context().cookies();
   await page.request.post("/__test/expire");
-  const context = page.context();
   await page.close();
-  const freshPage = await context.newPage();
-  await freshPage.goto("/app");
+  const isolatedContext = await browser.newContext();
+  await isolatedContext.addCookies(cookies);
+  const isolatedPage = await isolatedContext.newPage();
+  await isolatedPage.goto("/app");
   await expect(
-    freshPage.getByRole("heading", { name: "Acesse sua conta" }),
+    isolatedPage.getByRole("heading", { name: "Acesse sua conta" }),
   ).toBeVisible();
-  await expect(freshPage.getByText(/sessão expirou/iu)).toBeVisible();
+  await expect(isolatedPage.getByText(/sessão expirou/iu)).toBeVisible();
+  await isolatedContext.close();
 });
 
 test("reuse de refresh revoga a família rotacionada", async ({ page }) => {
@@ -266,5 +270,53 @@ test("menu mobile mantém labels, foco e navegação", async ({ page }) => {
   const dialog = page.getByRole("dialog", { name: "Menu principal" });
   await expect(dialog).toBeVisible();
   await dialog.getByRole("link", { name: "Leads" }).click();
-  await expect(page.getByRole("heading", { name: "Leads" })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Inbox de Leads" }),
+  ).toBeVisible();
 });
+
+test("Inbox busca e abre o detalhe operacional", async ({ page }) => {
+  await login(page, "owner@example.test", "/app/leads");
+  await expect(
+    page.getByRole("heading", { name: "Inbox de Leads" }),
+  ).toBeVisible();
+  await page.getByLabel("Buscar").fill("Lead Exemplo");
+  await expect(page.getByText("Lead Exemplo").first()).toBeVisible();
+  await page.getByRole("link", { name: "Lead Exemplo" }).first().click();
+  await expect(page).toHaveURL(
+    new RegExp(`/app/leads/${leadIdForTest()}$`, "u"),
+  );
+  await expect(page.getByText("Histórico em ordem cronológica")).toBeVisible();
+  await page.getByLabel("Conteúdo da nota").fill("Contato E2E");
+  await page.getByRole("button", { name: "Adicionar nota" }).click();
+  await expect(page.getByText("Nota adicionada.")).toBeVisible();
+});
+
+test("troca de Organization não exibe Leads do tenant anterior", async ({
+  page,
+}) => {
+  await login(page, "multi@example.test");
+  await page
+    .getByRole("button", { name: /Genesis Teste.*Papel: owner/iu })
+    .click();
+  await page.getByRole("link", { name: "Leads" }).first().click();
+  await expect(page.getByText("Lead Exemplo").first()).toBeVisible();
+  await page.getByRole("button", { name: "Selecionar organização" }).click();
+  await page.getByRole("menuitem", { name: "Segunda Organização" }).click();
+  await expect(page.getByText("Lead Segunda").first()).toBeVisible();
+  await expect(page.getByText("Lead Exemplo")).toHaveCount(0);
+});
+
+test("conflito de versão preserva o rascunho", async ({ page }) => {
+  await page.request.post("/__test/lead-conflict");
+  await login(page, "owner@example.test", `/app/leads/${leadIdForTest()}`);
+  const note = page.getByLabel("Conteúdo da nota");
+  await note.fill("Rascunho E2E");
+  await page.getByRole("button", { name: "Adicionar nota" }).click();
+  await expect(page.getByText(/rascunho foi preservado/iu)).toBeVisible();
+  await expect(note).toHaveValue("Rascunho E2E");
+});
+
+function leadIdForTest(): string {
+  return "00000000-0000-4000-8000-000000000010";
+}

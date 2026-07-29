@@ -55,4 +55,26 @@ describe("createAppQueryClient", () => {
     await cache.cancelAndClearAuthenticated();
     expect(client.getMutationCache().getAll()).toHaveLength(0);
   });
+
+  it("removes only mutations owned by the closed Organization", async () => {
+    const client = createAppQueryClient();
+    const cache = createSessionCache(client);
+    const firstOrganization = "00000000-0000-4000-8000-000000000001";
+    const secondOrganization = "00000000-0000-4000-8000-000000000002";
+    for (const organizationId of [firstOrganization, secondOrganization]) {
+      const mutation = client.getMutationCache().build(client, {
+        mutationKey: queryKeys.organization(organizationId, "lead-update"),
+        mutationFn: () => Promise.resolve(),
+      });
+      await mutation.execute(undefined);
+    }
+
+    cache.removeOrganization(firstOrganization);
+
+    const remaining = client.getMutationCache().getAll();
+    expect(remaining).toHaveLength(1);
+    expect(remaining[0]?.options.mutationKey).toEqual(
+      queryKeys.organization(secondOrganization, "lead-update"),
+    );
+  });
 });

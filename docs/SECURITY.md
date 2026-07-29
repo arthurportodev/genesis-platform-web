@@ -37,6 +37,24 @@
 - Nenhum token, senha, cookie, bootstrap completo ou PII é registrado.
 - ETag permanece opaco; If-Match e Idempotency-Key são enviados somente quando
   solicitados pela feature.
+- Comandos de Lead que combinam concorrência e idempotência exigem ambos os
+  headers e nunca aceitam `If-Match: *`. A mesma chave é reutilizada somente
+  para uma nova tentativa manual do mesmo payload após resultado remoto incerto,
+  inclusive quando houve um replay de refresh; alterar ou abandonar o intento
+  descarta essa chave.
+
+## Dados de Leads
+
+- PII de Lead, busca, diretório de responsáveis e rascunhos permanecem somente
+  em memória; não entram em storage, logs, telemetria, URL do navegador ou
+  BroadcastChannel.
+- Query Cache é segmentado por Organization e removido em troca, logout e
+  expiração. A busca pode existir na chave em memória, sem persistência.
+- Somente owner/admin consulta memberships ativas. Member não recebe diretório
+  nem controle de atribuição; nomes indisponíveis usam rótulos mínimos.
+- ETags são vinculados ao id e à revisão do snapshot sem parsing ou reconstrução.
+  Conflitos preservam o rascunho, relêem a fonte e não reenviam mutações.
+- Fixtures usam exclusivamente identidades e domínios `.test`.
 
 ## Ambientes
 
