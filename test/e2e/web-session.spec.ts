@@ -1,4 +1,11 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
+
+async function expectTouchTarget(locator: Locator) {
+  const box = await locator.boundingBox();
+  if (!box) throw new Error("Touch target não está visível.");
+  expect(box.width).toBeGreaterThanOrEqual(44);
+  expect(box.height).toBeGreaterThanOrEqual(44);
+}
 
 async function resetServer(page: Page) {
   await page.request.post("/__test/reset");
@@ -37,6 +44,23 @@ async function login(
   await page.getByLabel("E-mail").fill(email);
   await page.getByLabel("Senha").fill("correct-horse");
   await page.getByRole("button", { name: "Entrar" }).click();
+}
+
+async function preparePipelineMove(page: Page) {
+  const trigger = page.getByRole("button", {
+    name: /Mover Lead Exemplo para outra etapa/iu,
+  });
+  await trigger.focus();
+  await page.keyboard.press("Enter");
+  const destination = page.getByRole("menuitem", { name: "Proposta" });
+  await expectTouchTarget(destination);
+  await destination.focus();
+  await page.keyboard.press("Enter");
+  const dialog = page.getByRole("dialog", {
+    name: "Confirmar mudança de etapa",
+  });
+  await expect(dialog).toBeVisible();
+  return { trigger, dialog };
 }
 
 test.beforeEach(async ({ page }) => {
@@ -315,6 +339,164 @@ test("conflito de versão preserva o rascunho", async ({ page }) => {
   await page.getByRole("button", { name: "Adicionar nota" }).click();
   await expect(page.getByText(/rascunho foi preservado/iu)).toBeVisible();
   await expect(note).toHaveValue("Rascunho E2E");
+});
+
+test("Pipeline desktop busca, pagina uma coluna e volta do detalhe", async ({
+  page,
+}) => {
+  await login(page, "owner@example.test", "/app/pipeline");
+  await expect(
+    page.getByRole("heading", { name: "Pipeline", exact: true }),
+  ).toBeVisible();
+  await expect(page.getByTestId("pipeline-desktop-board")).toBeVisible();
+  for (const stage of [
+    "Novo",
+    "Qualificação",
+    "Diagnóstico",
+    "Proposta",
+    "Negociação",
+  ]) {
+    await expect(page.getByRole("heading", { name: stage })).toBeVisible();
+  }
+  await expect(page.getByText("1 de 2 carregados")).toBeVisible();
+  await page.getByRole("button", { name: "Carregar mais" }).click();
+  await expect(page.getByText("Lead Continuação")).toBeVisible();
+  await page.getByLabel("Buscar").fill("Lead Exemplo");
+  await expect(page.getByText("Lead Exemplo").first()).toBeVisible();
+  await page
+    .getByRole("article", { name: "Lead Exemplo", exact: true })
+    .getByRole("link", { name: "Abrir detalhe" })
+    .click();
+  await expect(page).toHaveURL(
+    new RegExp(`/app/leads/${leadIdForTest()}$`, "u"),
+  );
+  await page.getByRole("link", { name: "Voltar para o Pipeline" }).click();
+  await expect(page).toHaveURL(/\/app\/pipeline$/u);
+  await expect(page.getByLabel("Buscar")).toHaveValue("Lead Exemplo");
+  await page.getByRole("link", { name: "Leads", exact: true }).click();
+  await expect(
+    page.getByRole("heading", { name: "Inbox de Leads" }),
+  ).toBeVisible();
+  await page.getByRole("link", { name: "Abrir Lead Exemplo" }).click();
+  await expect(
+    page.getByRole("link", { name: "Voltar para a Inbox" }),
+  ).toBeVisible();
+});
+
+test("Pipeline mobile mostra uma coluna, filtros em Sheet e touch targets", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await login(page, "owner@example.test", "/app/pipeline");
+  await expect(page.getByTestId("pipeline-desktop-board")).toBeHidden();
+  const stage = page.getByLabel("Etapa exibida");
+  await expectTouchTarget(stage);
+  await stage.selectOption("qualification");
+  await expect(page.getByText("Lead Exemplo").first()).toBeVisible();
+  const filters = page.getByRole("button", { name: "Filtros" });
+  await expectTouchTarget(filters);
+  await expectTouchTarget(page.getByRole("button", { name: "Atualizar" }));
+  await expectTouchTarget(
+    page.getByRole("button", { name: /Mover Lead Exemplo/iu }),
+  );
+  await filters.click();
+  const sheet = page.getByRole("dialog", { name: "Filtros do Pipeline" });
+  await expect(sheet).toBeVisible();
+  for (const control of [
+    sheet.getByLabel("Buscar"),
+    sheet.getByLabel("Responsável"),
+    sheet.getByLabel("Origem"),
+    sheet.getByLabel("Próxima ação"),
+    sheet.getByRole("button", { name: "Limpar" }),
+    sheet.getByRole("button", { name: "Ver Pipeline" }),
+  ]) {
+    await expectTouchTarget(control);
+  }
+});
+
+test("move server-confirmed por teclado e posiciona foco no destino", async ({
+  page,
+}) => {
+  await login(page, "owner@example.test", "/app/pipeline");
+  const { dialog } = await preparePipelineMove(page);
+  const confirm = dialog.getByRole("button", { name: "Confirmar movimento" });
+  await expectTouchTarget(confirm);
+  await expectTouchTarget(dialog.getByRole("button", { name: "Cancelar" }));
+  await expect(confirm).toBeFocused();
+  await page.keyboard.press("Enter");
+  await expect(page.getByText("Lead movido com sucesso.")).toBeVisible();
+  await expect(
+    page.locator('[data-pipeline-column-heading="proposal"]:visible'),
+  ).toBeFocused();
+  await expect(
+    page.getByRole("button", { name: /Mover Lead Exemplo/iu }),
+  ).toBeEnabled();
+});
+
+for (const status of [409, 412] as const) {
+  test(`conflito ${status} não repete e devolve foco ao card`, async ({
+    page,
+  }) => {
+    await page.request.post(`/__test/pipeline-conflict-${status}`);
+    await login(page, "owner@example.test", "/app/pipeline");
+    const { trigger, dialog } = await preparePipelineMove(page);
+    await dialog.getByRole("button", { name: "Confirmar movimento" }).click();
+    await expect(
+      page.getByText(
+        status === 412
+          ? /atualizado por outra operação/iu
+          : /estágio ou o estado deste Lead mudou/iu,
+      ),
+    ).toBeVisible();
+    await expect(trigger).toBeFocused();
+  });
+}
+
+test("resultado remoto incerto repete a mesma intenção sem optimistic update", async ({
+  page,
+}) => {
+  await login(page, "owner@example.test", "/app/pipeline");
+  let firstMove = true;
+  await page.route("**/api/v1/leads/*/move", async (route) => {
+    if (firstMove) {
+      firstMove = false;
+      await route.abort("connectionrefused");
+      return;
+    }
+    await route.continue();
+  });
+  const { dialog } = await preparePipelineMove(page);
+  await dialog.getByRole("button", { name: "Confirmar movimento" }).click();
+  await expect(
+    page.getByText(/não foi possível confirmar o resultado remoto/iu),
+  ).toBeVisible();
+  await expect(page.getByText("Lead Exemplo").first()).toBeVisible();
+  await page.getByRole("button", { name: "Tentar novamente" }).click();
+  await expect(page.getByText("Lead movido com sucesso.")).toBeVisible();
+  await page.unroute("**/api/v1/leads/*/move");
+});
+
+test("Pipeline troca Organization sem flash e logout remove o board", async ({
+  page,
+}) => {
+  await login(page, "multi@example.test", "/app/pipeline");
+  await page
+    .getByRole("button", { name: /Genesis Teste.*Papel: owner/iu })
+    .click();
+  await page.getByRole("link", { name: "Pipeline" }).click();
+  await expect(page.getByText("Lead Exemplo").first()).toBeVisible();
+  await page.getByRole("button", { name: "Selecionar organização" }).click();
+  await page.getByRole("menuitem", { name: "Segunda Organização" }).click();
+  await expect(page.getByText("Lead Segunda").first()).toBeVisible();
+  await expect(page.getByText("Lead Exemplo")).toHaveCount(0);
+  await page.getByRole("button", { name: "Abrir menu do usuário" }).click();
+  await page.getByRole("menuitem", { name: "Sair", exact: true }).click();
+  await expect(
+    page.getByRole("heading", { name: "Acesse sua conta" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("region", { name: "Pipeline de Leads" }),
+  ).toHaveCount(0);
 });
 
 function leadIdForTest(): string {

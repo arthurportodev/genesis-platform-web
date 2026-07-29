@@ -11,6 +11,7 @@ import {
 } from "@/features/leads/api/lead-labels";
 import { Badge } from "@/shared/ui/Badge";
 import { Card } from "@/shared/ui/Card";
+import { useOptionalLeadPipelineState } from "@/features/leads/model/lead-pipeline-state";
 
 export function LeadInboxList({
   items,
@@ -21,6 +22,7 @@ export function LeadInboxList({
   members: readonly Member[];
   currentMembershipId: string;
 }) {
+  const pipelineState = useOptionalLeadPipelineState();
   return (
     <>
       <div className="hidden overflow-hidden rounded-xl border border-border bg-surface shadow-sm md:block">
@@ -43,6 +45,7 @@ export function LeadInboxList({
                   <Link
                     to="/app/leads/$leadId"
                     params={{ leadId: lead.id }}
+                    onClick={() => pipelineState?.clearDetailOrigin()}
                     className="font-semibold text-foreground hover:text-primary"
                   >
                     {lead.displayName}
@@ -79,6 +82,7 @@ export function LeadInboxList({
                   <Link
                     to="/app/leads/$leadId"
                     params={{ leadId: lead.id }}
+                    onClick={() => pipelineState?.clearDetailOrigin()}
                     aria-label={`Abrir ${lead.displayName}`}
                     className="inline-flex size-9 items-center justify-center rounded-lg hover:bg-muted"
                   >
@@ -98,6 +102,7 @@ export function LeadInboxList({
                 <Link
                   to="/app/leads/$leadId"
                   params={{ leadId: lead.id }}
+                  onClick={() => pipelineState?.clearDetailOrigin()}
                   className="font-semibold"
                 >
                   {lead.displayName}

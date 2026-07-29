@@ -2,7 +2,9 @@ import { z, type ZodType } from "zod";
 
 import {
   cyclesResponseSchema,
+  leadStages,
   leadDetailSchema,
+  leadKanbanResponseSchema,
   leadListResponseSchema,
   leadViewSchema,
   membersResponseSchema,
@@ -12,13 +14,17 @@ import {
   type ActivityType,
   type ArchiveReason,
   type LeadDetail,
+  type LeadKanbanFilters,
   type LeadListFilters,
   type LeadStage,
   type LostReason,
   type NextActionType,
   type UpdateLeadInput,
 } from "@/features/leads/api/lead-contracts";
-import { buildLeadListPath } from "@/features/leads/api/lead-filters";
+import {
+  buildLeadKanbanPath,
+  buildLeadListPath,
+} from "@/features/leads/api/lead-filters";
 import {
   assertCurrentLeadSnapshot,
   createLeadSnapshot,
@@ -120,6 +126,40 @@ export function createLeadApi(http: AuthenticatedHttpClient) {
         signal,
       });
       return parse(leadListResponseSchema, response.data);
+    },
+
+    async kanban(
+      filters: LeadKanbanFilters,
+      page: { stage?: LeadStage; cursor?: string } = {},
+      signal?: AbortSignal,
+    ) {
+      const response = await http.request(buildLeadKanbanPath(filters, page), {
+        kind: "tenant-scoped",
+        method: "GET",
+        signal,
+      });
+      const board = parse(leadKanbanResponseSchema, response.data);
+      if (page.stage) {
+        if (
+          board.columns.length !== 1 ||
+          board.columns[0]?.stage !== page.stage
+        )
+          throw new AppError(
+            "protocol",
+            "A API retornou uma coluna de Kanban inesperada.",
+          );
+      } else if (
+        board.columns.length !== 5 ||
+        !leadStages.every(
+          (stage, index) => board.columns[index]?.stage === stage,
+        )
+      ) {
+        throw new AppError(
+          "protocol",
+          "A API não retornou as cinco colunas canônicas do Kanban.",
+        );
+      }
+      return board;
     },
 
     async detail(

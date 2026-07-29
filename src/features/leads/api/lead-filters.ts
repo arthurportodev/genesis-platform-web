@@ -1,6 +1,10 @@
 import { z } from "zod";
 
-import type { LeadListFilters } from "@/features/leads/api/lead-contracts";
+import type {
+  LeadKanbanFilters,
+  LeadListFilters,
+  LeadStage,
+} from "@/features/leads/api/lead-contracts";
 
 const civilDateSchema = z.iso.date();
 
@@ -10,18 +14,96 @@ export const defaultLeadFilters: LeadListFilters = {
   limit: 25,
 };
 
+export const defaultLeadKanbanFilters: LeadKanbanFilters = { limit: 20 };
+
 export function normalizedLeadSearch(value: string): string | undefined {
   const normalized = value.normalize("NFC").trim();
-  return normalized.length >= 3 && normalized.length <= 100
-    ? normalized
-    : undefined;
+  const length = [...normalized].length;
+  return length >= 3 && length <= 100 ? normalized : undefined;
 }
 
 export function leadSearchMessage(value: string): string | null {
-  const length = value.normalize("NFC").trim().length;
+  const length = [...value.normalize("NFC").trim()].length;
   if (length === 0 || (length >= 3 && length <= 100)) return null;
   if (length < 3) return "Digite ao menos 3 caracteres para buscar.";
   return "A busca aceita no máximo 100 caracteres.";
+}
+
+export function canonicalLeadKanbanFilters(
+  filters: LeadKanbanFilters,
+): LeadKanbanFilters {
+  const assignmentFilters = [
+    filters.responsibleMembershipId,
+    filters.assignedToMe,
+    filters.unassigned,
+  ].filter((value) => value !== undefined && value !== false);
+  if (assignmentFilters.length > 1)
+    throw new Error("Os filtros de responsável são mutuamente exclusivos.");
+  const q = filters.q?.normalize("NFC").trim();
+  if (q && ([...q].length < 3 || [...q].length > 100))
+    throw new Error("A busca do Kanban deve conter entre 3 e 100 caracteres.");
+  if (
+    !Number.isInteger(filters.limit) ||
+    filters.limit < 1 ||
+    filters.limit > 20
+  )
+    throw new Error("O limite do Kanban deve estar entre 1 e 20.");
+  const canonical: LeadKanbanFilters = {
+    limit: filters.limit,
+    ...(q ? { q } : {}),
+    ...(filters.responsibleMembershipId
+      ? { responsibleMembershipId: filters.responsibleMembershipId }
+      : {}),
+    ...(filters.assignedToMe ? { assignedToMe: true } : {}),
+    ...(filters.unassigned ? { unassigned: true } : {}),
+    ...(filters.source ? { source: filters.source } : {}),
+    ...(filters.nextActionState
+      ? { nextActionState: filters.nextActionState }
+      : {}),
+    ...(filters.createdFrom ? { createdFrom: filters.createdFrom } : {}),
+    ...(filters.createdTo ? { createdTo: filters.createdTo } : {}),
+    ...(filters.lastEntryFrom ? { lastEntryFrom: filters.lastEntryFrom } : {}),
+    ...(filters.lastEntryTo ? { lastEntryTo: filters.lastEntryTo } : {}),
+  };
+  return canonical;
+}
+
+export function buildLeadKanbanPath(
+  filters: LeadKanbanFilters,
+  page: { stage?: LeadStage; cursor?: string } = {},
+): string {
+  const canonical = canonicalLeadKanbanFilters(filters);
+  if (
+    (canonical.createdFrom === undefined) !==
+    (canonical.createdTo === undefined)
+  )
+    throw new Error("O período de criação exige os dois limites.");
+  if (
+    (canonical.lastEntryFrom === undefined) !==
+    (canonical.lastEntryTo === undefined)
+  )
+    throw new Error("O período da última entrada exige os dois limites.");
+  if (page.cursor && !page.stage)
+    throw new Error("O cursor do Kanban exige uma etapa.");
+  const search = new URLSearchParams({ limit: String(canonical.limit) });
+  if (canonical.q) search.set("q", canonical.q);
+  if (canonical.responsibleMembershipId)
+    search.set("responsibleMembershipId", canonical.responsibleMembershipId);
+  if (canonical.assignedToMe) search.set("assignedToMe", "true");
+  if (canonical.unassigned) search.set("unassigned", "true");
+  if (canonical.source) search.set("source", canonical.source);
+  if (canonical.nextActionState)
+    search.set("nextActionState", canonical.nextActionState);
+  if (canonical.createdFrom) search.set("createdFrom", canonical.createdFrom);
+  if (canonical.createdTo)
+    search.set("createdTo", nextCivilDate(canonical.createdTo));
+  if (canonical.lastEntryFrom)
+    search.set("lastEntryFrom", canonical.lastEntryFrom);
+  if (canonical.lastEntryTo)
+    search.set("lastEntryTo", nextCivilDate(canonical.lastEntryTo));
+  if (page.stage) search.set("stage", page.stage);
+  if (page.cursor) search.set("cursor", page.cursor);
+  return `/api/v1/leads/kanban?${search.toString()}`;
 }
 
 export function nextCivilDate(value: string): string {

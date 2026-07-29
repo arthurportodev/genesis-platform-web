@@ -10,9 +10,11 @@
 
 ## Próximas tarefas, sem compromisso de escopo
 
-- [ ] Incorporar a Inbox e o detalhe operacional de Leads (`0.7.2`, candidato
-      local concluído, dependente dos Gates de entrega).
-- Integração futura de Pipeline, filas de Follow-up e métricas.
+- [x] Inbox e detalhe operacional de Leads (`0.7.2`, PR #3, squash
+      `859823501bbdee03441a9fa865d823f3890be07a`).
+- [ ] Pipeline Kanban de Leads (`0.7.3`, candidato local concluído, dependente
+      dos Gates de entrega).
+- Integração futura de filas de Follow-up e métricas.
 - Observabilidade e acessibilidade incremental.
 - Tarefa independente para proxy de produção, projeto Vercel, domínio e deploy.
 

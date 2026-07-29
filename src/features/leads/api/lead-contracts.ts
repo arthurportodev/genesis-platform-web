@@ -233,6 +233,63 @@ export const leadListResponseSchema = z.object({
   }),
 });
 
+export const leadKanbanColumnSchema = z
+  .object({
+    stage: z.enum(leadStages),
+    total: z.number().int().nonnegative(),
+    items: z.array(leadListItemSchema),
+    page: z.object({
+      nextCursor: z.string().min(1).max(512).nullable(),
+      limit: z.number().int().min(1).max(20),
+    }),
+  })
+  .superRefine((column, context) => {
+    for (const [index, item] of column.items.entries()) {
+      if (item.stage !== column.stage) {
+        context.addIssue({
+          code: "custom",
+          path: ["items", index, "stage"],
+          message: "O Lead não pertence à coluna informada.",
+        });
+      }
+      if (item.status !== "active") {
+        context.addIssue({
+          code: "custom",
+          path: ["items", index, "status"],
+          message: "O Kanban aceita somente Leads ativos.",
+        });
+      }
+    }
+  });
+
+export const leadKanbanResponseSchema = z
+  .object({
+    columns: z.array(leadKanbanColumnSchema).min(1).max(5),
+    asOf: timestamp,
+  })
+  .superRefine((response, context) => {
+    const stages = response.columns.map(({ stage }) => stage);
+    if (new Set(stages).size !== stages.length) {
+      context.addIssue({
+        code: "custom",
+        path: ["columns"],
+        message: "O Kanban retornou uma etapa duplicada.",
+      });
+    }
+    const ordered = stages.every(
+      (stage, index) =>
+        index === 0 ||
+        leadStages.indexOf(stage) > leadStages.indexOf(stages[index - 1]),
+    );
+    if (!ordered) {
+      context.addIssue({
+        code: "custom",
+        path: ["columns"],
+        message: "As colunas do Kanban estão fora da ordem canônica.",
+      });
+    }
+  });
+
 export const timelineResponseSchema = z.object({
   items: z.array(timelineItemSchema),
   page: z.object({
@@ -294,6 +351,8 @@ export type LostReason = (typeof lostReasons)[number];
 export type ArchiveReason = (typeof archiveReasons)[number];
 export type LeadListItem = z.infer<typeof leadListItemSchema>;
 export type LeadListResponse = z.infer<typeof leadListResponseSchema>;
+export type LeadKanbanColumn = z.infer<typeof leadKanbanColumnSchema>;
+export type LeadKanbanResponse = z.infer<typeof leadKanbanResponseSchema>;
 export type LeadDetail = z.infer<typeof leadDetailSchema>;
 export type TimelineItem = z.infer<typeof timelineItemSchema>;
 export type TimelineResponse = z.infer<typeof timelineResponseSchema>;
@@ -317,6 +376,20 @@ export interface LeadListFilters {
   lastEntryFrom?: string;
   lastEntryTo?: string;
   sort: LeadSort;
+  limit: number;
+}
+
+export interface LeadKanbanFilters {
+  q?: string;
+  source?: LeadSource;
+  responsibleMembershipId?: string;
+  assignedToMe?: boolean;
+  unassigned?: boolean;
+  nextActionState?: LeadNextActionState;
+  createdFrom?: string;
+  createdTo?: string;
+  lastEntryFrom?: string;
+  lastEntryTo?: string;
   limit: number;
 }
 

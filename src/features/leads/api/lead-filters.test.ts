@@ -1,4 +1,6 @@
 import {
+  buildLeadKanbanPath,
+  canonicalLeadKanbanFilters,
   buildLeadListPath,
   leadSearchMessage,
   nextCivilDate,
@@ -23,5 +25,36 @@ describe("filtros da Inbox", () => {
     });
     expect(path).toContain("createdTo=2026-08-01");
     expect(path).toContain("status=active");
+  });
+
+  it("canonicaliza o Kanban e mantém cursor fora dos filtros", () => {
+    const filters = canonicalLeadKanbanFilters({
+      limit: 20,
+      q: "  Jose\u0301  ",
+      source: "manual",
+    });
+    expect(filters).toEqual({ limit: 20, q: "José", source: "manual" });
+    expect(
+      buildLeadKanbanPath(filters, {
+        stage: "qualification",
+        cursor: "opaque.value",
+      }),
+    ).toBe(
+      "/api/v1/leads/kanban?limit=20&q=Jos%C3%A9&source=manual&stage=qualification&cursor=opaque.value",
+    );
+    expect(filters).not.toHaveProperty("cursor");
+  });
+
+  it("rejeita filtros de assignment incompatíveis e períodos parciais", () => {
+    expect(() =>
+      canonicalLeadKanbanFilters({
+        limit: 20,
+        assignedToMe: true,
+        unassigned: true,
+      }),
+    ).toThrow(/mutuamente exclusivos/iu);
+    expect(() =>
+      buildLeadKanbanPath({ limit: 20, createdFrom: "2026-07-01" }),
+    ).toThrow(/dois limites/iu);
   });
 });

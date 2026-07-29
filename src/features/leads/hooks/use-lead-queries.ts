@@ -3,6 +3,7 @@ import { useMemo } from "react";
 
 import type { LeadListFilters } from "@/features/leads/api/lead-contracts";
 import { createLeadApi } from "@/features/leads/api/lead-api";
+import { leadDetailQueryOptions } from "@/features/leads/api/lead-query-options";
 import { leadQueryKeys } from "@/features/leads/api/lead-query-keys";
 import { useHttpClient } from "@/shared/api/http-context";
 import { useActiveOrganization } from "@/shared/organization/active-organization";
@@ -31,11 +32,7 @@ export function useLeadInboxQuery(
 export function useLeadDetailQuery(leadId: string) {
   const organization = useActiveOrganization();
   const api = useLeadApi();
-  return useQuery({
-    queryKey: leadQueryKeys.detail(organization.id, leadId),
-    queryFn: ({ signal }) => api.detail(leadId, signal),
-    staleTime: 15_000,
-  });
+  return useQuery(leadDetailQueryOptions(api, organization.id, leadId));
 }
 
 export function useLeadTimelineQuery(leadId: string) {

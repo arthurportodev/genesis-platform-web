@@ -13,8 +13,12 @@ interface StoredIntentKey {
 export class LeadIntentKeyRegistry {
   readonly #keys = new Map<string, StoredIntentKey>();
 
-  keyFor(name: string, intent: LeadIdempotentAction): IdempotencyKey {
-    const fingerprint = JSON.stringify(intent);
+  keyFor(
+    name: string,
+    intent: LeadIdempotentAction,
+    sourceRevision: string,
+  ): IdempotencyKey {
+    const fingerprint = JSON.stringify({ intent, sourceRevision });
     const stored = this.#keys.get(name);
     if (stored?.fingerprint === fingerprint) return stored.key;
     const key = createIdempotencyKey();
@@ -31,7 +35,6 @@ export function hasUncertainMutationOutcome(kind: AppErrorKind): boolean {
   return (
     kind === "network" ||
     kind === "timeout" ||
-    kind === "server" ||
     kind === "protocol" ||
     kind === "unknown"
   );

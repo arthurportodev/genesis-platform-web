@@ -3,7 +3,7 @@
 Frontend oficial da Genesis Platform, construído com React, Vite e TypeScript
 estrito. Este repositório contém a fundação visual e operacional da área
 administrativa, a integração web de sessão/Organizations/HTTP e a primeira
-experiência operacional de CRM: Inbox e detalhe do Lead.
+experiência operacional de CRM: Inbox, detalhe e Pipeline Kanban de Leads.
 
 ## Requisitos
 
@@ -51,7 +51,11 @@ Leia [docs/START_HERE.md](docs/START_HERE.md) antes de contribuir.
 - Integração web local: implementada por path same-origin `/api/v1` e proxy
   Vite na tarefa `0.7.1.2`.
 - Leads: Inbox, filtros, detalhe, histórico e ações consomem o backend oficial na
-  tarefa `0.7.2`; não existe criação de Lead no frontend.
+  tarefa `0.7.2`.
+- Pipeline: cinco estágios canônicos, paginação independente e movimento
+  server-confirmed com ETag/If-Match e Idempotency-Key na tarefa `0.7.3`.
+- Não existe criação manual de Lead, drag-and-drop ou estágios customizáveis no
+  frontend.
 
 Projeto Vercel, domínio, DNS, proxy de produção e ambientes publicados ainda não
 estão configurados.

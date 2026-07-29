@@ -35,7 +35,8 @@
 ## 0.7.2 — Inbox e Detalhe do Lead
 
 - Classe/perfil: Critical / critical.
-- Estado: candidato local em validação para Gate 2, sem PR ou entrega remota.
+- Estado: incorporada na `main` pelo PR #3, squash
+  `859823501bbdee03441a9fa865d823f3890be07a`.
 - Base frontend: `633ace9b55ec25e70f1f88089865f89db464ed5f`.
 - Backend canônico read-only:
   `57f6955b3a90a29517d5477e75aac97032425ed1`.
@@ -44,3 +45,17 @@
   idempotência.
 - Limites: sem criação de Lead, Pipeline, filas globais, métricas, mudança no
   backend, dependências, Vercel, domínio ou deploy.
+
+## 0.7.3 — Pipeline Kanban de Leads
+
+- Classe/perfil: Critical / critical.
+- Estado: candidato local em validação para Gate 2, sem PR ou entrega remota.
+- Base frontend: `859823501bbdee03441a9fa865d823f3890be07a`.
+- Backend canônico read-only:
+  `57f6955b3a90a29517d5477e75aac97032425ed1`.
+- Entrega: cinco colunas canônicas, filtros, paginação independente, cards com
+  PII minimizada, desktop/mobile e movimento server-confirmed com preflight de
+  ETag opaco, If-Match, Idempotency-Key e tratamento explícito de incerteza e
+  conflitos.
+- Limites: sem drag-and-drop, criação de Lead, estágios customizáveis, filas
+  globais, métricas, mudança no backend, dependências, Vercel ou deploy.

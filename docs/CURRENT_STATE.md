@@ -1,6 +1,6 @@
 # Estado atual
 
-Atualizado para o candidato local da tarefa `0.7.2`.
+Atualizado para o candidato local da tarefa `0.7.3`.
 
 ## Disponível
 
@@ -22,15 +22,23 @@ Atualizado para o candidato local da tarefa `0.7.2`.
   ETag/If-Match e Idempotency-Key conforme o contrato backend.
 - Diretório de responsáveis somente para owner/admin; capacidade frontend é
   apenas UX e nunca substitui autorização do backend.
+- Pipeline com cinco estágios canônicos, carga inicial agregada, filtros em
+  memória e paginação independente por coluna.
+- Cards com PII minimizada, layout horizontal no desktop, uma etapa por vez no
+  mobile e filtros em Sheet.
+- Movimento server-confirmed sem drag-and-drop: detalhe/ETag opaco como
+  preflight, If-Match, Idempotency-Key vinculada à revisão, conflitos sem retry
+  automático e releitura completa do quadro.
 
 ## Não disponível
 
-- Criação de Lead, Pipeline/Kanban, filas globais, página de Follow-up e métricas.
+- Criação de Lead, drag-and-drop, estágios customizáveis, filas globais, página
+  de Follow-up e métricas.
 - Autorização frontend por papel; o backend continua sendo a única autoridade.
 - Persistência de access, bootstrap ou Query Cache.
 - Proxy externo e projeto Vercel, domínio, DNS, staging ou deploy.
 - Preview com acesso à API.
 
-O candidato `0.7.2` ainda não possui PR, squash SHA, release ou deploy. A
-infraestrutura `0.7.1.2` foi incorporada pelo PR #2 no squash
-`633ace9b55ec25e70f1f88089865f89db464ed5f`.
+O candidato `0.7.3` ainda não possui PR, squash SHA, release ou deploy. A tarefa
+`0.7.2` foi incorporada pelo PR #3 no squash
+`859823501bbdee03441a9fa865d823f3890be07a`.

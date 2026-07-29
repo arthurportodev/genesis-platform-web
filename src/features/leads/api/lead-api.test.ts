@@ -7,6 +7,7 @@ import { createLeadSnapshot } from "@/features/leads/api/lead-snapshot";
 import type { AuthenticatedHttpClient } from "@/shared/api/contracts";
 import { createIdempotencyKey } from "@/shared/api/idempotency";
 import { testLead, testMemberId } from "@/test/msw/lead-handlers";
+import { testLeadListItem } from "@/test/msw/lead-handlers";
 
 const createdId = "00000000-0000-4000-8000-000000000099";
 
@@ -142,4 +143,68 @@ describe("createLeadApi mutations", () => {
       );
     },
   );
+});
+
+describe("createLeadApi Kanban", () => {
+  const stages = [
+    "new",
+    "qualification",
+    "diagnosis",
+    "proposal",
+    "negotiation",
+  ] as const;
+  const board = {
+    asOf: "2026-07-28T16:00:00.000Z",
+    columns: stages.map((stage) => ({
+      stage,
+      total: stage === "qualification" ? 1 : 0,
+      items: stage === "qualification" ? [testLeadListItem({ stage })] : [],
+      page: { limit: 20, nextCursor: null },
+    })),
+  };
+
+  it("usa a rota agregada e encaminha AbortSignal", async () => {
+    const request = vi.fn().mockResolvedValue({ data: board, status: 200 });
+    const api = createLeadApi({
+      request,
+    } as AuthenticatedHttpClient);
+    const controller = new AbortController();
+    await expect(
+      api.kanban({ limit: 20, q: "Lead" }, {}, controller.signal),
+    ).resolves.toEqual(board);
+    expect(request).toHaveBeenCalledWith(
+      "/api/v1/leads/kanban?limit=20&q=Lead",
+      { kind: "tenant-scoped", method: "GET", signal: controller.signal },
+    );
+  });
+
+  it("exige exatamente a coluna solicitada na continuação", async () => {
+    const request = vi.fn().mockResolvedValue({ data: board, status: 200 });
+    const api = createLeadApi({
+      request,
+    } as AuthenticatedHttpClient);
+    await expect(
+      api.kanban({ limit: 20 }, { stage: "proposal", cursor: "opaque" }),
+    ).rejects.toMatchObject({ kind: "protocol" });
+  });
+
+  it("aceita o receipt opaco de um move 204", async () => {
+    const { current } = setup();
+    const request = vi.fn().mockResolvedValue({
+      data: undefined,
+      status: 204,
+      etag: '"receipt-opaco"',
+      idempotencyReplayed: true,
+    });
+    const api = createLeadApi({
+      request,
+    } as AuthenticatedHttpClient);
+    await expect(
+      api.act(
+        current,
+        { action: "move", body: { stage: "proposal" } },
+        createIdempotencyKey(),
+      ),
+    ).resolves.toEqual({ etag: '"receipt-opaco"', replayed: true });
+  });
 });

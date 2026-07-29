@@ -2,6 +2,7 @@ import { AdminShell } from "@/features/admin/AdminShell";
 import { SessionGate } from "@/features/auth/SessionGate";
 import { isAuthenticatedState } from "@/features/auth/session/session-machine";
 import { useSession } from "@/features/auth/session/useSession";
+import { LeadPipelineStateProvider } from "@/features/leads/model/LeadPipelineStateProvider";
 import { ActiveOrganizationProvider } from "@/shared/organization/ActiveOrganizationProvider";
 
 export function ProtectedAdminRoute() {
@@ -18,7 +19,9 @@ export function ProtectedAdminRoute() {
         role: state.activeOrganization.role,
       }}
     >
-      <AdminShell />
+      <LeadPipelineStateProvider key={state.activeOrganization.id}>
+        <AdminShell />
+      </LeadPipelineStateProvider>
     </ActiveOrganizationProvider>
   );
 }

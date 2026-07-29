@@ -54,6 +54,14 @@
   nem controle de atribuição; nomes indisponíveis usam rótulos mínimos.
 - ETags são vinculados ao id e à revisão do snapshot sem parsing ou reconstrução.
   Conflitos preservam o rascunho, relêem a fonte e não reenviam mutações.
+- Cards do Pipeline não renderizam telefone, e-mail, UUID, cidade, Instagram ou
+  descrição livre. A resposta completa permanece apenas no Query Cache em
+  memória.
+- Cursores do Kanban são opacos, restritos à coluna, Organization e filtros da
+  query; não são decodificados, fabricados, registrados ou persistidos.
+- O move usa somente ETag opaco do detalhe compatível. A chave idempotente não
+  contém PII e muda com Organization, Lead, revisão de origem ou destino; um
+  resultado remoto incerto exige retry ou abandono explícito.
 - Fixtures usam exclusivamente identidades e domínios `.test`.
 
 ## Ambientes
