@@ -11,6 +11,8 @@
   paginação incremental, PII mínima e ações rápidas server-confirmed.
 - `ADR-006-lead-operational-metrics.md`: resumo agregado, snapshot versus
   período civil, acesso owner/admin, cache tenant e visualização acessível.
+- `ADR-007-manual-lead-creation.md`: formulário completo, respostas por papel,
+  idempotência em memória, resultado incerto, PII e invalidações específicas.
 
 ADRs são imutáveis depois de substituídas. Uma mudança relevante deve criar uma
 nova decisão e apontar qual documento anterior foi superado.

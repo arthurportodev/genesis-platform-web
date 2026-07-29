@@ -22,6 +22,7 @@ describe("cliente HTTP base", () => {
           headers: {
             "Content-Type": "application/json",
             ETag: '"revision-1"',
+            Location: "/api/v1/resource/created",
           },
         },
       ),
@@ -38,6 +39,7 @@ describe("cliente HTTP base", () => {
     });
 
     expect(response.etag).toBe('"revision-1"');
+    expect(response.location).toBe("/api/v1/resource/created");
     expect(fetch).toHaveBeenCalledWith(
       "/api/v1/resource",
       expect.objectContaining({

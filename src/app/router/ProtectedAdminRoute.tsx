@@ -6,6 +6,7 @@ import { LeadPipelineStateProvider } from "@/features/leads/model/LeadPipelineSt
 import { LeadFollowUpStateProvider } from "@/features/leads/model/LeadFollowUpStateProvider";
 import { LeadNavigationStateProvider } from "@/features/leads/model/LeadNavigationStateProvider";
 import { ActiveOrganizationProvider } from "@/shared/organization/ActiveOrganizationProvider";
+import { PendingChangesProvider } from "@/shared/navigation/PendingChangesProvider";
 
 export function ProtectedAdminRoute() {
   const { state } = useSession();
@@ -22,11 +23,13 @@ export function ProtectedAdminRoute() {
       }}
     >
       <LeadNavigationStateProvider key={state.activeOrganization.id}>
-        <LeadFollowUpStateProvider>
-          <LeadPipelineStateProvider>
-            <AdminShell />
-          </LeadPipelineStateProvider>
-        </LeadFollowUpStateProvider>
+        <PendingChangesProvider>
+          <LeadFollowUpStateProvider>
+            <LeadPipelineStateProvider>
+              <AdminShell />
+            </LeadPipelineStateProvider>
+          </LeadFollowUpStateProvider>
+        </PendingChangesProvider>
       </LeadNavigationStateProvider>
     </ActiveOrganizationProvider>
   );

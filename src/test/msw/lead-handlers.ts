@@ -100,6 +100,16 @@ export const testLead = {
   counts: { timeline: 1, cycles: 1, activities: 0, notes: 0 },
 } as const;
 
+const {
+  latestEntry: _latestEntry,
+  latestCycle: _latestCycle,
+  pendingReturn: _pendingReturn,
+  counts: _counts,
+  ...testLeadViewValue
+} = testLead;
+void [_latestEntry, _latestCycle, _pendingReturn, _counts];
+export const testLeadView = testLeadViewValue;
+
 export function testLeadListItem(
   overrides: Partial<LeadListItem> = {},
 ): LeadListItem {
@@ -157,12 +167,20 @@ export function createLeadHandlers(
     metricsRefreshStatus?: number;
     metricsResponse?: LeadMetricsSummary | Record<string, unknown>;
     onMetrics?: (url: URL, request: Request) => void;
+    createStatus?:
+      200 | 201 | 204 | 400 | 401 | 403 | 404 | 409 | 429 | 500 | 503;
+    createReplayed?: boolean;
+    createNetworkFailures?: number;
+    createDelayMs?: number;
+    onCreate?: (request: Request, body: unknown) => void;
+    onMembers?: () => void;
   } = {},
 ) {
   let currentStage: LeadStage = testLead.stage;
   let currentRevision: string = testLead.revision;
   let remainingMoveNetworkFailures = options.moveNetworkFailures ?? 0;
   let metricsRequests = 0;
+  let remainingCreateNetworkFailures = options.createNetworkFailures ?? 0;
   const kanbanResponse = (stage?: string) => {
     const stages = stage
       ? [stage]
@@ -192,6 +210,50 @@ export function createLeadHandlers(
     };
   };
   return [
+    http.post("/api/v1/leads", async ({ request }) => {
+      const body = await request.clone().json();
+      options.onCreate?.(request, body);
+      if (remainingCreateNetworkFailures > 0) {
+        remainingCreateNetworkFailures -= 1;
+        return HttpResponse.error();
+      }
+      if (options.createDelayMs)
+        await new Promise((resolve) =>
+          globalThis.setTimeout(resolve, options.createDelayMs),
+        );
+      if (
+        !requireTenant(request, options.organizationId) ||
+        !request.headers.has("idempotency-key") ||
+        request.headers.has("if-match")
+      )
+        return HttpResponse.json(
+          { statusCode: 400, message: "Invalid create headers" },
+          { status: 400 },
+        );
+      const status = options.createStatus ?? 201;
+      if (status === 204)
+        return new HttpResponse(null, {
+          status,
+          headers: options.createReplayed
+            ? { "Idempotency-Replayed": "true" }
+            : undefined,
+        });
+      if (status !== 200 && status !== 201)
+        return HttpResponse.json(
+          { statusCode: status, message: "Create unavailable" },
+          { status },
+        );
+      return HttpResponse.json(testLeadView, {
+        status,
+        headers: {
+          ETag: `"lead:${testLeadId}:3"`,
+          ...(status === 201
+            ? { Location: `/api/v1/leads/${testLeadId}` }
+            : {}),
+          ...(options.createReplayed ? { "Idempotency-Replayed": "true" } : {}),
+        },
+      });
+    }),
     http.get("/api/v1/leads", ({ request }) => {
       options.onList?.(new URL(request.url));
       if (!requireTenant(request, options.organizationId))
@@ -255,8 +317,9 @@ export function createLeadHandlers(
         headers: { "Cache-Control": "no-store" },
       });
     }),
-    http.get("/api/v1/members", () =>
-      HttpResponse.json({
+    http.get("/api/v1/members", () => {
+      options.onMembers?.();
+      return HttpResponse.json({
         items: [
           {
             id: testMemberId,
@@ -269,8 +332,8 @@ export function createLeadHandlers(
           },
         ],
         page: { nextCursor: null, limit: 100 },
-      }),
-    ),
+      });
+    }),
     http.get(`/api/v1/leads/${testLeadId}`, () => {
       options.onDetail?.();
       if (options.detailStatus && options.detailStatus !== 200)

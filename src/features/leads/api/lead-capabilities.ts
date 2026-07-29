@@ -15,6 +15,12 @@ export interface LeadCapabilities {
   canDismissReturn: boolean;
 }
 
+export function leadCreationCapabilities(organization: ActiveOrganization) {
+  const elevated =
+    organization.role === "owner" || organization.role === "admin";
+  return { canCreateLead: true, canChooseResponsible: elevated } as const;
+}
+
 export function leadWorkCapabilities(
   organization: ActiveOrganization,
   queue: "my-actions" | "unassigned" | "return-reviews",

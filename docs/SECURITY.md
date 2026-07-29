@@ -85,6 +85,16 @@
 - Somente datas civis não sensíveis entram na query string. Payload, contagens,
   sources e timezone não entram em storage, logs, BroadcastChannel ou
   telemetria. Fixtures e screenshots usam dados sintéticos.
+- O draft de criação e sua intenção idempotente ficam somente em memória, fora
+  de Query Cache, Mutation Cache encerrado, URL, storage, logs, telemetria e
+  BroadcastChannel. A chave vincula Organization, ator e payload exato sem
+  conter PII; retry incerto reutiliza essa chave e não é automático.
+- Troca confirmada de Organization desmonta formulário e intenção antes do novo
+  tenant. Logout faz o mesmo sem confirmação. Resposta tardia da instância
+  desmontada não navega, não invalida cache e não atualiza feedback.
+- Member não consulta diretório, não envia responsável e trata `204` de modo
+  opaco. Owner/admin só navegam com ID validado do body; ETag e `Location` são
+  aceitos do backend e nunca construídos pelo frontend.
 
 ## Ambientes
 

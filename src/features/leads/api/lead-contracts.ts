@@ -138,6 +138,45 @@ export const leadViewSchema = z.object({
   nextAction: nextActionSummarySchema.nullable(),
 });
 
+const optionalCreateText = (maximum: number) =>
+  z.string().trim().min(1).max(maximum).optional();
+
+export const createLeadInputSchema = z
+  .object({
+    displayName: z.string().trim().min(1).max(160),
+    primaryPhone: z.string().trim().min(1).max(40),
+    email: z.string().trim().toLowerCase().pipe(z.email().max(320)).optional(),
+    companyName: optionalCreateText(160),
+    instagram: optionalCreateText(64),
+    city: optionalCreateText(120),
+    serviceInterest: optionalCreateText(160),
+    source: z.enum(leadSources).default("manual"),
+    sourceDetail: optionalCreateText(120),
+    utmSource: optionalCreateText(255),
+    utmMedium: optionalCreateText(255),
+    utmCampaign: optionalCreateText(255),
+    utmContent: optionalCreateText(255),
+    utmTerm: optionalCreateText(255),
+    responsibleMembershipId: uuid.optional(),
+  })
+  .strict()
+  .superRefine((input, context) => {
+    if (input.source === "other" && !input.sourceDetail) {
+      context.addIssue({
+        code: "custom",
+        path: ["sourceDetail"],
+        message: "Detalhe a outra origem.",
+      });
+    }
+    if (input.source !== "other" && input.sourceDetail) {
+      context.addIssue({
+        code: "custom",
+        path: ["sourceDetail"],
+        message: "O detalhe só é permitido para outra origem.",
+      });
+    }
+  });
+
 const cycleSchema = z.object({
   id: uuid,
   cycleNumber: revision,
@@ -491,6 +530,18 @@ export type LeadNextActionSummary = z.infer<typeof nextActionSummarySchema>;
 export type LeadKanbanColumn = z.infer<typeof leadKanbanColumnSchema>;
 export type LeadKanbanResponse = z.infer<typeof leadKanbanResponseSchema>;
 export type LeadDetail = z.infer<typeof leadDetailSchema>;
+export type LeadView = z.infer<typeof leadViewSchema>;
+export type CreateLeadInput = z.output<typeof createLeadInputSchema>;
+export type CreateLeadResult =
+  | {
+      kind: "identified";
+      status: 200 | 201;
+      lead: LeadView;
+      etag: string;
+      location: string | null;
+      replayed: boolean;
+    }
+  | { kind: "opaque"; status: 204; replayed: boolean };
 export type TimelineItem = z.infer<typeof timelineItemSchema>;
 export type TimelineResponse = z.infer<typeof timelineResponseSchema>;
 export type NextActionResponse = z.infer<typeof nextActionResponseSchema>;

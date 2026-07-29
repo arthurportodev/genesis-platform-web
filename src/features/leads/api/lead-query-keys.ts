@@ -22,6 +22,8 @@ function root(organizationId: string) {
 
 export const leadQueryKeys = {
   root,
+  create: (organizationId: string) =>
+    [...root(organizationId), "create"] as const,
   inboxes: (organizationId: string) =>
     [...root(organizationId), "inboxes"] as const,
   inbox: (organizationId: string, filters: LeadListFilters, cursor?: string) =>

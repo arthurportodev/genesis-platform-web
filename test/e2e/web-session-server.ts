@@ -37,6 +37,11 @@ let metricsStatus: 400 | 401 | 403 | 429 | 500 | 503 | null = null;
 let metricsMode: "default" | "zeros" | "future-source" = "default";
 let metricsRequests = 0;
 let metricsDelayMs = 0;
+let createMode: "new" | "existing" | "uncertain" | "conflict" = "new";
+let createDelayMs = 0;
+const completedLeadCreates = new Set<string>();
+const createRequestKeys: string[] = [];
+let createHadIfMatch = false;
 
 const leadId = "00000000-0000-4000-8000-000000000010";
 const secondLeadId = "00000000-0000-4000-8000-000000000020";
@@ -328,6 +333,57 @@ async function handleApi(
         total: visible ? 1 : 0,
         asOf: "2026-07-28T16:00:00.000Z",
       },
+    });
+    return;
+  }
+  if (pathname === "/api/v1/leads" && request.method === "POST") {
+    const key = request.headers["idempotency-key"];
+    createHadIfMatch ||= typeof request.headers["if-match"] === "string";
+    if (
+      typeof key !== "string" ||
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu.test(
+        key,
+      ) ||
+      createHadIfMatch
+    ) {
+      authError(response, 400, "Invalid create headers.");
+      return;
+    }
+    createRequestKeys.push(key);
+    await readJson(request);
+    if (createDelayMs > 0)
+      await new Promise((resolve) => setTimeout(resolve, createDelayMs));
+    if (createMode === "conflict") {
+      authError(response, 409, "Create conflict.");
+      return;
+    }
+    const member =
+      tenant.session?.userEmail.startsWith("member") === true ||
+      tenant.organizationId === "00000000-0000-4000-8000-000000000004";
+    if (member) {
+      response.writeHead(204, { "Cache-Control": "no-store" });
+      response.end();
+      return;
+    }
+    const replayed = completedLeadCreates.has(key);
+    completedLeadCreates.add(key);
+    if (createMode === "uncertain" && !replayed) {
+      json(
+        response,
+        200,
+        { outcome: "not-confirmed" },
+        {
+          ETag: `"lead:${leadId}:${leadRevision}"`,
+        },
+      );
+      return;
+    }
+    const status = createMode === "new" && !replayed ? 201 : 200;
+    const created = leadView(leadId, "Lead Exemplo");
+    json(response, status, created, {
+      ETag: `"lead:${leadId}:${leadRevision}"`,
+      ...(status === 201 ? { Location: `/api/v1/leads/${leadId}` } : {}),
+      ...(replayed ? { "Idempotency-Replayed": "true" } : {}),
     });
     return;
   }
@@ -703,6 +759,13 @@ function leadDetail(id: string, displayName: string) {
   };
 }
 
+function leadView(id: string, displayName: string) {
+  const lead = leadDetail(id, displayName);
+  const { latestEntry, latestCycle, pendingReturn, counts, ...view } = lead;
+  void [latestEntry, latestCycle, pendingReturn, counts];
+  return view;
+}
+
 function leadListItem(
   lead: Pick<
     ReturnType<typeof leadDetail>,
@@ -856,6 +919,11 @@ export async function startWebSessionServer() {
         metricsMode = "default";
         metricsRequests = 0;
         metricsDelayMs = 0;
+        createMode = "new";
+        createDelayMs = 0;
+        completedLeadCreates.clear();
+        createRequestKeys.length = 0;
+        createHadIfMatch = false;
         json(response, 200, { ok: true });
         return;
       }
@@ -904,7 +972,32 @@ export async function startWebSessionServer() {
           refreshCount,
           activeRefreshTokens: sessionsByRefresh.size,
           metricsRequests,
+          createRequests: createRequestKeys.length,
+          createKeyReused:
+            createRequestKeys.length > 1 &&
+            new Set(createRequestKeys).size < createRequestKeys.length,
+          createHadIfMatch,
         });
+        return;
+      }
+      if (
+        url.pathname === "/__test/create-delay" &&
+        request.method === "POST"
+      ) {
+        createDelayMs = 800;
+        json(response, 200, { ok: true });
+        return;
+      }
+      if (
+        url.pathname.startsWith("/__test/create-") &&
+        request.method === "POST"
+      ) {
+        const mode = url.pathname.slice("/__test/create-".length);
+        createMode =
+          mode === "existing" || mode === "uncertain" || mode === "conflict"
+            ? mode
+            : "new";
+        json(response, 200, { ok: true });
         return;
       }
       if (

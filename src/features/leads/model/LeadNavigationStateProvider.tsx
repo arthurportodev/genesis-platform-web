@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from "react";
+import { useCallback, useMemo, useState, type ReactNode } from "react";
 
 import {
   LeadNavigationStateContext,
@@ -14,20 +14,40 @@ export function LeadNavigationStateProvider({
     null,
   );
   const [returnScrollY, setReturnScrollY] = useState(0);
+  const [creationNotice, setCreationNotice] = useState<
+    | import("@/features/leads/model/lead-navigation-state").LeadCreationNotice
+    | null
+  >(null);
+  const markDetailOrigin = useCallback(
+    (origin: LeadDetailOrigin, scrollY = 0) => {
+      setDetailOrigin(origin);
+      setReturnScrollY(Math.max(0, scrollY));
+    },
+    [],
+  );
+  const clearDetailOrigin = useCallback(() => {
+    setDetailOrigin(null);
+    setReturnScrollY(0);
+  }, []);
+  const clearCreationNotice = useCallback(() => setCreationNotice(null), []);
   const value = useMemo(
     () => ({
       detailOrigin,
       returnScrollY,
-      markDetailOrigin: (origin: LeadDetailOrigin, scrollY = 0) => {
-        setDetailOrigin(origin);
-        setReturnScrollY(Math.max(0, scrollY));
-      },
-      clearDetailOrigin: () => {
-        setDetailOrigin(null);
-        setReturnScrollY(0);
-      },
+      creationNotice,
+      markDetailOrigin,
+      clearDetailOrigin,
+      setCreationNotice,
+      clearCreationNotice,
     }),
-    [detailOrigin, returnScrollY],
+    [
+      clearCreationNotice,
+      clearDetailOrigin,
+      creationNotice,
+      detailOrigin,
+      markDetailOrigin,
+      returnScrollY,
+    ],
   );
   return (
     <LeadNavigationStateContext.Provider value={value}>

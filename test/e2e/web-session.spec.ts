@@ -15,6 +15,9 @@ async function serverState(page: Page): Promise<{
   refreshCount: number;
   activeRefreshTokens: number;
   metricsRequests: number;
+  createRequests: number;
+  createKeyReused: boolean;
+  createHadIfMatch: boolean;
 }> {
   const response = await page.request.get("/__test/state");
   const value: unknown = await response.json();
@@ -26,7 +29,13 @@ async function serverState(page: Page): Promise<{
     !("activeRefreshTokens" in value) ||
     typeof value.activeRefreshTokens !== "number" ||
     !("metricsRequests" in value) ||
-    typeof value.metricsRequests !== "number"
+    typeof value.metricsRequests !== "number" ||
+    !("createRequests" in value) ||
+    typeof value.createRequests !== "number" ||
+    !("createKeyReused" in value) ||
+    typeof value.createKeyReused !== "boolean" ||
+    !("createHadIfMatch" in value) ||
+    typeof value.createHadIfMatch !== "boolean"
   ) {
     throw new Error("Estado inválido do servidor E2E.");
   }
@@ -34,6 +43,9 @@ async function serverState(page: Page): Promise<{
     refreshCount: value.refreshCount,
     activeRefreshTokens: value.activeRefreshTokens,
     metricsRequests: value.metricsRequests,
+    createRequests: value.createRequests,
+    createKeyReused: value.createKeyReused,
+    createHadIfMatch: value.createHadIfMatch,
   };
 }
 
@@ -333,6 +345,328 @@ test("troca de Organization não exibe Leads do tenant anterior", async ({
   await page.getByRole("menuitem", { name: "Segunda Organização" }).click();
   await expect(page.getByText("Lead Segunda").first()).toBeVisible();
   await expect(page.getByText("Lead Exemplo")).toHaveCount(0);
+});
+
+test("owner cria Lead manual pela Inbox com contrato server-confirmed", async ({
+  page,
+}) => {
+  const consoleMessages: string[] = [];
+  page.on("console", (message) => consoleMessages.push(message.text()));
+  await page.addInitScript(() => {
+    const posted: string[] = [];
+    Object.defineProperty(globalThis, "__leadTestBroadcastMessages", {
+      configurable: true,
+      value: posted,
+    });
+    const originalDescriptor = Object.getOwnPropertyDescriptor(
+      BroadcastChannel.prototype,
+      "postMessage",
+    );
+    if (typeof originalDescriptor?.value !== "function")
+      throw new Error("BroadcastChannel.postMessage indisponível.");
+    const original = originalDescriptor.value as (
+      this: object,
+      message: unknown,
+    ) => void;
+    Object.defineProperty(BroadcastChannel.prototype, "postMessage", {
+      configurable: true,
+      value(this: object, message: unknown) {
+        posted.push(JSON.stringify(message));
+        return Reflect.apply(original, this, [message]);
+      },
+    });
+  });
+  await login(page, "owner@example.test", "/app/leads");
+  await page.getByRole("link", { name: "Novo Lead" }).click();
+  await expect(page).toHaveURL(/\/app\/leads\/new$/u);
+  await page.getByRole("textbox", { name: /^Nome/iu }).fill("Lead E2E");
+  const phone = page.getByRole("textbox", { name: /^Telefone/iu });
+  await expect(phone).toHaveAttribute("type", "tel");
+  await expect(phone).toHaveAttribute("inputmode", "tel");
+  await phone.fill("62999999999");
+  await page.getByRole("textbox", { name: "E-mail" }).fill("LEAD@EXAMPLE.TEST");
+  await page.getByRole("button", { name: "Criar Lead" }).click();
+  await expect(page).toHaveURL(
+    /\/app\/leads\/00000000-0000-4000-8000-000000000010$/u,
+  );
+  await expect(page.getByText("Lead criado.")).toBeVisible();
+  expect((await serverState(page)).createRequests).toBe(1);
+  expect((await serverState(page)).createHadIfMatch).toBe(false);
+  expect(page.url()).not.toContain("Lead%20E2E");
+  expect(
+    await page.evaluate(() =>
+      [localStorage, sessionStorage].some((storage) =>
+        Array.from({ length: storage.length }, (_, index) => {
+          const key = storage.key(index);
+          return key ? (storage.getItem(key) ?? "") : "";
+        }).some((value) =>
+          /Lead E2E|LEAD@EXAMPLE\.TEST|62999999999/iu.test(value),
+        ),
+      ),
+    ),
+  ).toBe(false);
+  expect(
+    consoleMessages.some((value) =>
+      /Lead E2E|LEAD@EXAMPLE\.TEST|62999999999/iu.test(value),
+    ),
+  ).toBe(false);
+  expect(
+    await page.evaluate(() =>
+      (
+        globalThis as unknown as { __leadTestBroadcastMessages: string[] }
+      ).__leadTestBroadcastMessages.some((value) =>
+        /Lead E2E|LEAD@EXAMPLE\.TEST|62999999999/iu.test(value),
+      ),
+    ),
+  ).toBe(false);
+});
+
+test("admin registra outra origem, UTM e responsável em Lead existente", async ({
+  page,
+}) => {
+  await page.request.post("/__test/create-existing");
+  await login(page, "admin@example.test", "/app/leads/new");
+  await page.getByRole("textbox", { name: /^Nome/iu }).fill("Lead Admin");
+  await page
+    .getByRole("textbox", { name: /^Telefone/iu })
+    .fill("+1 202-555-0123");
+  await page.getByLabel("Origem", { exact: true }).selectOption("other");
+  await page
+    .getByRole("textbox", { name: /^Detalhe da origem/iu })
+    .fill("Feira regional");
+  await page.getByLabel("Responsável").selectOption({
+    label: "Pessoa Responsável · responsavel@example.test",
+  });
+  await page.getByText("Rastreamento avançado", { exact: true }).click();
+  await page.getByLabel("UTM campaign").fill("inverno-2026");
+  await page.getByRole("button", { name: "Criar Lead" }).click();
+  await expect(
+    page.getByText("Nova entrada registrada no Lead existente."),
+  ).toBeVisible();
+  await expect(page.getByText(/duplicidade/iu)).toHaveCount(0);
+});
+
+test("member cria com resultado 204 opaco sem consultar responsável", async ({
+  page,
+}) => {
+  await login(page, "member@example.test", "/app/leads/new");
+  await expect(page.getByLabel("Responsável")).toHaveCount(0);
+  await page.getByRole("textbox", { name: /^Nome/iu }).fill("Lead Member");
+  await page.getByRole("textbox", { name: /^Telefone/iu }).fill("11999999999");
+  await page.getByRole("button", { name: "Criar Lead" }).click();
+  await expect(page).toHaveURL(/\/app\/leads$/u);
+  await expect(page.getByText("Solicitação processada.")).toBeVisible();
+  await expect(
+    page.getByText(/Lead criado|Lead atualizado|duplicado/iu),
+  ).toHaveCount(0);
+});
+
+test("validação foca o primeiro erro, limpa sourceDetail e protege draft", async ({
+  page,
+}) => {
+  await login(page, "owner@example.test", "/app/leads/new");
+  await page.getByRole("button", { name: "Criar Lead" }).click();
+  await expect(page.getByRole("textbox", { name: /^Nome/iu })).toBeFocused();
+  await page.getByRole("textbox", { name: /^Nome/iu }).fill("Lead Draft");
+  await page.getByRole("textbox", { name: /^Telefone/iu }).fill("11999999999");
+  await page.getByLabel("Origem", { exact: true }).selectOption("other");
+  await page
+    .getByRole("textbox", { name: /^Detalhe da origem/iu })
+    .fill("Evento");
+  await page.getByLabel("Origem", { exact: true }).selectOption("manual");
+  await expect(
+    page.getByRole("textbox", { name: /^Detalhe da origem/iu }),
+  ).toHaveCount(0);
+  page.once("dialog", (dialog) => dialog.dismiss());
+  await page.getByRole("button", { name: "Cancelar" }).click();
+  await expect(page).toHaveURL(/\/app\/leads\/new$/u);
+  page.once("dialog", (dialog) => dialog.accept());
+  await page.getByRole("button", { name: "Cancelar" }).click();
+  await expect(page).toHaveURL(/\/app\/leads$/u);
+});
+
+test("timeout preserva intenção e confirmação reutiliza a mesma chave", async ({
+  page,
+}) => {
+  await page.request.post("/__test/create-uncertain");
+  await login(page, "owner@example.test", "/app/leads/new");
+  await page.getByRole("textbox", { name: /^Nome/iu }).fill("Lead Incerto");
+  await page.getByRole("textbox", { name: /^Telefone/iu }).fill("11999999999");
+  await page.getByRole("button", { name: "Criar Lead" }).click();
+  await expect(
+    page.getByRole("heading", { name: "Resultado não confirmado" }),
+  ).toBeVisible();
+  await expect(
+    page
+      .getByRole("heading", { name: "Resultado não confirmado" })
+      .locator(".."),
+  ).toHaveAttribute("aria-live", "assertive");
+  await expect(page.getByRole("textbox", { name: /^Nome/iu })).toBeDisabled();
+  await page.getByRole("button", { name: "Tentar confirmar" }).click();
+  await expect(page.getByText("Resultado confirmado.")).toBeVisible();
+  const state = await serverState(page);
+  expect(state.createRequests).toBe(2);
+  expect(state.createKeyReused).toBe(true);
+});
+
+test("troca de Organization confirma descarte e não transporta o draft", async ({
+  page,
+}) => {
+  await login(page, "multi@example.test");
+  await page
+    .getByRole("button", { name: /Genesis Teste.*Papel: owner/iu })
+    .click();
+  await page.goto("/app/leads/new");
+  const name = page.getByRole("textbox", { name: /^Nome/iu });
+  await name.fill("Draft do tenant anterior");
+
+  page.once("dialog", (dialog) => dialog.dismiss());
+  await page.getByRole("button", { name: "Selecionar organização" }).click();
+  await page.getByRole("menuitem", { name: "Segunda Organização" }).click();
+  await expect(name).toHaveValue("Draft do tenant anterior");
+
+  page.once("dialog", (dialog) => dialog.accept());
+  await page.getByRole("button", { name: "Selecionar organização" }).click();
+  await page.getByRole("menuitem", { name: "Segunda Organização" }).click();
+  await expect(
+    page.getByRole("button", { name: "Selecionar organização" }),
+  ).toContainText("Segunda Organização");
+  await expect(page.getByRole("textbox", { name: /^Nome/iu })).toHaveValue("");
+  await expect(page.getByLabel("Responsável")).toHaveCount(0);
+});
+
+test("logout descarta o draft sem bloquear a saída", async ({ page }) => {
+  await login(page, "owner@example.test", "/app/leads/new");
+  await page
+    .getByRole("textbox", { name: /^Nome/iu })
+    .fill("Draft descartado no logout");
+  let dialogs = 0;
+  page.on("dialog", async (dialog) => {
+    dialogs += 1;
+    await dialog.dismiss();
+  });
+  await page.getByRole("button", { name: "Abrir menu do usuário" }).click();
+  await page.getByRole("menuitem", { name: "Sair", exact: true }).click();
+  await expect(
+    page.getByRole("heading", { name: "Acesse sua conta" }),
+  ).toBeVisible();
+  expect(dialogs).toBe(0);
+});
+
+test("reload avisa sobre draft e reinicia o formulário somente em memória", async ({
+  page,
+}) => {
+  await login(page, "owner@example.test", "/app/leads/new");
+  await page.getByRole("textbox", { name: /^Nome/iu }).fill("Draft de reload");
+  let beforeUnloadSeen = false;
+  page.once("dialog", async (dialog) => {
+    beforeUnloadSeen = dialog.type() === "beforeunload";
+    await dialog.accept();
+  });
+  await page.reload();
+  await expect(page.getByRole("heading", { name: "Novo Lead" })).toBeVisible();
+  expect(beforeUnloadSeen).toBe(true);
+  await expect(page.getByRole("textbox", { name: /^Nome/iu })).toHaveValue("");
+});
+
+test("troca é recusada durante request e a resposta permanece no tenant original", async ({
+  page,
+}) => {
+  await page.request.post("/__test/create-delay");
+  await login(page, "multi@example.test");
+  await page
+    .getByRole("button", { name: /Genesis Teste.*Papel: owner/iu })
+    .click();
+  await page.goto("/app/leads/new");
+  await page.getByRole("textbox", { name: /^Nome/iu }).fill("Lead concorrente");
+  await page.getByRole("textbox", { name: /^Telefone/iu }).fill("11999999999");
+  await page.getByRole("button", { name: "Criar Lead" }).click();
+  page.once("dialog", (dialog) => dialog.accept());
+  await page.getByRole("button", { name: "Selecionar organização" }).click();
+  await page.getByRole("menuitem", { name: "Segunda Organização" }).click();
+  await expect(
+    page.getByText(/Aguarde a operação atual terminar/iu),
+  ).toBeVisible();
+  await expect(page).toHaveURL(
+    /\/app\/leads\/00000000-0000-4000-8000-000000000010$/u,
+  );
+  await expect(
+    page.getByRole("button", { name: "Selecionar organização" }),
+  ).toContainText("Genesis Teste");
+});
+
+test("logout durante request ignora a resposta tardia", async ({ page }) => {
+  await page.request.post("/__test/create-delay");
+  await login(page, "owner@example.test", "/app/leads/new");
+  await page.getByRole("textbox", { name: /^Nome/iu }).fill("Lead tardio");
+  await page.getByRole("textbox", { name: /^Telefone/iu }).fill("11999999999");
+  await page.getByRole("button", { name: "Criar Lead" }).click();
+  await page.getByRole("button", { name: "Abrir menu do usuário" }).click();
+  await page.getByRole("menuitem", { name: "Sair", exact: true }).click();
+  await expect(
+    page.getByRole("heading", { name: "Acesse sua conta" }),
+  ).toBeVisible();
+  await page.waitForTimeout(1_000);
+  await expect(page).toHaveURL(/\/login/u);
+  await expect(page.getByText("Lead criado.")).toHaveCount(0);
+});
+
+test("conflito não repete automaticamente e preserva o formulário", async ({
+  page,
+}) => {
+  await page.request.post("/__test/create-conflict");
+  await login(page, "owner@example.test", "/app/leads/new");
+  const name = page.getByRole("textbox", { name: /^Nome/iu });
+  await name.fill("Lead Conflito");
+  await page.getByRole("textbox", { name: /^Telefone/iu }).fill("11999999999");
+  await page.getByRole("button", { name: "Criar Lead" }).click();
+  await expect(
+    page.getByText(/intenção de criação entrou em conflito/iu),
+  ).toBeVisible();
+  await expect(name).toHaveValue("Lead Conflito");
+  await page.waitForTimeout(300);
+  expect((await serverState(page)).createRequests).toBe(1);
+});
+
+test("criação mobile mantém inputs e ações acessíveis", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await login(page, "owner@example.test", "/app/leads/new");
+  await expect(page.getByRole("heading", { name: "Novo Lead" })).toBeVisible();
+  await expectTouchTarget(page.getByRole("textbox", { name: /^Nome/iu }));
+  await expectTouchTarget(page.getByRole("textbox", { name: /^Telefone/iu }));
+  await expectTouchTarget(page.getByRole("button", { name: "Cancelar" }));
+  await expectTouchTarget(page.getByRole("button", { name: "Criar Lead" }));
+  expect(
+    await page.evaluate(
+      () =>
+        (
+          globalThis as unknown as {
+            matchMedia: (query: string) => { matches: boolean };
+          }
+        ).matchMedia("(prefers-reduced-motion: reduce)").matches,
+    ),
+  ).toBe(true);
+  const name = page.getByRole("textbox", { name: /^Nome/iu });
+  const phone = page.getByRole("textbox", { name: /^Telefone/iu });
+  await name.focus();
+  await page.keyboard.press("Tab");
+  await expect(phone).toBeFocused();
+  await page.keyboard.press("Tab");
+  await expect(page.getByRole("textbox", { name: "E-mail" })).toBeFocused();
+  await expect(name).toHaveAttribute("required", "");
+  await expect(phone).toHaveAttribute("aria-required", "true");
+  await expect(page.getByRole("textbox", { name: "E-mail" })).toHaveAttribute(
+    "inputmode",
+    "email",
+  );
+});
+
+test("Novo Lead permanece restrito à Inbox", async ({ page }) => {
+  await login(page, "owner@example.test", "/app/pipeline");
+  await expect(page.getByRole("link", { name: "Novo Lead" })).toHaveCount(0);
+  await page.getByRole("link", { name: "Leads", exact: true }).click();
+  await expect(page.getByRole("link", { name: "Novo Lead" })).toBeVisible();
 });
 
 test("conflito de versão preserva o rascunho", async ({ page }) => {
