@@ -230,6 +230,33 @@ describe("cliente HTTP autenticado", () => {
     expect(refresh).not.toHaveBeenCalled();
   });
 
+  it("preserva o forbidden e inicia rebootstrap fail-closed mesmo se ele falhar", async () => {
+    const request = vi
+      .fn()
+      .mockRejectedValue(new AppError("forbidden", "Acesso revogado."));
+    const rebootstrap = vi
+      .fn()
+      .mockRejectedValue(new AppError("network", "Sem conexão."));
+    const client = createAuthenticatedHttpClient(
+      { request },
+      {
+        getAccessToken: () => "token",
+        getActiveOrganizationId: () => "00000000-0000-4000-8000-000000000001",
+        refresh: vi.fn(),
+        expireSession: vi.fn(),
+        rebootstrap,
+      },
+    );
+
+    await expect(
+      client.request("/api/v1/leads/metrics/summary", {
+        kind: "tenant-scoped",
+        method: "GET",
+      }),
+    ).rejects.toMatchObject({ kind: "forbidden" });
+    expect(rebootstrap).toHaveBeenCalledOnce();
+  });
+
   it("exige If-Match e Idempotency-Key no modo combinado", async () => {
     const fetch = vi
       .fn<typeof globalThis.fetch>()

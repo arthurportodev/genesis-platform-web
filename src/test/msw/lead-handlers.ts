@@ -2,6 +2,7 @@ import { HttpResponse, http } from "msw";
 
 import type {
   LeadListItem,
+  LeadMetricsSummary,
   LeadStage,
 } from "@/features/leads/api/lead-contracts";
 
@@ -10,6 +11,30 @@ export const testMemberId = "00000000-0000-4000-8000-000000000011";
 const cycleId = "00000000-0000-4000-8000-000000000012";
 const entryId = "00000000-0000-4000-8000-000000000013";
 const eventId = "00000000-0000-4000-8000-000000000014";
+
+export const testMetricsSummary: LeadMetricsSummary = {
+  asOf: "2026-07-29T16:40:00.000Z",
+  timeZone: "America/Belem",
+  snapshot: {
+    active: 42,
+    unassigned: 7,
+    overdue: 5,
+    withoutNextAction: 9,
+    pendingReturns: 2,
+  },
+  period: {
+    from: "2026-06-30" as LeadMetricsSummary["period"]["from"],
+    to: "2026-07-29" as LeadMetricsSummary["period"]["to"],
+    created: 30,
+    won: 12,
+    lost: 8,
+    createdBySource: [
+      { source: "campaign", count: 12 },
+      { source: "landing_page", count: 10 },
+      { source: "manual", count: 8 },
+    ],
+  },
+};
 
 export const testLead = {
   id: testLeadId,
@@ -128,11 +153,16 @@ export function createLeadHandlers(
     onDetail?: () => void;
     moveDelayMs?: number;
     moveNetworkFailures?: number;
+    metricsStatus?: number;
+    metricsRefreshStatus?: number;
+    metricsResponse?: LeadMetricsSummary | Record<string, unknown>;
+    onMetrics?: (url: URL, request: Request) => void;
   } = {},
 ) {
   let currentStage: LeadStage = testLead.stage;
   let currentRevision: string = testLead.revision;
   let remainingMoveNetworkFailures = options.moveNetworkFailures ?? 0;
+  let metricsRequests = 0;
   const kanbanResponse = (stage?: string) => {
     const stages = stage
       ? [stage]
@@ -202,6 +232,28 @@ export function createLeadHandlers(
           { status },
         );
       return HttpResponse.json(kanbanResponse(stage));
+    }),
+    http.get("/api/v1/leads/metrics/summary", ({ request }) => {
+      metricsRequests += 1;
+      const url = new URL(request.url);
+      options.onMetrics?.(url, request);
+      if (!requireTenant(request, options.organizationId))
+        return HttpResponse.json(
+          { statusCode: 403, message: "Forbidden" },
+          { status: 403 },
+        );
+      const status =
+        metricsRequests > 1
+          ? (options.metricsRefreshStatus ?? options.metricsStatus)
+          : options.metricsStatus;
+      if (status && status !== 200)
+        return HttpResponse.json(
+          { statusCode: status, message: "Metrics unavailable" },
+          { status },
+        );
+      return HttpResponse.json(options.metricsResponse ?? testMetricsSummary, {
+        headers: { "Cache-Control": "no-store" },
+      });
     }),
     http.get("/api/v1/members", () =>
       HttpResponse.json({

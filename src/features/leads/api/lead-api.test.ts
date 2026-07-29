@@ -8,6 +8,7 @@ import type { AuthenticatedHttpClient } from "@/shared/api/contracts";
 import { createIdempotencyKey } from "@/shared/api/idempotency";
 import { testLead, testMemberId } from "@/test/msw/lead-handlers";
 import { testLeadListItem } from "@/test/msw/lead-handlers";
+import { testMetricsSummary } from "@/test/msw/lead-handlers";
 
 const createdId = "00000000-0000-4000-8000-000000000099";
 
@@ -143,6 +144,46 @@ describe("createLeadApi mutations", () => {
       );
     },
   );
+});
+
+describe("createLeadApi Metrics", () => {
+  it.each([
+    [{ kind: "default" } as const, "/api/v1/leads/metrics/summary"],
+    [
+      {
+        kind: "range",
+        from: "2026-07-01" as never,
+        to: "2026-07-29" as never,
+      } as const,
+      "/api/v1/leads/metrics/summary?from=2026-07-01&to=2026-07-29",
+    ],
+  ])("consulta o resumo tenant-scoped", async (period, path) => {
+    const request = vi
+      .fn()
+      .mockResolvedValue({ data: testMetricsSummary, status: 200 });
+    const signal = new AbortController().signal;
+    const api = createLeadApi({ request } as AuthenticatedHttpClient);
+    await expect(api.metrics(period, signal)).resolves.toEqual(
+      testMetricsSummary,
+    );
+    expect(request).toHaveBeenCalledWith(path, {
+      kind: "tenant-scoped",
+      method: "GET",
+      signal,
+    });
+  });
+
+  it("rejeita resposta parcial como erro de protocolo", async () => {
+    const api = createLeadApi({
+      request: vi.fn().mockResolvedValue({
+        data: { asOf: testMetricsSummary.asOf },
+        status: 200,
+      }),
+    } as AuthenticatedHttpClient);
+    await expect(api.metrics({ kind: "default" })).rejects.toMatchObject({
+      kind: "protocol",
+    });
+  });
 });
 
 describe("createLeadApi Kanban", () => {

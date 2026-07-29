@@ -33,6 +33,10 @@ const completedPipelineMoves = new Set<string>();
 let workLeadRevision = 3;
 let workLeadCompleted = false;
 const completedWorkActions = new Set<string>();
+let metricsStatus: 400 | 401 | 403 | 429 | 500 | 503 | null = null;
+let metricsMode: "default" | "zeros" | "future-source" = "default";
+let metricsRequests = 0;
+let metricsDelayMs = 0;
 
 const leadId = "00000000-0000-4000-8000-000000000010";
 const secondLeadId = "00000000-0000-4000-8000-000000000020";
@@ -131,19 +135,18 @@ function organizations(email: string) {
     name: "Genesis Teste",
     slug: "genesis-teste",
     membershipId: "00000000-0000-4000-8000-000000000003",
-    role: "owner",
+    role: email.startsWith("admin") ? "admin" : "owner",
   };
+  const second = {
+    id: "00000000-0000-4000-8000-000000000004",
+    name: "Segunda Organização",
+    slug: "segunda-organizacao",
+    membershipId: "00000000-0000-4000-8000-000000000005",
+    role: "member",
+  };
+  if (email.startsWith("member")) return [second];
   if (!email.startsWith("multi")) return [first];
-  return [
-    first,
-    {
-      id: "00000000-0000-4000-8000-000000000004",
-      name: "Segunda Organização",
-      slug: "segunda-organizacao",
-      membershipId: "00000000-0000-4000-8000-000000000005",
-      role: "member",
-    },
-  ];
+  return [first, second];
 }
 
 function tokenResponse(session: Session) {
@@ -372,6 +375,57 @@ async function handleApi(
               : null,
         },
       })),
+    });
+    return;
+  }
+  if (
+    pathname === "/api/v1/leads/metrics/summary" &&
+    request.method === "GET"
+  ) {
+    metricsRequests += 1;
+    if (metricsDelayMs > 0)
+      await new Promise((resolve) => setTimeout(resolve, metricsDelayMs));
+    const member =
+      tenant.session?.userEmail.startsWith("member") === true ||
+      tenant.organizationId === "00000000-0000-4000-8000-000000000004";
+    if (member || metricsStatus === 403) {
+      authError(response, 403, "Forbidden");
+      return;
+    }
+    if (metricsStatus) {
+      authError(response, metricsStatus, "Metrics unavailable.");
+      return;
+    }
+    const from = requestUrl.searchParams.get("from") ?? "2026-06-30";
+    const to = requestUrl.searchParams.get("to") ?? "2026-07-29";
+    const zero = metricsMode === "zeros";
+    const future = metricsMode === "future-source";
+    json(response, 200, {
+      asOf: "2026-07-29T16:40:00.000Z",
+      timeZone: "America/Belem",
+      snapshot: {
+        active: zero ? 0 : 42,
+        unassigned: zero ? 0 : 7,
+        overdue: zero ? 0 : 5,
+        withoutNextAction: zero ? 0 : 9,
+        pendingReturns: zero ? 0 : 2,
+      },
+      period: {
+        from,
+        to,
+        created: zero ? 0 : future ? 2 : 30,
+        won: zero ? 0 : 12,
+        lost: zero ? 0 : 8,
+        createdBySource: zero
+          ? []
+          : future
+            ? [{ source: "partner_referral", count: 2 }]
+            : [
+                { source: "campaign", count: 12 },
+                { source: "landing_page", count: 10 },
+                { source: "manual", count: 8 },
+              ],
+      },
     });
     return;
   }
@@ -798,6 +852,10 @@ export async function startWebSessionServer() {
         workLeadRevision = 3;
         workLeadCompleted = false;
         completedWorkActions.clear();
+        metricsStatus = null;
+        metricsMode = "default";
+        metricsRequests = 0;
+        metricsDelayMs = 0;
         json(response, 200, { ok: true });
         return;
       }
@@ -845,7 +903,51 @@ export async function startWebSessionServer() {
         json(response, 200, {
           refreshCount,
           activeRefreshTokens: sessionsByRefresh.size,
+          metricsRequests,
         });
+        return;
+      }
+      if (
+        url.pathname.startsWith("/__test/metrics-status-") &&
+        request.method === "POST"
+      ) {
+        const status = Number(
+          url.pathname.slice("/__test/metrics-status-".length),
+        );
+        metricsStatus =
+          status === 400 ||
+          status === 401 ||
+          status === 403 ||
+          status === 429 ||
+          status === 500 ||
+          status === 503
+            ? status
+            : null;
+        json(response, 200, { ok: true });
+        return;
+      }
+      if (
+        url.pathname === "/__test/metrics-delay" &&
+        request.method === "POST"
+      ) {
+        metricsDelayMs = 800;
+        json(response, 200, { ok: true });
+        return;
+      }
+      if (
+        url.pathname === "/__test/metrics-zeros" &&
+        request.method === "POST"
+      ) {
+        metricsMode = "zeros";
+        json(response, 200, { ok: true });
+        return;
+      }
+      if (
+        url.pathname === "/__test/metrics-future-source" &&
+        request.method === "POST"
+      ) {
+        metricsMode = "future-source";
+        json(response, 200, { ok: true });
         return;
       }
       if (url.pathname === "/__test/expire" && request.method === "POST") {

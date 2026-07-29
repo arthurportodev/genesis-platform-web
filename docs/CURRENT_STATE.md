@@ -1,6 +1,6 @@
 # Estado atual
 
-Atualizado para o candidato local da tarefa `0.7.4`.
+Atualizado para o candidato local da tarefa `0.7.5`.
 
 ## Disponível
 
@@ -36,16 +36,25 @@ Atualizado para o candidato local da tarefa `0.7.4`.
 - Ações rápidas de Next Action, assignment e dismiss usam detalhe/ETag opaco,
   intenção idempotente contextual quando aplicável, conflitos sem retry,
   tratamento de resultado remoto incerto e invalidação específica.
+- Página `/app/metrics` para owner/admin sobre o resumo oficial do backend, com
+  snapshot atual, período default/customizado, presets, query string validada,
+  timezone da Organization e refresh manual sem polling.
+- Métricas mantêm snapshot e eventos do período separados, identificam won/lost
+  como ciclos, limitam a taxa de ganho aos ciclos decididos e apresentam origem
+  inicial em lista e barras CSS acessíveis, sem biblioteca gráfica.
+- Query Cache de Metrics é tenant-scoped, somente em memória e removido na troca
+  de Organization, logout ou perda de papel; member não monta a consulta.
 
 ## Não disponível
 
-- Criação de Lead, drag-and-drop, estágios customizáveis, métricas, calendário,
+- Criação de Lead, drag-and-drop, estágios customizáveis, calendário,
   automações e comunicação externa.
-- Autorização frontend por papel; o backend continua sendo a única autoridade.
+- Autorização frontend como fronteira de segurança; o backend continua sendo a
+  única autoridade.
 - Persistência de access, bootstrap ou Query Cache.
 - Proxy externo e projeto Vercel, domínio, DNS, staging ou deploy.
 - Preview com acesso à API.
 
-A tarefa `0.7.3` foi incorporada pelo PR #4 no squash
-`1040523fa4b415e1cdf25d7f61085c3765f33eb9`. O candidato `0.7.4` ainda não
+A tarefa `0.7.4` foi incorporada pelo PR #5 no squash
+`f9fc37dd31fa2116a66354d46938c60d566fe101`. O candidato `0.7.5` ainda não
 possui PR, squash SHA, release ou deploy.

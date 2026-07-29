@@ -64,7 +64,8 @@
 ## 0.7.4 — Follow-up e Filas Operacionais
 
 - Classe/perfil: Critical / critical.
-- Estado: candidato local em validação para Gate 2, sem PR ou entrega remota.
+- Estado: incorporada na `main` pelo PR #5, squash
+  `f9fc37dd31fa2116a66354d46938c60d566fe101`.
 - Base frontend: `1040523fa4b415e1cdf25d7f61085c3765f33eb9`.
 - Backend canônico read-only:
   `57f6955b3a90a29517d5477e75aac97032425ed1`.
@@ -73,3 +74,17 @@
   rápidas server-confirmed com ETag, idempotência contextual e incerteza segura.
 - Limites: sem métricas, calendário, comunicação, automações, polling, mudança
   no backend, dependências, Vercel ou deploy.
+
+## 0.7.5 — Métricas Operacionais de Leads
+
+- Classe/perfil: Critical / critical.
+- Estado: candidato local em validação para Gate 2, sem PR ou entrega remota.
+- Base frontend: `f9fc37dd31fa2116a66354d46938c60d566fe101`.
+- Backend canônico read-only:
+  `57f6955b3a90a29517d5477e75aac97032425ed1`.
+- Entrega: `/app/metrics` para owner/admin, resumo oficial tenant-scoped,
+  snapshot atual, período civil default/customizado, presets e URL, sources,
+  taxa limitada a ciclos decididos, refresh sem polling, desktop/mobile,
+  acessibilidade e invalidações específicas.
+- Limites: backend e dependências inalterados; sem Overview com métricas,
+  conversão de Leads, tracking, BI, anúncios, Vercel ou deploy.

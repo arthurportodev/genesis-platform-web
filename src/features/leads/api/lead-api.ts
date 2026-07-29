@@ -6,6 +6,7 @@ import {
   leadDetailSchema,
   leadKanbanResponseSchema,
   leadListResponseSchema,
+  leadMetricsSummarySchema,
   leadReturnReviewQueueResponseSchema,
   leadViewSchema,
   leadWorkListResponseSchema,
@@ -33,6 +34,7 @@ import {
   buildLeadReturnReviewPath,
   buildLeadUnassignedPath,
 } from "@/features/leads/api/lead-filters";
+import type { CanonicalMetricsPeriod } from "@/features/leads/model/lead-metrics-period";
 import {
   assertCurrentLeadSnapshot,
   createLeadSnapshot,
@@ -123,6 +125,20 @@ const actionSuffix: Record<LeadIdempotentAction["action"], string> = {
 
 export function createLeadApi(http: AuthenticatedHttpClient) {
   return {
+    async metrics(period: CanonicalMetricsPeriod, signal?: AbortSignal) {
+      const search = new URLSearchParams();
+      if (period.kind === "range") {
+        search.set("from", period.from);
+        search.set("to", period.to);
+      }
+      const suffix = search.size === 0 ? "" : `?${search.toString()}`;
+      const response = await http.request(
+        `/api/v1/leads/metrics/summary${suffix}`,
+        { kind: "tenant-scoped", method: "GET", signal },
+      );
+      return parse(leadMetricsSummarySchema, response.data);
+    },
+
     async list(
       filters: LeadListFilters,
       cursor?: string,

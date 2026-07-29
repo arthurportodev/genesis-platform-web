@@ -1,5 +1,11 @@
 import { z } from "zod";
 
+import {
+  inclusiveCivilDays,
+  isUsableTimeZone,
+  isValidCivilDate,
+} from "@/features/leads/model/lead-metrics-period";
+
 export const leadStatuses = ["active", "won", "lost", "archived"] as const;
 export const leadStages = [
   "new",
@@ -64,6 +70,11 @@ export const archiveReasons = [
 const uuid = z.uuid();
 const timestamp = z.iso.datetime({ offset: true });
 const revision = z.string().regex(/^(0|[1-9]\d*)$/u);
+const safeCount = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER);
+const civilDate = z
+  .string()
+  .refine(isValidCivilDate, "Data civil inválida.")
+  .transform((value) => value);
 
 export const nextActionSummarySchema = z.object({
   id: uuid,
@@ -393,6 +404,68 @@ export const membersResponseSchema = z.object({
   }),
 });
 
+export const leadMetricsSummarySchema = z
+  .object({
+    asOf: timestamp,
+    timeZone: z.string().min(1).max(64).refine(isUsableTimeZone),
+    snapshot: z.object({
+      active: safeCount,
+      unassigned: safeCount,
+      overdue: safeCount,
+      withoutNextAction: safeCount,
+      pendingReturns: safeCount,
+    }),
+    period: z.object({
+      from: civilDate,
+      to: civilDate,
+      created: safeCount,
+      won: safeCount,
+      lost: safeCount,
+      createdBySource: z
+        .array(
+          z.object({
+            source: z.string().min(1).max(32),
+            count: safeCount.positive(),
+          }),
+        )
+        .max(64),
+    }),
+  })
+  .superRefine((summary, context) => {
+    const validPeriod =
+      isValidCivilDate(summary.period.from) &&
+      isValidCivilDate(summary.period.to);
+    const days = validPeriod
+      ? inclusiveCivilDays(summary.period.from, summary.period.to)
+      : 0;
+    if (validPeriod && (days < 1 || days > 366)) {
+      context.addIssue({
+        code: "custom",
+        path: ["period"],
+        message: "O período retornado é inválido.",
+      });
+    }
+    const sources = summary.period.createdBySource.map(({ source }) => source);
+    if (new Set(sources).size !== sources.length) {
+      context.addIssue({
+        code: "custom",
+        path: ["period", "createdBySource"],
+        message: "A resposta contém uma origem duplicada.",
+      });
+    }
+    const sourceTotal = summary.period.createdBySource.reduce(
+      (total, source) => total + source.count,
+      0,
+    );
+    if (sourceTotal !== summary.period.created) {
+      context.addIssue({
+        code: "custom",
+        path: ["period", "createdBySource"],
+        message: "A distribuição por origem não corresponde aos Leads criados.",
+      });
+    }
+  });
+
 export const mutationCreatedSchema = z.object({ id: uuid });
 
 export type LeadStatus = (typeof leadStatuses)[number];
@@ -424,6 +497,7 @@ export type NextActionResponse = z.infer<typeof nextActionResponseSchema>;
 export type CyclesResponse = z.infer<typeof cyclesResponseSchema>;
 export type Member = z.infer<typeof memberSchema>;
 export type MembersResponse = z.infer<typeof membersResponseSchema>;
+export type LeadMetricsSummary = z.infer<typeof leadMetricsSummarySchema>;
 
 export interface LeadListFilters {
   q?: string;

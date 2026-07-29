@@ -76,6 +76,15 @@
   cego. `409/412` descartam a intenção antiga.
 - Filtros, cursores, contexto de retorno e rascunhos dos diálogos permanecem em
   memória. Não entram em URL, storage, logs ou BroadcastChannel.
+- Métricas agregadas continuam sendo dados comerciais sensíveis. Somente
+  owner/admin veem a navegação e montam a query; member e perda de papel
+  cancelam/removem a sub-raiz `leads/metrics`, sem renderizar dados anteriores.
+- Keys de Metrics incluem Organization e período canônico. Cache permanece em
+  memória e é removido também na troca de Organization, logout e expiração;
+  respostas tardias do tenant anterior não atravessam os providers.
+- Somente datas civis não sensíveis entram na query string. Payload, contagens,
+  sources e timezone não entram em storage, logs, BroadcastChannel ou
+  telemetria. Fixtures e screenshots usam dados sintéticos.
 
 ## Ambientes
 

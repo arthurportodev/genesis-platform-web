@@ -103,7 +103,7 @@ describe("Pipeline Kanban de Leads", () => {
     server.use(
       ...createAuthHandlers(),
       ...createLeadHandlers({
-        moveDelayMs: 120,
+        moveDelayMs: 500,
         onDetail: () => (details += 1),
         onMutation: (request) =>
           calls.push({
