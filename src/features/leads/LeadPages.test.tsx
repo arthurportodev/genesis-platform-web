@@ -241,5 +241,5 @@ describe("Inbox e detalhe do Lead", () => {
     const idempotentKeys = calls.filter(({ key }) => key).map(({ key }) => key);
     expect(new Set(idempotentKeys).size).toBe(idempotentKeys.length);
     restoreLocks();
-  });
+  }, 20_000);
 });

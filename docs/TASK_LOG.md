@@ -78,7 +78,8 @@
 ## 0.7.5 — Métricas Operacionais de Leads
 
 - Classe/perfil: Critical / critical.
-- Estado: candidato local em validação para Gate 2, sem PR ou entrega remota.
+- Estado: incorporada na `main` pelo PR #6, squash
+  `1ac7e26cda535cbf3e5c02dd78da4e0fb95a2e9e`.
 - Base frontend: `f9fc37dd31fa2116a66354d46938c60d566fe101`.
 - Backend canônico read-only:
   `57f6955b3a90a29517d5477e75aac97032425ed1`.
@@ -88,3 +89,16 @@
   acessibilidade e invalidações específicas.
 - Limites: backend e dependências inalterados; sem Overview com métricas,
   conversão de Leads, tracking, BI, anúncios, Vercel ou deploy.
+
+## 0.7.6 — Criação Manual de Leads
+
+- Classe/perfil: Critical / critical.
+- Estado: candidata local em validação para Gate 2, sem PR ou entrega remota.
+- Base frontend: `1ac7e26cda535cbf3e5c02dd78da4e0fb95a2e9e`.
+- Backend canônico read-only:
+  `57f6955b3a90a29517d5477e75aac97032425ed1`.
+- Entrega: `/app/leads/new`, botão somente na Inbox, DTO exato, responsável por
+  papel, respostas `200/201/204`, idempotência em memória, incerteza explícita,
+  invalidações específicas, proteção de PII, desktop/mobile e acessibilidade.
+- Limites: backend, dependências e lockfile inalterados; sem importação,
+  formulário público, integrações externas, Vercel ou deploy.

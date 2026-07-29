@@ -1,4 +1,6 @@
 import {
+  hasUncertainLeadCreationOutcome,
+  LeadCreateIntentRegistry,
   hasUncertainMutationOutcome,
   LeadIntentKeyRegistry,
 } from "@/features/leads/api/lead-intent-keys";
@@ -82,5 +84,51 @@ describe("LeadIntentKeyRegistry", () => {
     expect(hasUncertainMutationOutcome("rate-limited")).toBe(false);
     expect(hasUncertainMutationOutcome("forbidden")).toBe(false);
     expect(hasUncertainMutationOutcome("precondition-failed")).toBe(false);
+  });
+});
+
+describe("LeadCreateIntentRegistry", () => {
+  const payload = {
+    displayName: "Lead sintético",
+    primaryPhone: "+5562999999999",
+    source: "manual",
+  } as const;
+
+  it("vincula a chave ao tenant, ator e payload exato", () => {
+    const registry = new LeadCreateIntentRegistry();
+    const first = registry.begin("org-a", "actor-a", payload);
+    expect(registry.begin("org-a", "actor-a", payload).key).toBe(first.key);
+    expect(
+      registry.begin("org-a", "actor-a", {
+        ...payload,
+        displayName: "Lead editado",
+      }).key,
+    ).not.toBe(first.key);
+    expect(registry.begin("org-b", "actor-a", payload).key).not.toBe(first.key);
+    expect(registry.begin("org-a", "actor-b", payload).key).not.toBe(first.key);
+  });
+
+  it("descarta a intenção sem persistência", () => {
+    const registry = new LeadCreateIntentRegistry();
+    registry.begin("org-a", "actor-a", payload);
+    registry.forget();
+    expect(registry.current()).toBeNull();
+  });
+
+  it("gera duas chaves para intenções iguais separadas por resultado determinístico", () => {
+    const registry = new LeadCreateIntentRegistry();
+    const first = registry.begin("org-a", "actor-a", payload).key;
+    registry.forget();
+    const second = registry.begin("org-a", "actor-a", payload).key;
+    expect(second).not.toBe(first);
+  });
+
+  it("preserva chave para falhas que podem esconder efeito remoto", () => {
+    expect(hasUncertainLeadCreationOutcome("network")).toBe(true);
+    expect(hasUncertainLeadCreationOutcome("timeout")).toBe(true);
+    expect(hasUncertainLeadCreationOutcome("protocol")).toBe(true);
+    expect(hasUncertainLeadCreationOutcome("server")).toBe(true);
+    expect(hasUncertainLeadCreationOutcome("conflict")).toBe(false);
+    expect(hasUncertainLeadCreationOutcome("rate-limited")).toBe(false);
   });
 });

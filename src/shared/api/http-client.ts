@@ -238,6 +238,9 @@ export function createBaseHttpClient(
           ...(response.headers.get("etag")
             ? { etag: response.headers.get("etag") ?? undefined }
             : {}),
+          ...(response.headers.get("location")
+            ? { location: response.headers.get("location") ?? undefined }
+            : {}),
           ...(response.headers.get("idempotency-replayed")
             ? {
                 idempotencyReplayed:

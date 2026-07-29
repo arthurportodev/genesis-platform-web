@@ -1,4 +1,5 @@
 import {
+  leadCreationCapabilities,
   leadCapabilities,
   leadWorkCapabilities,
 } from "@/features/leads/api/lead-capabilities";
@@ -10,6 +11,24 @@ const base = {
   responsibleMembershipId: "member-a",
   returnReviewPending: true,
 } as const;
+
+it.each([
+  ["owner", true],
+  ["admin", true],
+  ["member", false],
+] as const)(
+  "permite criação para %s e restringe o responsável",
+  (role, choose) => {
+    expect(
+      leadCreationCapabilities({
+        id: "org",
+        membershipId: "actor",
+        name: "Org",
+        role,
+      }),
+    ).toEqual({ canCreateLead: true, canChooseResponsible: choose });
+  },
+);
 
 it("derives capabilities without replacing backend authorization", () => {
   const member: ActiveOrganization = {

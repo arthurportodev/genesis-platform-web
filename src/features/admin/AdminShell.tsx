@@ -32,6 +32,7 @@ import { useSession } from "@/features/auth/session/useSession";
 import type { Organization } from "@/features/auth/api/auth-contracts";
 import { isAuthenticatedState } from "@/features/auth/session/session-machine";
 import { toAppError } from "@/shared/api/errors";
+import { usePendingChanges } from "@/shared/navigation/pending-changes";
 
 function OrganizationMenu({
   organizations,
@@ -130,6 +131,7 @@ export function AdminShell() {
   const [actionMessage, setActionMessage] = useState<string | null>(null);
   const { session, state } = useSession();
   const navigate = useNavigate();
+  const pendingChanges = usePendingChanges();
 
   if (!isAuthenticatedState(state) || !state.activeOrganization) return null;
   const switching = state.status === "switching-organization";
@@ -211,6 +213,12 @@ export function AdminShell() {
               activeOrganization={activeOrganization}
               switching={switching}
               onSelect={(organizationId) => {
+                if (
+                  !pendingChanges.confirmDiscard(
+                    "Descartar as alterações deste formulário e trocar de Organization?",
+                  )
+                )
+                  return;
                 setActionMessage(null);
                 void session
                   .selectOrganization(organizationId)

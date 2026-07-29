@@ -111,6 +111,24 @@ sub-raiz de Metrics. Mutações invalidam essa raiz somente quando alteram os
 contadores. A visualização usa cards, lista e barras CSS acessíveis, sem
 dependência gráfica ou persistência.
 
+A criação manual usa a página `/app/leads/new` e exclusivamente
+`POST /api/v1/leads`. O formulário React Hook Form/Zod produz o DTO exato, omite
+opcionais vazios e deixa E.164 e deduplicação por telefone sob autoridade do
+backend. Owner/admin podem consultar e escolher uma Membership ativa; member
+não monta o diretório nem envia responsável. Respostas `200/201` validam
+`LeadView` e ETag opaco e navegam ao GET oficial do detalhe; `201` também exige
+o `Location` contratual. `204` permanece opaco e retorna à Inbox sem inferir ID
+ou efeito.
+
+Cada intenção vincula Organization, ator, payload normalizado e UUID v4 somente
+em memória. Resultado remoto incerto bloqueia edição e oferece retry manual com
+a mesma chave ou abandono explícito; não há retry automático, cache otimista ou
+persistência de PII. Sucesso invalida somente Inbox, Pipeline e as projeções
+compatíveis com o resultado. O Mutation Cache é zerado ao encerrar o fluxo.
+Blocker de rota, `beforeunload` e o guard compartilhado do shell protegem drafts;
+troca confirmada de Organization remonta o fluxo sem estado anterior, enquanto
+logout nunca é bloqueado.
+
 Um estado geral de navegação de Leads registra origem Inbox, Pipeline ou
 Follow-up. Tabs, filtros e posição do Follow-up sobrevivem à ida ao detalhe
 somente em memória e são descartados em reload, troca de Organization, logout ou
@@ -127,5 +145,5 @@ Organizations exigem `/select-organization`. Redirects usam replace.
 
 NestJS em `arthurportodev/genesis-platform-api` permanece a autoridade de
 identidade, tenant e autorização. A matriz de capacidades de Leads é somente UX.
-Criação de Lead, estágios customizáveis, calendário, automações, Vercel,
-domínio, DNS e deploy não fazem parte desta implementação.
+Importação de Leads, formulário público, estágios customizáveis, calendário,
+automações, Vercel, domínio, DNS e deploy não fazem parte desta implementação.

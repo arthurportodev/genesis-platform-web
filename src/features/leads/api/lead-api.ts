@@ -2,6 +2,7 @@ import { z, type ZodType } from "zod";
 
 import {
   cyclesResponseSchema,
+  createLeadInputSchema,
   leadStages,
   leadDetailSchema,
   leadKanbanResponseSchema,
@@ -16,6 +17,8 @@ import {
   timelineResponseSchema,
   type ActivityType,
   type ArchiveReason,
+  type CreateLeadInput,
+  type CreateLeadResult,
   type LeadDetail,
   type LeadKanbanFilters,
   type LeadListFilters,
@@ -67,6 +70,19 @@ function requireEtag(response: Pick<HttpResponse<unknown>, "etag">): string {
   if (!response.etag || response.etag === "*")
     throw new AppError("protocol", "A API não retornou o ETag do Lead.");
   return response.etag;
+}
+
+function locationForCreatedLead(
+  response: Pick<HttpResponse<unknown>, "location">,
+  leadId: string,
+): string {
+  const expected = leadPath(leadId);
+  if (response.location !== expected)
+    throw new AppError(
+      "protocol",
+      "A API não retornou a localização do Lead criado.",
+    );
+  return response.location;
 }
 
 export interface LeadDetailSnapshot {
@@ -125,6 +141,48 @@ const actionSuffix: Record<LeadIdempotentAction["action"], string> = {
 
 export function createLeadApi(http: AuthenticatedHttpClient) {
   return {
+    async create(
+      input: CreateLeadInput,
+      idempotencyKey: IdempotencyKey,
+    ): Promise<CreateLeadResult> {
+      const response = await http.request("/api/v1/leads", {
+        kind: "idempotent-mutation",
+        method: "POST",
+        idempotencyKey,
+        body: createLeadInputSchema.parse(input),
+      });
+      if (response.status === 204) {
+        if (response.data !== undefined)
+          throw new AppError(
+            "protocol",
+            "A API retornou conteúdo inesperado para a criação do Lead.",
+          );
+        return {
+          kind: "opaque",
+          status: 204,
+          replayed: response.idempotencyReplayed === true,
+        };
+      }
+      if (response.status !== 200 && response.status !== 201)
+        throw new AppError(
+          "protocol",
+          "A API retornou um status inesperado para a criação do Lead.",
+        );
+      const lead = parse(leadViewSchema, response.data);
+      const location =
+        response.status === 201
+          ? locationForCreatedLead(response, lead.id)
+          : (response.location ?? null);
+      return {
+        kind: "identified",
+        status: response.status,
+        lead,
+        etag: requireEtag(response),
+        location,
+        replayed: response.idempotencyReplayed === true,
+      };
+    },
+
     async metrics(period: CanonicalMetricsPeriod, signal?: AbortSignal) {
       const search = new URLSearchParams();
       if (period.kind === "range") {

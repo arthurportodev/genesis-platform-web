@@ -1,6 +1,6 @@
 # Estado atual
 
-Atualizado para o candidato local da tarefa `0.7.5`.
+Atualizado para o candidato local da tarefa `0.7.6`.
 
 ## Disponível
 
@@ -44,17 +44,28 @@ Atualizado para o candidato local da tarefa `0.7.5`.
   inicial em lista e barras CSS acessíveis, sem biblioteca gráfica.
 - Query Cache de Metrics é tenant-scoped, somente em memória e removido na troca
   de Organization, logout ou perda de papel; member não monta a consulta.
+- Página `/app/leads/new` acessível pelo botão `Novo Lead` somente na Inbox,
+  com formulário responsivo, validação Zod, proteção de draft e UTMs
+  secundárias.
+- Criação server-confirmed por `POST /api/v1/leads`, Idempotency-Key UUID v4 sem
+  If-Match, owner/admin com responsável opcional e member sem diretório.
+- Resultados `201/200` identificados navegam ao detalhe oficial; `204` member é
+  opaco e retorna à Inbox. Telefone existente é sucesso de nova entrada, não
+  erro de duplicidade.
+- Intenção incerta permanece somente em memória e permite confirmar com a mesma
+  chave ou abandonar; nenhum payload, draft ou chave entra em storage, URL ou
+  caches persistidos.
 
 ## Não disponível
 
-- Criação de Lead, drag-and-drop, estágios customizáveis, calendário,
-  automações e comunicação externa.
+- Importação de Lead, formulário público, drag-and-drop, estágios
+  customizáveis, calendário, automações e comunicação externa.
 - Autorização frontend como fronteira de segurança; o backend continua sendo a
   única autoridade.
 - Persistência de access, bootstrap ou Query Cache.
 - Proxy externo e projeto Vercel, domínio, DNS, staging ou deploy.
 - Preview com acesso à API.
 
-A tarefa `0.7.4` foi incorporada pelo PR #5 no squash
-`f9fc37dd31fa2116a66354d46938c60d566fe101`. O candidato `0.7.5` ainda não
+A tarefa `0.7.5` foi incorporada pelo PR #6 no squash
+`1ac7e26cda535cbf3e5c02dd78da4e0fb95a2e9e`. O candidato `0.7.6` ainda não
 possui PR, squash SHA, release ou deploy.

@@ -1,5 +1,6 @@
-import { ChevronLeft, ChevronRight, RefreshCw } from "lucide-react";
-import { useMemo, useState } from "react";
+import { Link } from "@tanstack/react-router";
+import { ChevronLeft, ChevronRight, Plus, RefreshCw } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 
 import type { LeadListFilters } from "@/features/leads/api/lead-contracts";
 import {
@@ -19,6 +20,9 @@ import { toAppError } from "@/shared/api/errors";
 import { useDebouncedValue } from "@/shared/lib/use-debounced-value";
 import { useActiveOrganization } from "@/shared/organization/active-organization";
 import { Button } from "@/shared/ui/Button";
+import { buttonVariants } from "@/shared/ui/Button";
+import { useLeadNavigationState } from "@/features/leads/model/lead-navigation-state";
+import { cn } from "@/shared/lib/cn";
 
 function inboxErrorMessage(error: unknown): string {
   const appError = toAppError(error);
@@ -33,6 +37,11 @@ function inboxErrorMessage(error: unknown): string {
 
 export function LeadsPage() {
   const organization = useActiveOrganization();
+  const navigation = useLeadNavigationState();
+  const [creationNotice] = useState(navigation.creationNotice);
+  useEffect(() => {
+    if (creationNotice) navigation.clearCreationNotice();
+  }, [creationNotice, navigation]);
   const canUseDirectory =
     organization.role === "owner" || organization.role === "admin";
   const [search, setSearch] = useState("");
@@ -71,7 +80,25 @@ export function LeadsPage() {
         eyebrow="Relacionamento"
         title="Inbox de Leads"
         description="Consulte oportunidades da Organization ativa, priorize a próxima ação e abra o histórico operacional."
+        action={
+          <Link
+            to="/app/leads/new"
+            className={cn(buttonVariants(), "min-h-11")}
+          >
+            <Plus className="size-4" aria-hidden="true" /> Novo Lead
+          </Link>
+        }
       />
+
+      {creationNotice === "lead-submission-received" ? (
+        <p
+          className="rounded-lg border border-success/20 bg-success/10 p-3 text-sm"
+          role="status"
+          aria-live="polite"
+        >
+          Solicitação processada.
+        </p>
+      ) : null}
 
       <LeadInboxFilters
         search={search}

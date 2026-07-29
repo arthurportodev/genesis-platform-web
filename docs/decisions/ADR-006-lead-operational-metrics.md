@@ -1,6 +1,7 @@
 # ADR-006 — Métricas Operacionais de Leads
 
-- Estado: Proposta no candidato `0.7.5`
+- Estado: Aceita e incorporada pelo PR #6 no squash
+  `1ac7e26cda535cbf3e5c02dd78da4e0fb95a2e9e`
 - Data: 2026-07-29
 
 ## Contexto

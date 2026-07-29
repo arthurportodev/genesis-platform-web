@@ -25,6 +25,7 @@ export interface HttpResponse<T> {
   data: T;
   status: number;
   etag?: string;
+  location?: string;
   idempotencyReplayed?: boolean;
 }
 

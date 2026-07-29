@@ -16,8 +16,10 @@
       `1040523fa4b415e1cdf25d7f61085c3765f33eb9`).
 - [x] Follow-up e filas operacionais (`0.7.4`, PR #5, squash
       `f9fc37dd31fa2116a66354d46938c60d566fe101`).
-- [ ] Métricas operacionais de Leads (`0.7.5`, candidato local dependente dos
-      Gates de entrega).
+- [x] Métricas operacionais de Leads (`0.7.5`, PR #6, squash
+      `1ac7e26cda535cbf3e5c02dd78da4e0fb95a2e9e`).
+- [ ] Criação manual de Leads (`0.7.6`, candidata local dependente dos Gates de
+      entrega).
 - Observabilidade e acessibilidade incremental.
 - Tarefa independente para proxy de produção, projeto Vercel, domínio e deploy.
 

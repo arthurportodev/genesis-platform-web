@@ -1,6 +1,6 @@
 import { Link, useParams } from "@tanstack/react-router";
 import { ArrowLeft, RefreshCw } from "lucide-react";
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { LeadActions } from "@/features/leads/components/LeadActions";
 import { LeadOverview } from "@/features/leads/components/LeadOverview";
@@ -21,6 +21,10 @@ export function LeadDetailPage() {
   const { leadId } = useParams({ strict: false });
   const organization = useActiveOrganization();
   const navigation = useLeadNavigationState();
+  const [creationNotice] = useState(navigation.creationNotice);
+  useEffect(() => {
+    if (creationNotice) navigation.clearCreationNotice();
+  }, [creationNotice, navigation]);
   const backTo =
     navigation.detailOrigin === "pipeline"
       ? "/app/pipeline"
@@ -108,6 +112,19 @@ export function LeadDetailPage() {
         title={lead.displayName}
         description="Detalhe operacional, próxima ação e histórico desta oportunidade."
       />
+      {creationNotice && creationNotice !== "lead-submission-received" ? (
+        <p
+          className="rounded-lg border border-success/20 bg-success/10 p-3 text-sm"
+          role="status"
+          aria-live="polite"
+        >
+          {creationNotice === "lead-created"
+            ? "Lead criado."
+            : creationNotice === "lead-existing-entry-recorded"
+              ? "Nova entrada registrada no Lead existente."
+              : "Resultado confirmado."}
+        </p>
+      ) : null}
       {canUseDirectory && assignees.isError ? (
         <p
           className="rounded-lg border border-warning/20 bg-warning/10 p-3 text-sm"

@@ -7,6 +7,7 @@ import { createLeadSnapshot } from "@/features/leads/api/lead-snapshot";
 import type { AuthenticatedHttpClient } from "@/shared/api/contracts";
 import { createIdempotencyKey } from "@/shared/api/idempotency";
 import { testLead, testMemberId } from "@/test/msw/lead-handlers";
+import { testLeadView } from "@/test/msw/lead-handlers";
 import { testLeadListItem } from "@/test/msw/lead-handlers";
 import { testMetricsSummary } from "@/test/msw/lead-handlers";
 
@@ -42,6 +43,84 @@ function setup() {
 }
 
 describe("createLeadApi mutations", () => {
+  it.each([
+    [201, false, "/api/v1/leads/00000000-0000-4000-8000-000000000010"],
+    [200, true, undefined],
+  ] as const)(
+    "cria Lead identificado com status %s sem If-Match",
+    async (status, replayed, location) => {
+      const request = vi.fn().mockResolvedValue({
+        data: testLeadView,
+        status,
+        etag: '"lead:created:1"',
+        location,
+        idempotencyReplayed: replayed,
+      });
+      const api = createLeadApi({ request } as AuthenticatedHttpClient);
+      const idempotencyKey = createIdempotencyKey();
+      const input = {
+        displayName: "Lead Manual",
+        primaryPhone: "(62) 99999-9999",
+        source: "manual" as const,
+      };
+      await expect(api.create(input, idempotencyKey)).resolves.toMatchObject({
+        kind: "identified",
+        status,
+        replayed,
+        etag: '"lead:created:1"',
+      });
+      expect(request).toHaveBeenCalledWith("/api/v1/leads", {
+        kind: "idempotent-mutation",
+        method: "POST",
+        idempotencyKey,
+        body: input,
+      });
+      expect(request.mock.calls[0]?.[1]).not.toHaveProperty("ifMatch");
+    },
+  );
+
+  it("aceita o resultado opaco 204 sem tentar interpretar body ou ETag", async () => {
+    const request = vi.fn().mockResolvedValue({
+      data: undefined,
+      status: 204,
+      idempotencyReplayed: true,
+    });
+    const api = createLeadApi({ request } as AuthenticatedHttpClient);
+    await expect(
+      api.create(
+        {
+          displayName: "Lead Member",
+          primaryPhone: "+12025550123",
+          source: "manual",
+        },
+        createIdempotencyKey(),
+      ),
+    ).resolves.toEqual({ kind: "opaque", status: 204, replayed: true });
+  });
+
+  it("rejeita 201 sem Location e 204 com conteúdo como falha de protocolo", async () => {
+    const request = vi
+      .fn()
+      .mockResolvedValueOnce({
+        data: testLeadView,
+        status: 201,
+        etag: '"opaque"',
+      })
+      .mockResolvedValueOnce({ data: { id: testLead.id }, status: 204 });
+    const api = createLeadApi({ request } as AuthenticatedHttpClient);
+    const input = {
+      displayName: "Lead",
+      primaryPhone: "11999999999",
+      source: "manual" as const,
+    };
+    await expect(
+      api.create(input, createIdempotencyKey()),
+    ).rejects.toMatchObject({ kind: "protocol" });
+    await expect(
+      api.create(input, createIdempotencyKey()),
+    ).rejects.toMatchObject({ kind: "protocol" });
+  });
+
   it("maps PATCH updates and assignment with the exact opaque ETag", async () => {
     const { api, current, request } = setup();
     await api.update(current, { displayName: "Nome atualizado" });
