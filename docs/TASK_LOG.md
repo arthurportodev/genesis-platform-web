@@ -49,7 +49,8 @@
 ## 0.7.3 — Pipeline Kanban de Leads
 
 - Classe/perfil: Critical / critical.
-- Estado: candidato local em validação para Gate 2, sem PR ou entrega remota.
+- Estado: incorporada na `main` pelo PR #4, squash
+  `1040523fa4b415e1cdf25d7f61085c3765f33eb9`.
 - Base frontend: `859823501bbdee03441a9fa865d823f3890be07a`.
 - Backend canônico read-only:
   `57f6955b3a90a29517d5477e75aac97032425ed1`.
@@ -59,3 +60,16 @@
   conflitos.
 - Limites: sem drag-and-drop, criação de Lead, estágios customizáveis, filas
   globais, métricas, mudança no backend, dependências, Vercel ou deploy.
+
+## 0.7.4 — Follow-up e Filas Operacionais
+
+- Classe/perfil: Critical / critical.
+- Estado: candidato local em validação para Gate 2, sem PR ou entrega remota.
+- Base frontend: `1040523fa4b415e1cdf25d7f61085c3765f33eb9`.
+- Backend canônico read-only:
+  `57f6955b3a90a29517d5477e75aac97032425ed1`.
+- Entrega: filas Minhas ações, Sem responsável e Retornos para revisão; tabs por
+  papel, paginação incremental, PII minimizada, navegação transitória e ações
+  rápidas server-confirmed com ETag, idempotência contextual e incerteza segura.
+- Limites: sem métricas, calendário, comunicação, automações, polling, mudança
+  no backend, dependências, Vercel ou deploy.

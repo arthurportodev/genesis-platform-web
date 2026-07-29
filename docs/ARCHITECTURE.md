@@ -83,6 +83,25 @@ server-confirmed: usa ETag de detalhe exatamente compatível ou faz novo GET,
 envia If-Match e Idempotency-Key vinculada à revisão de origem e relê o Kanban
 completo após sucesso. Não há drag-and-drop, polling ou atualização otimista.
 
+O Follow-up usa a sub-raiz tenant-scoped `leads/work` e infinite queries
+independentes para Minhas ações, Sem responsável e Retornos para revisão.
+Somente a tab e o segmento ativos montam sua query; cursores são `pageParam`
+opaco, filtros ficam em memória e páginas são deduplicadas por Lead/revisão sem
+recalcular totais. Os adapters projetam modelos especializados sem telefone ou
+e-mail antes do Query Cache da fila.
+
+Ações rápidas fazem preflight com detalhe em cache exatamente compatível ou novo
+GET e usam somente o ETag opaco retornado pelo backend. Complete, reschedule,
+cancel e dismiss preservam intenção e chave contextual em resultado incerto;
+assignment não usa chave nem admite replay cego. Sucesso é server-confirmed e
+invalida apenas filas, Inbox, Pipeline e recursos do Lead realmente afetados.
+`409/412` atualizam o estado e exigem nova confirmação.
+
+Um estado geral de navegação de Leads registra origem Inbox, Pipeline ou
+Follow-up. Tabs, filtros e posição do Follow-up sobrevivem à ida ao detalhe
+somente em memória e são descartados em reload, troca de Organization, logout ou
+expiração.
+
 ## Router
 
 `src/app/router/router.tsx` usa context tipado e `beforeLoad`. Rotas
@@ -94,5 +113,5 @@ Organizations exigem `/select-organization`. Redirects usam replace.
 
 NestJS em `arthurportodev/genesis-platform-api` permanece a autoridade de
 identidade, tenant e autorização. A matriz de capacidades de Leads é somente UX.
-Criação de Lead, estágios customizáveis, filas globais, métricas, Vercel,
+Criação de Lead, estágios customizáveis, métricas, calendário, automações, Vercel,
 domínio, DNS e deploy não fazem parte desta implementação.

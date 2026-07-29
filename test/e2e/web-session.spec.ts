@@ -499,6 +499,71 @@ test("Pipeline troca Organization sem flash e logout remove o board", async ({
   ).toHaveCount(0);
 });
 
+test("Follow-up preserva contexto, usa preflight e conclui server-confirmed", async ({
+  page,
+}) => {
+  await login(page, "owner@example.test", "/app/follow-up");
+  await expect(page).toHaveURL(/\/app\/follow-up$/u);
+  await expect(
+    page.getByRole("heading", { name: "Follow-up", exact: true }),
+  ).toBeVisible();
+  await expect(page.getByRole("tab", { name: "Minhas ações" })).toHaveAttribute(
+    "aria-selected",
+    "true",
+  );
+  await expect(page.getByRole("tab", { name: "Atrasadas" })).toHaveAttribute(
+    "aria-selected",
+    "true",
+  );
+  await expect(page.getByText("Lead de Follow-up")).toBeVisible();
+  await expect(page.getByText("+5511999999999")).toHaveCount(0);
+  await expect(page.getByText("lead@example.test")).toHaveCount(0);
+
+  await page.getByRole("link", { name: "Abrir detalhe" }).click();
+  await expect(page).toHaveURL(
+    /\/app\/leads\/00000000-0000-4000-8000-000000000040$/u,
+  );
+  await page.getByRole("link", { name: "Voltar para o Follow-up" }).click();
+  await expect(page.getByRole("tab", { name: "Atrasadas" })).toHaveAttribute(
+    "aria-selected",
+    "true",
+  );
+
+  await page
+    .getByRole("button", { name: "Ações rápidas de Lead de Follow-up" })
+    .click();
+  await page.getByRole("menuitem", { name: "Concluir próxima ação" }).click();
+  const dialog = page.getByRole("dialog", { name: "Concluir próxima ação" });
+  await expect(dialog).toBeVisible();
+  await dialog.getByLabel("Resultado opcional").fill("Contato concluído");
+  await dialog.getByRole("button", { name: "Confirmar" }).click();
+  await expect(
+    page.getByText("Próxima ação atualizada e fila reorganizada."),
+  ).toBeVisible();
+  await expect(page.getByText("Lead de Follow-up")).toHaveCount(0);
+  await expect(page.getByText("Nenhuma ação atrasada")).toBeVisible();
+});
+
+test("Follow-up mobile mantém tabs, Sheet e touch targets acessíveis", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await login(page, "owner@example.test", "/app/follow-up");
+  const tabs = page.getByRole("tablist", { name: "Filas operacionais" });
+  await expect(tabs).toBeVisible();
+  await expectTouchTarget(page.getByRole("tab", { name: "Minhas ações" }));
+  const filters = page.getByRole("button", { name: "Filtros" });
+  await expectTouchTarget(filters);
+  await filters.click();
+  await expect(
+    page.getByRole("dialog", { name: "Filtros da fila" }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Fechar menu" }).click();
+  await expectTouchTarget(
+    page.getByRole("button", { name: "Ações rápidas de Lead de Follow-up" }),
+  );
+});
+
 function leadIdForTest(): string {
   return "00000000-0000-4000-8000-000000000010";
 }

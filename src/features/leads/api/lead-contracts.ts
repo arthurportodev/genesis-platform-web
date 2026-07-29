@@ -65,7 +65,7 @@ const uuid = z.uuid();
 const timestamp = z.iso.datetime({ offset: true });
 const revision = z.string().regex(/^(0|[1-9]\d*)$/u);
 
-const nextActionSummarySchema = z.object({
+export const nextActionSummarySchema = z.object({
   id: uuid,
   type: z.enum(nextActionTypes),
   description: z.string(),
@@ -233,6 +233,61 @@ export const leadListResponseSchema = z.object({
   }),
 });
 
+const operationalPageSchema = z.object({
+  nextCursor: z.string().min(1).max(512).nullable(),
+  limit: z.number().int().min(1).max(100),
+  total: z.number().int().nonnegative(),
+  asOf: timestamp,
+});
+
+export const leadWorkItemSchema = leadListItemSchema.transform((lead) => ({
+  id: lead.id,
+  displayName: lead.displayName,
+  companyName: lead.companyName,
+  responsibleMembershipId: lead.responsibleMembershipId,
+  status: lead.status,
+  stage: lead.stage,
+  source: lead.source,
+  lastEntryAt: lead.lastEntryAt,
+  nextAction: lead.nextAction,
+  temporalState: lead.temporalState,
+  returnPending: lead.returnPending,
+  revision: lead.revision,
+  createdAt: lead.createdAt,
+  updatedAt: lead.updatedAt,
+}));
+
+export const leadWorkListResponseSchema = z.object({
+  items: z.array(leadWorkItemSchema),
+  page: operationalPageSchema,
+});
+
+export const leadReturnReviewQueueResponseSchema = z.object({
+  items: z.array(
+    z.object({
+      lead: leadWorkItemSchema,
+      review: z.object({
+        id: uuid,
+        cycleId: uuid,
+        entryCount: revision,
+        openedAt: timestamp,
+        updatedAt: timestamp,
+        firstEntry: z.object({
+          id: uuid,
+          source: z.string(),
+          receivedAt: timestamp,
+        }),
+        latestEntry: z.object({
+          id: uuid,
+          source: z.string(),
+          receivedAt: timestamp,
+        }),
+      }),
+    }),
+  ),
+  page: operationalPageSchema,
+});
+
 export const leadKanbanColumnSchema = z
   .object({
     stage: z.enum(leadStages),
@@ -351,6 +406,15 @@ export type LostReason = (typeof lostReasons)[number];
 export type ArchiveReason = (typeof archiveReasons)[number];
 export type LeadListItem = z.infer<typeof leadListItemSchema>;
 export type LeadListResponse = z.infer<typeof leadListResponseSchema>;
+export type LeadWorkItem = z.infer<typeof leadWorkItemSchema>;
+export type LeadWorkListResponse = z.infer<typeof leadWorkListResponseSchema>;
+export type LeadReturnReviewItem = z.infer<
+  typeof leadReturnReviewQueueResponseSchema
+>["items"][number];
+export type LeadReturnReviewQueueResponse = z.infer<
+  typeof leadReturnReviewQueueResponseSchema
+>;
+export type LeadNextActionSummary = z.infer<typeof nextActionSummarySchema>;
 export type LeadKanbanColumn = z.infer<typeof leadKanbanColumnSchema>;
 export type LeadKanbanResponse = z.infer<typeof leadKanbanResponseSchema>;
 export type LeadDetail = z.infer<typeof leadDetailSchema>;
@@ -390,6 +454,32 @@ export interface LeadKanbanFilters {
   createdTo?: string;
   lastEntryFrom?: string;
   lastEntryTo?: string;
+  limit: number;
+}
+
+export type LeadMyActionState = Exclude<LeadNextActionState, "none">;
+
+export interface LeadMyActionsFilters {
+  responsibleMembershipId?: string;
+  state?: LeadMyActionState;
+  limit: number;
+}
+
+export interface LeadUnassignedFilters {
+  q?: string;
+  status: LeadStatus;
+  source?: LeadSource;
+  nextActionState?: LeadNextActionState;
+  createdFrom?: string;
+  createdTo?: string;
+  lastEntryFrom?: string;
+  lastEntryTo?: string;
+  limit: number;
+}
+
+export interface LeadReturnReviewFilters {
+  q?: string;
+  source?: LeadSource;
   limit: number;
 }
 

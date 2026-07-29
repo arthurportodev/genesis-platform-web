@@ -30,9 +30,14 @@ let pipelineContinuationFails = false;
 let pipelineConflictStatus: 409 | 412 | null = null;
 let pipelineUncertainOnce = false;
 const completedPipelineMoves = new Set<string>();
+let workLeadRevision = 3;
+let workLeadCompleted = false;
+const completedWorkActions = new Set<string>();
 
 const leadId = "00000000-0000-4000-8000-000000000010";
 const secondLeadId = "00000000-0000-4000-8000-000000000020";
+const workLeadId = "00000000-0000-4000-8000-000000000040";
+const workActionId = "00000000-0000-4000-8000-000000000041";
 const cycleId = "00000000-0000-4000-8000-000000000012";
 const entryId = "00000000-0000-4000-8000-000000000013";
 
@@ -370,6 +375,38 @@ async function handleApi(
     });
     return;
   }
+  if (
+    pathname === "/api/v1/leads/work/my-actions" &&
+    request.method === "GET"
+  ) {
+    const lead = workLeadDetail();
+    json(response, 200, {
+      items: workLeadCompleted ? [] : [workLeadListItem(lead)],
+      page: {
+        nextCursor: null,
+        limit: Number(requestUrl.searchParams.get("limit") ?? 25),
+        total: workLeadCompleted ? 0 : 1,
+        asOf: new Date().toISOString(),
+      },
+    });
+    return;
+  }
+  if (
+    (pathname === "/api/v1/leads/work/unassigned" ||
+      pathname === "/api/v1/leads/work/return-reviews") &&
+    request.method === "GET"
+  ) {
+    json(response, 200, {
+      items: [],
+      page: {
+        nextCursor: null,
+        limit: Number(requestUrl.searchParams.get("limit") ?? 25),
+        total: 0,
+        asOf: new Date().toISOString(),
+      },
+    });
+    return;
+  }
   if (pathname === "/api/v1/members" && request.method === "GET") {
     json(response, 200, {
       items: [
@@ -389,10 +426,44 @@ async function handleApi(
   }
   const detailMatch = /^\/api\/v1\/leads\/([0-9a-f-]{36})$/iu.exec(pathname);
   if (detailMatch && request.method === "GET") {
+    if (detailMatch[1] === workLeadId) {
+      const lead = workLeadDetail();
+      json(response, 200, lead, {
+        ETag: `"lead:${lead.id}:${lead.revision}"`,
+      });
+      return;
+    }
     const name =
       detailMatch[1] === secondLeadId ? "Lead Segunda" : "Lead Exemplo";
     const lead = leadDetail(detailMatch[1], name);
     json(response, 200, lead, { ETag: `"lead:${lead.id}:${lead.revision}"` });
+    return;
+  }
+  if (
+    pathname === `/api/v1/leads/${workLeadId}/next-action/complete` &&
+    request.method === "POST"
+  ) {
+    const key = request.headers["idempotency-key"];
+    if (
+      typeof key !== "string" ||
+      request.headers["if-match"] !== `"lead:${workLeadId}:${workLeadRevision}"`
+    ) {
+      authError(response, 428, "If-Match and Idempotency-Key are required.");
+      return;
+    }
+    await readJson(request);
+    const replayed = completedWorkActions.has(key);
+    if (!replayed) {
+      completedWorkActions.add(key);
+      workLeadCompleted = true;
+      workLeadRevision += 1;
+    }
+    response.writeHead(204, {
+      "Cache-Control": "no-store",
+      ETag: `"lead:${workLeadId}:${workLeadRevision}"`,
+      ...(replayed ? { "Idempotency-Replayed": "true" } : {}),
+    });
+    response.end();
     return;
   }
   if (
@@ -578,7 +649,23 @@ function leadDetail(id: string, displayName: string) {
   };
 }
 
-function leadListItem(lead: ReturnType<typeof leadDetail>) {
+function leadListItem(
+  lead: Pick<
+    ReturnType<typeof leadDetail>,
+    | "id"
+    | "displayName"
+    | "primaryPhone"
+    | "email"
+    | "companyName"
+    | "responsibleMembershipId"
+    | "status"
+    | "stage"
+    | "latestEntry"
+    | "revision"
+    | "createdAt"
+    | "updatedAt"
+  >,
+) {
   return {
     id: lead.id,
     displayName: lead.displayName,
@@ -596,6 +683,32 @@ function leadListItem(lead: ReturnType<typeof leadDetail>) {
     revision: lead.revision,
     createdAt: lead.createdAt,
     updatedAt: lead.updatedAt,
+  };
+}
+
+function workLeadDetail() {
+  return {
+    ...leadDetail(workLeadId, "Lead de Follow-up"),
+    revision: String(workLeadRevision),
+    nextAction: workLeadCompleted
+      ? null
+      : {
+          id: workActionId,
+          type: "call",
+          description: "Retornar contato comercial",
+          dueAt: "2026-07-29T12:00:00.000Z",
+          responsibleMembershipId: "00000000-0000-4000-8000-000000000003",
+          status: "pending",
+          revision: "2",
+        },
+  };
+}
+
+function workLeadListItem(lead: ReturnType<typeof workLeadDetail>) {
+  return {
+    ...leadListItem(lead),
+    nextAction: lead.nextAction,
+    temporalState: "overdue",
   };
 }
 
@@ -682,6 +795,9 @@ export async function startWebSessionServer() {
         pipelineConflictStatus = null;
         pipelineUncertainOnce = false;
         completedPipelineMoves.clear();
+        workLeadRevision = 3;
+        workLeadCompleted = false;
+        completedWorkActions.clear();
         json(response, 200, { ok: true });
         return;
       }

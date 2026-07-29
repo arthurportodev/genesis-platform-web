@@ -7,6 +7,8 @@
   concorrência e mutações operacionais de Leads.
 - `ADR-004-lead-kanban-pipeline.md`: Pipeline de cinco estágios, queries
   híbridas, paginação por coluna e movimento server-confirmed.
+- `ADR-005-lead-follow-up-work-queues.md`: filas operacionais por papel,
+  paginação incremental, PII mínima e ações rápidas server-confirmed.
 
 ADRs são imutáveis depois de substituídas. Uma mudança relevante deve criar uma
 nova decisão e apontar qual documento anterior foi superado.

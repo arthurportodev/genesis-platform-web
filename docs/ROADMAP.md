@@ -12,9 +12,11 @@
 
 - [x] Inbox e detalhe operacional de Leads (`0.7.2`, PR #3, squash
       `859823501bbdee03441a9fa865d823f3890be07a`).
-- [ ] Pipeline Kanban de Leads (`0.7.3`, candidato local concluído, dependente
-      dos Gates de entrega).
-- Integração futura de filas de Follow-up e métricas.
+- [x] Pipeline Kanban de Leads (`0.7.3`, PR #4, squash
+      `1040523fa4b415e1cdf25d7f61085c3765f33eb9`).
+- [ ] Follow-up e filas operacionais (`0.7.4`, candidato local dependente dos
+      Gates de entrega).
+- Integração futura de métricas.
 - Observabilidade e acessibilidade incremental.
 - Tarefa independente para proxy de produção, projeto Vercel, domínio e deploy.
 

@@ -3,7 +3,10 @@ import { z } from "zod";
 import type {
   LeadKanbanFilters,
   LeadListFilters,
+  LeadMyActionsFilters,
+  LeadReturnReviewFilters,
   LeadStage,
+  LeadUnassignedFilters,
 } from "@/features/leads/api/lead-contracts";
 
 const civilDateSchema = z.iso.date();
@@ -15,6 +18,17 @@ export const defaultLeadFilters: LeadListFilters = {
 };
 
 export const defaultLeadKanbanFilters: LeadKanbanFilters = { limit: 20 };
+export const defaultLeadMyActionsFilters: LeadMyActionsFilters = {
+  state: "overdue",
+  limit: 25,
+};
+export const defaultLeadUnassignedFilters: LeadUnassignedFilters = {
+  status: "active",
+  limit: 25,
+};
+export const defaultLeadReturnReviewFilters: LeadReturnReviewFilters = {
+  limit: 25,
+};
 
 export function normalizedLeadSearch(value: string): string | undefined {
   const normalized = value.normalize("NFC").trim();
@@ -140,4 +154,136 @@ export function buildLeadListPath(
     search.set("lastEntryTo", nextCivilDate(filters.lastEntryTo));
   if (cursor) search.set("cursor", cursor);
   return `/api/v1/leads?${search.toString()}`;
+}
+
+function assertWorkLimit(limit: number): void {
+  if (!Number.isInteger(limit) || limit < 1 || limit > 100)
+    throw new Error("O limite da fila deve estar entre 1 e 100.");
+}
+
+function canonicalWorkSearch(value: string | undefined): string | undefined {
+  if (value === undefined) return undefined;
+  const normalized = value.normalize("NFC").trim();
+  if (normalized === "") return undefined;
+  const length = [...normalized].length;
+  if (length < 3 || length > 100)
+    throw new Error("A busca deve conter entre 3 e 100 caracteres.");
+  return normalized;
+}
+
+function assertCompleteRange(
+  from: string | undefined,
+  to: string | undefined,
+  label: string,
+): void {
+  if ((from === undefined) !== (to === undefined))
+    throw new Error(`${label} exige os dois limites.`);
+  if (from) civilDateSchema.parse(from);
+  if (to) civilDateSchema.parse(to);
+}
+
+export function canonicalLeadMyActionsFilters(
+  filters: LeadMyActionsFilters,
+): LeadMyActionsFilters {
+  assertWorkLimit(filters.limit);
+  if (filters.responsibleMembershipId)
+    z.uuid().parse(filters.responsibleMembershipId);
+  return {
+    limit: filters.limit,
+    ...(filters.responsibleMembershipId
+      ? { responsibleMembershipId: filters.responsibleMembershipId }
+      : {}),
+    ...(filters.state ? { state: filters.state } : {}),
+  };
+}
+
+export function canonicalLeadUnassignedFilters(
+  filters: LeadUnassignedFilters,
+): LeadUnassignedFilters {
+  assertWorkLimit(filters.limit);
+  assertCompleteRange(
+    filters.createdFrom,
+    filters.createdTo,
+    "O período de criação",
+  );
+  assertCompleteRange(
+    filters.lastEntryFrom,
+    filters.lastEntryTo,
+    "O período da última entrada",
+  );
+  const q = canonicalWorkSearch(filters.q);
+  return {
+    status: filters.status,
+    limit: filters.limit,
+    ...(q ? { q } : {}),
+    ...(filters.source ? { source: filters.source } : {}),
+    ...(filters.nextActionState
+      ? { nextActionState: filters.nextActionState }
+      : {}),
+    ...(filters.createdFrom ? { createdFrom: filters.createdFrom } : {}),
+    ...(filters.createdTo ? { createdTo: filters.createdTo } : {}),
+    ...(filters.lastEntryFrom ? { lastEntryFrom: filters.lastEntryFrom } : {}),
+    ...(filters.lastEntryTo ? { lastEntryTo: filters.lastEntryTo } : {}),
+  };
+}
+
+export function canonicalLeadReturnReviewFilters(
+  filters: LeadReturnReviewFilters,
+): LeadReturnReviewFilters {
+  assertWorkLimit(filters.limit);
+  const q = canonicalWorkSearch(filters.q);
+  return {
+    limit: filters.limit,
+    ...(q ? { q } : {}),
+    ...(filters.source ? { source: filters.source } : {}),
+  };
+}
+
+export function buildLeadMyActionsPath(
+  filters: LeadMyActionsFilters,
+  cursor?: string,
+): string {
+  const canonical = canonicalLeadMyActionsFilters(filters);
+  const search = new URLSearchParams({ limit: String(canonical.limit) });
+  if (canonical.responsibleMembershipId)
+    search.set("responsibleMembershipId", canonical.responsibleMembershipId);
+  if (canonical.state) search.set("state", canonical.state);
+  if (cursor) search.set("cursor", cursor);
+  return `/api/v1/leads/work/my-actions?${search.toString()}`;
+}
+
+export function buildLeadUnassignedPath(
+  filters: LeadUnassignedFilters,
+  cursor?: string,
+): string {
+  const canonical = canonicalLeadUnassignedFilters(filters);
+  const search = new URLSearchParams({
+    status: canonical.status,
+    limit: String(canonical.limit),
+  });
+  if (canonical.q) search.set("q", canonical.q);
+  if (canonical.source) search.set("source", canonical.source);
+  if (canonical.nextActionState)
+    search.set("nextActionState", canonical.nextActionState);
+  if (canonical.createdFrom) search.set("createdFrom", canonical.createdFrom);
+  if (canonical.createdTo)
+    search.set("createdTo", nextCivilDate(canonical.createdTo));
+  if (canonical.lastEntryFrom)
+    search.set("lastEntryFrom", canonical.lastEntryFrom);
+  if (canonical.lastEntryTo)
+    search.set("lastEntryTo", nextCivilDate(canonical.lastEntryTo));
+  if (cursor) search.set("cursor", cursor);
+  return `/api/v1/leads/work/unassigned?${search.toString()}`;
+}
+
+export function buildLeadReturnReviewPath(
+  filters: LeadReturnReviewFilters,
+  cursor?: string,
+): string {
+  const canonical = canonicalLeadReturnReviewFilters(filters);
+  const search = new URLSearchParams({ limit: String(canonical.limit) });
+  if (canonical.q) search.set("q", canonical.q);
+  if (canonical.source) search.set("source", canonical.source);
+  if (cursor) search.set("cursor", cursor);
+  return `/api/v1/leads/work/return-reviews?${search.toString()}`;
 }

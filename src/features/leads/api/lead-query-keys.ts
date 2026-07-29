@@ -1,9 +1,17 @@
 import type {
   LeadKanbanFilters,
   LeadListFilters,
+  LeadMyActionsFilters,
+  LeadReturnReviewFilters,
   LeadStage,
+  LeadUnassignedFilters,
 } from "@/features/leads/api/lead-contracts";
-import { canonicalLeadKanbanFilters } from "@/features/leads/api/lead-filters";
+import {
+  canonicalLeadKanbanFilters,
+  canonicalLeadMyActionsFilters,
+  canonicalLeadReturnReviewFilters,
+  canonicalLeadUnassignedFilters,
+} from "@/features/leads/api/lead-filters";
 
 function root(organizationId: string) {
   if (!organizationId)
@@ -47,6 +55,37 @@ export const leadQueryKeys = {
     [...root(organizationId), "cycles", leadId] as const,
   assignees: (organizationId: string) =>
     [...root(organizationId), "assignees"] as const,
+  work: (organizationId: string) => [...root(organizationId), "work"] as const,
+  myActionsRoot: (organizationId: string) =>
+    [...root(organizationId), "work", "my-actions"] as const,
+  myActions: (organizationId: string, filters: LeadMyActionsFilters) =>
+    [
+      ...root(organizationId),
+      "work",
+      "my-actions",
+      canonicalLeadMyActionsFilters(filters),
+    ] as const,
+  unassignedQueues: (organizationId: string) =>
+    [...root(organizationId), "work", "unassigned"] as const,
+  unassignedQueue: (organizationId: string, filters: LeadUnassignedFilters) =>
+    [
+      ...root(organizationId),
+      "work",
+      "unassigned",
+      canonicalLeadUnassignedFilters(filters),
+    ] as const,
+  returnReviewQueues: (organizationId: string) =>
+    [...root(organizationId), "work", "return-reviews"] as const,
+  returnReviewQueue: (
+    organizationId: string,
+    filters: LeadReturnReviewFilters,
+  ) =>
+    [
+      ...root(organizationId),
+      "work",
+      "return-reviews",
+      canonicalLeadReturnReviewFilters(filters),
+    ] as const,
 };
 
 export function isLeadKanbanAggregateKey(

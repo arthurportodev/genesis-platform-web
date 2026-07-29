@@ -1,6 +1,6 @@
 # Estado atual
 
-Atualizado para o candidato local da tarefa `0.7.3`.
+Atualizado para o candidato local da tarefa `0.7.4`.
 
 ## Disponível
 
@@ -29,16 +29,23 @@ Atualizado para o candidato local da tarefa `0.7.3`.
 - Movimento server-confirmed sem drag-and-drop: detalhe/ETag opaco como
   preflight, If-Match, Idempotency-Key vinculada à revisão, conflitos sem retry
   automático e releitura completa do quadro.
+- Follow-up com tabs por papel, segmentos atrasadas/hoje/futuras, filas sem
+  responsável e retornos administrativos, lazy loading e paginação incremental.
+- Modelos especializados das filas descartam telefone e e-mail antes do Query
+  Cache; filtros, cursores e contexto de retorno permanecem somente em memória.
+- Ações rápidas de Next Action, assignment e dismiss usam detalhe/ETag opaco,
+  intenção idempotente contextual quando aplicável, conflitos sem retry,
+  tratamento de resultado remoto incerto e invalidação específica.
 
 ## Não disponível
 
-- Criação de Lead, drag-and-drop, estágios customizáveis, filas globais, página
-  de Follow-up e métricas.
+- Criação de Lead, drag-and-drop, estágios customizáveis, métricas, calendário,
+  automações e comunicação externa.
 - Autorização frontend por papel; o backend continua sendo a única autoridade.
 - Persistência de access, bootstrap ou Query Cache.
 - Proxy externo e projeto Vercel, domínio, DNS, staging ou deploy.
 - Preview com acesso à API.
 
-O candidato `0.7.3` ainda não possui PR, squash SHA, release ou deploy. A tarefa
-`0.7.2` foi incorporada pelo PR #3 no squash
-`859823501bbdee03441a9fa865d823f3890be07a`.
+A tarefa `0.7.3` foi incorporada pelo PR #4 no squash
+`1040523fa4b415e1cdf25d7f61085c3765f33eb9`. O candidato `0.7.4` ainda não
+possui PR, squash SHA, release ou deploy.

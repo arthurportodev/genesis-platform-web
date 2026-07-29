@@ -208,3 +208,86 @@ describe("createLeadApi Kanban", () => {
     ).resolves.toEqual({ etag: '"receipt-opaco"', replayed: true });
   });
 });
+
+describe("createLeadApi work queues", () => {
+  const page = {
+    nextCursor: "opaque-next",
+    limit: 25,
+    total: 1,
+    asOf: "2026-07-29T12:00:00.000Z",
+  };
+
+  it("usa os três endpoints, encaminha AbortSignal e projeta PII", async () => {
+    const raw = testLeadListItem();
+    const request = vi.fn((path: string, options?: unknown) => {
+      void options;
+      return Promise.resolve({
+        data: path.includes("return-reviews")
+          ? {
+              items: [
+                {
+                  lead: { ...raw, status: "won", returnPending: true },
+                  review: {
+                    id: "00000000-0000-4000-8000-000000000030",
+                    cycleId: "00000000-0000-4000-8000-000000000031",
+                    entryCount: "1",
+                    openedAt: page.asOf,
+                    updatedAt: page.asOf,
+                    firstEntry: {
+                      id: "00000000-0000-4000-8000-000000000032",
+                      source: "manual",
+                      receivedAt: page.asOf,
+                    },
+                    latestEntry: {
+                      id: "00000000-0000-4000-8000-000000000032",
+                      source: "manual",
+                      receivedAt: page.asOf,
+                    },
+                  },
+                },
+              ],
+              page,
+            }
+          : { items: [raw], page },
+        status: 200,
+      });
+    });
+    const api = createLeadApi({
+      request,
+    } as unknown as AuthenticatedHttpClient);
+    const controller = new AbortController();
+    const mine = await api.myActions(
+      { state: "overdue", limit: 25 },
+      undefined,
+      controller.signal,
+    );
+    const unassigned = await api.unassigned(
+      { status: "active", limit: 25 },
+      "opaque",
+      controller.signal,
+    );
+    const returns = await api.returnReviews(
+      { limit: 25 },
+      undefined,
+      controller.signal,
+    );
+    expect(request.mock.calls.map(([path]) => path)).toEqual([
+      "/api/v1/leads/work/my-actions?limit=25&state=overdue",
+      "/api/v1/leads/work/unassigned?status=active&limit=25&cursor=opaque",
+      "/api/v1/leads/work/return-reviews?limit=25",
+    ]);
+    for (const item of [
+      mine.items[0],
+      unassigned.items[0],
+      returns.items[0]?.lead,
+    ]) {
+      expect(item).not.toHaveProperty("primaryPhone");
+      expect(item).not.toHaveProperty("email");
+    }
+    expect(request.mock.calls[0]?.[1]).toEqual({
+      kind: "tenant-scoped",
+      method: "GET",
+      signal: controller.signal,
+    });
+  });
+});
