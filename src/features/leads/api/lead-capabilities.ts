@@ -1,4 +1,7 @@
-import type { LeadDetail } from "@/features/leads/api/lead-contracts";
+import type {
+  LeadDetail,
+  LeadWorkItem,
+} from "@/features/leads/api/lead-contracts";
 import type { ActiveOrganization } from "@/shared/organization/active-organization";
 
 export interface LeadCapabilities {
@@ -10,6 +13,34 @@ export interface LeadCapabilities {
   canArchive: boolean;
   canReactivate: boolean;
   canDismissReturn: boolean;
+}
+
+export function leadWorkCapabilities(
+  organization: ActiveOrganization,
+  queue: "my-actions" | "unassigned" | "return-reviews",
+  lead: LeadWorkItem,
+) {
+  const elevated =
+    organization.role === "owner" || organization.role === "admin";
+  const ownsLead =
+    lead.responsibleMembershipId === organization.membershipId &&
+    lead.nextAction?.responsibleMembershipId === organization.membershipId;
+  const pendingAction =
+    lead.status === "active" && lead.nextAction?.status === "pending";
+  return {
+    canManageNextAction:
+      queue === "my-actions" && pendingAction && (elevated || ownsLead),
+    canAssign:
+      queue === "unassigned" &&
+      elevated &&
+      lead.status === "active" &&
+      lead.responsibleMembershipId === null,
+    canDismissReturn:
+      queue === "return-reviews" &&
+      elevated &&
+      lead.status !== "active" &&
+      lead.returnPending,
+  };
 }
 
 export function leadCapabilities(
@@ -34,6 +65,6 @@ export function leadCapabilities(
     canArchive: elevated && lead.status === "active",
     canReactivate: elevated && lead.status !== "active",
     canDismissReturn:
-      elevated && lead.status === "active" && lead.returnReviewPending,
+      elevated && lead.status !== "active" && lead.returnReviewPending,
   };
 }

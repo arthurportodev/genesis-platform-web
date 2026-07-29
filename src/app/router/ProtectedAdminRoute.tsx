@@ -3,6 +3,8 @@ import { SessionGate } from "@/features/auth/SessionGate";
 import { isAuthenticatedState } from "@/features/auth/session/session-machine";
 import { useSession } from "@/features/auth/session/useSession";
 import { LeadPipelineStateProvider } from "@/features/leads/model/LeadPipelineStateProvider";
+import { LeadFollowUpStateProvider } from "@/features/leads/model/LeadFollowUpStateProvider";
+import { LeadNavigationStateProvider } from "@/features/leads/model/LeadNavigationStateProvider";
 import { ActiveOrganizationProvider } from "@/shared/organization/ActiveOrganizationProvider";
 
 export function ProtectedAdminRoute() {
@@ -19,9 +21,13 @@ export function ProtectedAdminRoute() {
         role: state.activeOrganization.role,
       }}
     >
-      <LeadPipelineStateProvider key={state.activeOrganization.id}>
-        <AdminShell />
-      </LeadPipelineStateProvider>
+      <LeadNavigationStateProvider key={state.activeOrganization.id}>
+        <LeadFollowUpStateProvider>
+          <LeadPipelineStateProvider>
+            <AdminShell />
+          </LeadPipelineStateProvider>
+        </LeadFollowUpStateProvider>
+      </LeadNavigationStateProvider>
     </ActiveOrganizationProvider>
   );
 }

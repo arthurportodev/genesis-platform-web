@@ -17,7 +17,7 @@ import { OverviewPage } from "@/features/dashboard/OverviewPage";
 import { LeadsPage } from "@/features/leads/LeadsPage";
 import { LeadDetailPage } from "@/features/leads/LeadDetailPage";
 import { LeadPipelinePage } from "@/features/leads/LeadPipelinePage";
-import { FollowUpPage } from "@/features/follow-up/FollowUpPage";
+import { LeadFollowUpPage } from "@/features/leads/LeadFollowUpPage";
 import { MetricsPage } from "@/features/metrics/MetricsPage";
 import { SettingsPage } from "@/features/settings/SettingsPage";
 import {
@@ -147,7 +147,7 @@ const pipelineRoute = createRoute({
 const followUpRoute = createRoute({
   getParentRoute: () => appRoute,
   path: "/follow-up",
-  component: FollowUpPage,
+  component: LeadFollowUpPage,
 });
 
 const metricsRoute = createRoute({

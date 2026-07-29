@@ -6,7 +6,9 @@ import {
   leadDetailSchema,
   leadKanbanResponseSchema,
   leadListResponseSchema,
+  leadReturnReviewQueueResponseSchema,
   leadViewSchema,
+  leadWorkListResponseSchema,
   membersResponseSchema,
   mutationCreatedSchema,
   nextActionResponseSchema,
@@ -16,7 +18,10 @@ import {
   type LeadDetail,
   type LeadKanbanFilters,
   type LeadListFilters,
+  type LeadMyActionsFilters,
+  type LeadReturnReviewFilters,
   type LeadStage,
+  type LeadUnassignedFilters,
   type LostReason,
   type NextActionType,
   type UpdateLeadInput,
@@ -24,6 +29,9 @@ import {
 import {
   buildLeadKanbanPath,
   buildLeadListPath,
+  buildLeadMyActionsPath,
+  buildLeadReturnReviewPath,
+  buildLeadUnassignedPath,
 } from "@/features/leads/api/lead-filters";
 import {
   assertCurrentLeadSnapshot,
@@ -160,6 +168,42 @@ export function createLeadApi(http: AuthenticatedHttpClient) {
         );
       }
       return board;
+    },
+
+    async myActions(
+      filters: LeadMyActionsFilters,
+      cursor?: string,
+      signal?: AbortSignal,
+    ) {
+      const response = await http.request(
+        buildLeadMyActionsPath(filters, cursor),
+        { kind: "tenant-scoped", method: "GET", signal },
+      );
+      return parse(leadWorkListResponseSchema, response.data);
+    },
+
+    async unassigned(
+      filters: LeadUnassignedFilters,
+      cursor?: string,
+      signal?: AbortSignal,
+    ) {
+      const response = await http.request(
+        buildLeadUnassignedPath(filters, cursor),
+        { kind: "tenant-scoped", method: "GET", signal },
+      );
+      return parse(leadWorkListResponseSchema, response.data);
+    },
+
+    async returnReviews(
+      filters: LeadReturnReviewFilters,
+      cursor?: string,
+      signal?: AbortSignal,
+    ) {
+      const response = await http.request(
+        buildLeadReturnReviewPath(filters, cursor),
+        { kind: "tenant-scoped", method: "GET", signal },
+      );
+      return parse(leadReturnReviewQueueResponseSchema, response.data);
     },
 
     async detail(

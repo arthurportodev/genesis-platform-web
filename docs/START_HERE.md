@@ -19,6 +19,7 @@ Consulte `ROADMAP.md`, `TASK_LOG.md` e `PROMPT_TEMPLATES.md` conforme a tarefa.
 
 O frontend possui integração de autenticação, sessão e Organization com os seis
 endpoints web de `/api/v1/auth`, além de Inbox, detalhe e Pipeline de Leads sobre
-os contratos oficiais. Isso não torna guards frontend uma fronteira de
+os contratos oficiais, inclusive as filas operacionais de Follow-up. Isso não
+torna guards frontend uma fronteira de
 autorização. Estados vazios e indisponíveis continuam obrigatórios onde não
 existe endpoint integrado.

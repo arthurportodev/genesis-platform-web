@@ -13,7 +13,7 @@ import {
   temporalLabels,
 } from "@/features/leads/api/lead-labels";
 import { LeadMoveControl } from "@/features/leads/components/LeadMoveControl";
-import { useLeadPipelineState } from "@/features/leads/model/lead-pipeline-state";
+import { useLeadNavigationState } from "@/features/leads/model/lead-navigation-state";
 import { cn } from "@/shared/lib/cn";
 import type { ActiveOrganization } from "@/shared/organization/active-organization";
 import { Badge } from "@/shared/ui/Badge";
@@ -45,7 +45,7 @@ export function LeadKanbanCard({
     focusTarget: HTMLElement | null,
   ) => Promise<void>;
 }) {
-  const pipelineState = useLeadPipelineState();
+  const navigation = useLeadNavigationState();
   const capabilities = leadCapabilities(organization, {
     status: lead.status,
     responsibleMembershipId: lead.responsibleMembershipId,
@@ -142,7 +142,7 @@ export function LeadKanbanCard({
             buttonVariants({ variant: "ghost", size: "sm" }),
             "min-h-11",
           )}
-          onClick={() => pipelineState.markPipelineDetailOrigin()}
+          onClick={() => navigation.markDetailOrigin("pipeline")}
         >
           Abrir detalhe
         </Link>

@@ -21,22 +21,18 @@ export function LeadPipelineStateProvider({
     defaultLeadKanbanFilters,
   );
   const [mobileStage, setMobileStage] = useState<LeadStage>("new");
-  const [detailOrigin, setDetailOrigin] = useState<"pipeline" | null>(null);
   const move = useLeadPipelineMove();
   const value = useMemo<LeadPipelineState>(
     () => ({
       search,
       filters,
       mobileStage,
-      detailOrigin,
       move,
       setSearch,
       setFilters,
       setMobileStage,
-      markPipelineDetailOrigin: () => setDetailOrigin("pipeline"),
-      clearDetailOrigin: () => setDetailOrigin(null),
     }),
-    [detailOrigin, filters, mobileStage, move, search],
+    [filters, mobileStage, move, search],
   );
   return (
     <LeadPipelineStateContext.Provider value={value}>

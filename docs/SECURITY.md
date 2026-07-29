@@ -63,6 +63,19 @@
   contém PII e muda com Organization, Lead, revisão de origem ou destino; um
   resultado remoto incerto exige retry ou abandono explícito.
 - Fixtures usam exclusivamente identidades e domínios `.test`.
+- Filas de Follow-up convertem a resposta recebida em modelos sem telefone ou
+  e-mail antes do Query Cache especializado. Nenhuma PII ou UUID é renderizada
+  como conteúdo operacional; dados completos exigem abertura do detalhe.
+- Tabs administrativas e diretório não são montados para member. Capabilities
+  são apenas UX e o backend revalida papel, assignment, estado e tenant.
+- Ações rápidas usam ETag apenas de detalhe compatível ou novo GET. Complete,
+  reschedule, cancel e dismiss vinculam a chave a Organization, ator, Lead,
+  revisões, recurso e payload; nenhuma chave contém PII.
+- Resultado incerto preserva intenção exata para retry, verificação ou abandono.
+  Assignment não possui chave e só permite verificar o estado, nunca replay
+  cego. `409/412` descartam a intenção antiga.
+- Filtros, cursores, contexto de retorno e rascunhos dos diálogos permanecem em
+  memória. Não entram em URL, storage, logs ou BroadcastChannel.
 
 ## Ambientes
 

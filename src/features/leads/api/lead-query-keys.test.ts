@@ -1,6 +1,9 @@
 import {
   defaultLeadFilters,
   defaultLeadKanbanFilters,
+  defaultLeadMyActionsFilters,
+  defaultLeadReturnReviewFilters,
+  defaultLeadUnassignedFilters,
 } from "@/features/leads/api/lead-filters";
 import {
   isLeadKanbanAggregateKey,
@@ -18,9 +21,38 @@ it("mantém todas as chaves de Lead sob o tenant", () => {
     leadQueryKeys.assignees(organizationId),
     leadQueryKeys.kanban(organizationId, defaultLeadKanbanFilters),
     leadQueryKeys.kanbanColumn(organizationId, defaultLeadKanbanFilters, "new"),
+    leadQueryKeys.myActions(organizationId, defaultLeadMyActionsFilters),
+    leadQueryKeys.unassignedQueue(organizationId, defaultLeadUnassignedFilters),
+    leadQueryKeys.returnReviewQueue(
+      organizationId,
+      defaultLeadReturnReviewFilters,
+    ),
   ]) {
     expect(key.slice(0, 3)).toEqual(["organization", organizationId, "leads"]);
   }
+});
+
+it("separa filas, Memberships e Organizations sem incluir cursor", () => {
+  const mine = leadQueryKeys.myActions("org-a", {
+    state: "overdue",
+    limit: 25,
+  });
+  const another = leadQueryKeys.myActions("org-a", {
+    state: "overdue",
+    responsibleMembershipId: "00000000-0000-4000-8000-000000000011",
+    limit: 25,
+  });
+  expect(mine).not.toEqual(another);
+  expect(mine).not.toEqual(
+    leadQueryKeys.unassignedQueue("org-a", {
+      status: "active",
+      limit: 25,
+    }),
+  );
+  expect(mine).not.toEqual(
+    leadQueryKeys.myActions("org-b", { state: "overdue", limit: 25 }),
+  );
+  expect(JSON.stringify(mine)).not.toContain("cursor");
 });
 
 it("canonicaliza filtros e não colide colunas ou tenants", () => {

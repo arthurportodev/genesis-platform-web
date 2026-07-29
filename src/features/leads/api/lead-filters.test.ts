@@ -1,5 +1,8 @@
 import {
   buildLeadKanbanPath,
+  buildLeadMyActionsPath,
+  buildLeadReturnReviewPath,
+  buildLeadUnassignedPath,
   canonicalLeadKanbanFilters,
   buildLeadListPath,
   leadSearchMessage,
@@ -56,5 +59,43 @@ describe("filtros da Inbox", () => {
     expect(() =>
       buildLeadKanbanPath({ limit: 20, createdFrom: "2026-07-01" }),
     ).toThrow(/dois limites/iu);
+  });
+});
+
+describe("filtros das filas operacionais", () => {
+  it("mantém cursor fora dos filtros e suporta my-actions sem state", () => {
+    expect(buildLeadMyActionsPath({ limit: 25 }, "opaque.cursor")).toBe(
+      "/api/v1/leads/work/my-actions?limit=25&cursor=opaque.cursor",
+    );
+    expect(buildLeadMyActionsPath({ limit: 25, state: "today" })).toContain(
+      "state=today",
+    );
+  });
+
+  it("normaliza NFC e aplica os limites 3/100 da busca", () => {
+    expect(
+      buildLeadReturnReviewPath({ limit: 25, q: "  Jose\u0301  " }),
+    ).toContain("q=Jos%C3%A9");
+    expect(() => buildLeadReturnReviewPath({ limit: 25, q: "ab" })).toThrow(
+      /3 e 100/iu,
+    );
+    expect(() =>
+      buildLeadReturnReviewPath({ limit: 25, q: "x".repeat(101) }),
+    ).toThrow(/3 e 100/iu);
+  });
+
+  it("constrói somente filtros autorizados da fila unassigned", () => {
+    const path = buildLeadUnassignedPath({
+      status: "archived",
+      source: "campaign",
+      nextActionState: "none",
+      createdFrom: "2026-07-01",
+      createdTo: "2026-07-31",
+      limit: 25,
+    });
+    expect(path).toContain("status=archived");
+    expect(path).toContain("source=campaign");
+    expect(path).toContain("createdTo=2026-08-01");
+    expect(path).not.toContain("assignedToMe");
   });
 });

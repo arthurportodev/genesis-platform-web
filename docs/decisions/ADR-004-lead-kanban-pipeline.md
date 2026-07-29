@@ -1,6 +1,7 @@
 # ADR-004 — Pipeline Kanban de Leads
 
-- Estado: Proposta no candidato `0.7.3`
+- Estado: Incorporada pelo PR #4, squash
+  `1040523fa4b415e1cdf25d7f61085c3765f33eb9`
 - Data: 2026-07-29
 
 ## Contexto

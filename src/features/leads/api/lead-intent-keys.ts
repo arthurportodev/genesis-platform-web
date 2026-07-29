@@ -17,8 +17,9 @@ export class LeadIntentKeyRegistry {
     name: string,
     intent: LeadIdempotentAction,
     sourceRevision: string,
+    context?: Readonly<Record<string, unknown>>,
   ): IdempotencyKey {
-    const fingerprint = JSON.stringify({ intent, sourceRevision });
+    const fingerprint = JSON.stringify({ intent, sourceRevision, context });
     const stored = this.#keys.get(name);
     if (stored?.fingerprint === fingerprint) return stored.key;
     const key = createIdempotencyKey();

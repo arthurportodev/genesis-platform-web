@@ -15,17 +15,24 @@ import { PageHeader } from "@/shared/components/PageHeader";
 import { cn } from "@/shared/lib/cn";
 import { useActiveOrganization } from "@/shared/organization/active-organization";
 import { Button, buttonVariants } from "@/shared/ui/Button";
-import { useOptionalLeadPipelineState } from "@/features/leads/model/lead-pipeline-state";
+import { useLeadNavigationState } from "@/features/leads/model/lead-navigation-state";
 
 export function LeadDetailPage() {
   const { leadId } = useParams({ strict: false });
   const organization = useActiveOrganization();
-  const pipelineState = useOptionalLeadPipelineState();
-  const returnToPipeline = pipelineState?.detailOrigin === "pipeline";
-  const backTo = returnToPipeline ? "/app/pipeline" : "/app/leads";
-  const backLabel = returnToPipeline
-    ? "Voltar para o Pipeline"
-    : "Voltar para a Inbox";
+  const navigation = useLeadNavigationState();
+  const backTo =
+    navigation.detailOrigin === "pipeline"
+      ? "/app/pipeline"
+      : navigation.detailOrigin === "follow-up"
+        ? "/app/follow-up"
+        : "/app/leads";
+  const backLabel =
+    navigation.detailOrigin === "pipeline"
+      ? "Voltar para o Pipeline"
+      : navigation.detailOrigin === "follow-up"
+        ? "Voltar para o Follow-up"
+        : "Voltar para a Inbox";
   const canUseDirectory =
     organization.role === "owner" || organization.role === "admin";
   const detail = useLeadDetailQuery(leadId ?? "");
