@@ -132,7 +132,8 @@ function assertRequestOptions(options: HttpRequestOptions): void {
   const tenantScoped =
     kind === "tenant-scoped" ||
     kind === "conditional-mutation" ||
-    kind === "idempotent-mutation";
+    kind === "idempotent-mutation" ||
+    kind === "conditional-idempotent-mutation";
   const bearerAllowed =
     tenantScoped || kind === "authenticated" || kind === "auth-cookie-mutation";
   if (options.accessToken && !bearerAllowed)
@@ -141,9 +142,17 @@ function assertRequestOptions(options: HttpRequestOptions): void {
     throw new AppError("protocol", "Organization incompatível com a chamada.");
   if (options.csrfToken && kind !== "auth-cookie-mutation")
     throw new AppError("protocol", "CSRF incompatível com a chamada.");
-  if (options.ifMatch && kind !== "conditional-mutation")
+  if (
+    options.ifMatch &&
+    kind !== "conditional-mutation" &&
+    kind !== "conditional-idempotent-mutation"
+  )
     throw new AppError("protocol", "If-Match incompatível com a chamada.");
-  if (options.idempotencyKey && kind !== "idempotent-mutation")
+  if (
+    options.idempotencyKey &&
+    kind !== "idempotent-mutation" &&
+    kind !== "conditional-idempotent-mutation"
+  )
     throw new AppError(
       "protocol",
       "Idempotency-Key incompatível com a chamada.",
@@ -155,6 +164,16 @@ function assertRequestOptions(options: HttpRequestOptions): void {
       "protocol",
       "Idempotency-Key é obrigatória nesta chamada.",
     );
+  if (
+    kind === "conditional-idempotent-mutation" &&
+    (!options.ifMatch || !options.idempotencyKey)
+  )
+    throw new AppError(
+      "protocol",
+      "If-Match e Idempotency-Key são obrigatórios nesta chamada.",
+    );
+  if (options.ifMatch === "*")
+    throw new AppError("protocol", "If-Match curinga não é permitido.");
 }
 
 export function createBaseHttpClient(
@@ -276,13 +295,15 @@ export function createAuthenticatedHttpClient(
       const organizationId =
         options.kind === "tenant-scoped" ||
         options.kind === "conditional-mutation" ||
-        options.kind === "idempotent-mutation"
+        options.kind === "idempotent-mutation" ||
+        options.kind === "conditional-idempotent-mutation"
           ? dependencies.getActiveOrganizationId()
           : undefined;
       if (
         (options.kind === "tenant-scoped" ||
           options.kind === "conditional-mutation" ||
-          options.kind === "idempotent-mutation") &&
+          options.kind === "idempotent-mutation" ||
+          options.kind === "conditional-idempotent-mutation") &&
         !organizationId
       ) {
         throw new AppError("forbidden", "Selecione uma organização.");

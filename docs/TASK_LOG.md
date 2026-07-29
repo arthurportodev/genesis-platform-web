@@ -21,7 +21,8 @@
 ## 0.7.1.2 — Sessão Web, Organization Ativa e Integração HTTP
 
 - Classe/perfil: Critical / critical.
-- Estado: candidato local concluído, aguardando Gate 2, sem PR ou entrega remota.
+- Estado: incorporada na `main` pelo PR #2, squash
+  `633ace9b55ec25e70f1f88089865f89db464ed5f`.
 - Base frontend: `30b91272088dd9be03b8bd9feffbf74dac48acc7`.
 - Backend canônico read-only:
   `57f6955b3a90a29517d5477e75aac97032425ed1`.
@@ -30,3 +31,16 @@
   logout, ETag/idempotência, testes e documentação.
 - Limites: backend e dependências inalterados; sem CRM real, Vercel, domínio,
   deploy ou persistência de token.
+
+## 0.7.2 — Inbox e Detalhe do Lead
+
+- Classe/perfil: Critical / critical.
+- Estado: candidato local em validação para Gate 2, sem PR ou entrega remota.
+- Base frontend: `633ace9b55ec25e70f1f88089865f89db464ed5f`.
+- Backend canônico read-only:
+  `57f6955b3a90a29517d5477e75aac97032425ed1`.
+- Entrega: Inbox real, filtros e cursor; detalhe, timeline ASC, próxima ação,
+  ciclos, diretório condicionado ao papel e mutações protegidas por versão e
+  idempotência.
+- Limites: sem criação de Lead, Pipeline, filas globais, métricas, mudança no
+  backend, dependências, Vercel, domínio ou deploy.

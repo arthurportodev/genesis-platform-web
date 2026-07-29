@@ -34,7 +34,9 @@ estrito, timeout combinado com o AbortSignal do caller e taxonomia segura de
 erros. Paths são canonicalizados dentro de `/api/v1`, bodies são limitados e
 HTML em path de API é erro de protocolo. `429` ativa cooldown local. Bearer é lido imediatamente
 antes do dispatch; `X-Organization-Id` aparece somente em requests
-tenant-scoped. ETag, If-Match e Idempotency-Key são opt-in.
+tenant-scoped. ETag, If-Match e Idempotency-Key são opt-in. O descritor
+`conditional-idempotent-mutation` exige os dois headers, rejeita `If-Match: *` e
+mantém a mesma chave em um único replay após refresh.
 
 No desenvolvimento, o Vite lê `GENESIS_API_PROXY_TARGET` sem prefixo
 `VITE_` e aceita somente origem HTTP(S) sem credenciais ou path. Ausência do target responde fail-closed. Vercel conserva apenas o
@@ -53,6 +55,26 @@ Troca de Organization bloqueia novo contexto tenant, recusa a troca enquanto
 há mutation não cancelável, cancela queries antigas, remove o cache anterior,
 ativa e persiste o novo UUID e então invalida o router.
 
+## Leads
+
+`features/leads` concentra contratos Zod, adapters HTTP, query keys, queries,
+mutations, capacidades puras e componentes. O cliente HTTP e os dados mínimos da
+Organization são injetados por providers em `shared`, mantendo
+`app → features/shared`, `features → shared` e `shared` independente.
+
+Todas as chaves começam em
+`["organization", organizationId, "leads", ...]`. Inbox e detalhe usam
+`staleTime` de 15 segundos; timeline 10 segundos; próxima ação zero; ciclos 30
+segundos; responsáveis 60 segundos. Não há polling nem atualização otimista.
+Troca de Organization e logout reutilizam a limpeza tenant existente.
+
+A Inbox mantém busca e filtros somente em memória, pagina por cursor com pilha
+local e converte datas finais inclusivas em limites exclusivos por aritmética de
+calendário. O histórico preserva a ordem ASC do backend e acrescenta páginas sem
+reordenar. Um snapshot `{ etag, leadId, revision }` impede usar uma versão em
+outro Lead; o ETag continua opaco. Em `409/412`, o rascunho é preservado, os
+dados são relidos e não existe reenvio automático.
+
 ## Router
 
 `src/app/router/router.tsx` usa context tipado e `beforeLoad`. Rotas
@@ -63,5 +85,6 @@ Organizations exigem `/select-organization`. Redirects usam replace.
 ## Limites
 
 NestJS em `arthurportodev/genesis-platform-api` permanece a autoridade de
-identidade, tenant e autorização. Guards frontend são somente UX. CRM real,
-Vercel, domínio, DNS e deploy não fazem parte desta implementação.
+identidade, tenant e autorização. A matriz de capacidades de Leads é somente UX.
+Criação de Lead, Pipeline, filas globais, métricas, Vercel, domínio, DNS e deploy
+não fazem parte desta implementação.

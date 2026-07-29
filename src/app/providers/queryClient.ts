@@ -53,6 +53,16 @@ export function createSessionCache(queryClient: QueryClient): SessionCache {
         predicate: ({ queryKey }) =>
           isOrganizationQueryKey(queryKey, organizationId),
       });
+      const mutationCache = queryClient.getMutationCache();
+      for (const mutation of mutationCache.getAll()) {
+        if (
+          isOrganizationQueryKey(
+            mutation.options.mutationKey ?? [],
+            organizationId,
+          )
+        )
+          mutationCache.remove(mutation);
+      }
     },
   };
 }

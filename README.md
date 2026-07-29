@@ -2,8 +2,8 @@
 
 Frontend oficial da Genesis Platform, construído com React, Vite e TypeScript
 estrito. Este repositório contém a fundação visual e operacional da área
-administrativa e a integração web de sessão, Organizations e HTTP com o contrato
-oficial do backend. Dados de CRM continuam indisponíveis.
+administrativa, a integração web de sessão/Organizations/HTTP e a primeira
+experiência operacional de CRM: Inbox e detalhe do Lead.
 
 ## Requisitos
 
@@ -50,6 +50,8 @@ Leia [docs/START_HERE.md](docs/START_HERE.md) antes de contribuir.
 - Backend oficial: `arthurportodev/genesis-platform-api`.
 - Integração web local: implementada por path same-origin `/api/v1` e proxy
   Vite na tarefa `0.7.1.2`.
+- Leads: Inbox, filtros, detalhe, histórico e ações consomem o backend oficial na
+  tarefa `0.7.2`; não existe criação de Lead no frontend.
 
 Projeto Vercel, domínio, DNS, proxy de produção e ambientes publicados ainda não
 estão configurados.

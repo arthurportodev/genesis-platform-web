@@ -9,6 +9,7 @@ import {
   testOrganizations,
   testUser,
 } from "@/test/msw/auth-handlers";
+import { createLeadHandlers } from "@/test/msw/lead-handlers";
 
 describe("router e shell protegidos", () => {
   it("redireciona acesso anônimo e preserva returnTo seguro", async () => {
@@ -88,7 +89,7 @@ describe("router e shell protegidos", () => {
 
   it("abre o menu responsivo por teclado", async () => {
     const restoreLocks = installWebLocks();
-    server.use(...createAuthHandlers());
+    server.use(...createAuthHandlers(), ...createLeadHandlers());
     const user = userEvent.setup();
     await renderAppAt("/app");
 
@@ -97,7 +98,9 @@ describe("router e shell protegidos", () => {
     await user.keyboard("{Enter}");
     const drawer = await screen.findByRole("dialog");
     await user.click(within(drawer).getByRole("link", { name: "Leads" }));
-    expect(await screen.findByRole("heading", { name: "Leads" })).toBeVisible();
+    expect(
+      await screen.findByRole("heading", { name: "Inbox de Leads" }),
+    ).toBeVisible();
     restoreLocks();
   });
 
