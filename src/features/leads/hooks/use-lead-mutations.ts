@@ -18,6 +18,10 @@ import {
   isLeadKanbanAggregateKey,
   leadQueryKeys,
 } from "@/features/leads/api/lead-query-keys";
+import {
+  invalidateLeadMetrics,
+  leadActionAffectsMetrics,
+} from "@/features/leads/hooks/use-lead-metrics";
 import { useLeadApi } from "@/features/leads/hooks/use-lead-queries";
 import type { IdempotencyKey } from "@/shared/api/idempotency";
 import { AppError, toAppError } from "@/shared/api/errors";
@@ -28,10 +32,16 @@ export function useLeadMutations(leadId: string) {
   const queryClient = useQueryClient();
   const api = useLeadApi();
 
-  const refreshLead = async () => {
-    await Promise.all([
+  const refreshLead = async (includeMetrics = false) => {
+    const refreshes = [
       queryClient.invalidateQueries({
-        queryKey: leadQueryKeys.root(organization.id),
+        queryKey: leadQueryKeys.inboxes(organization.id),
+      }),
+      queryClient.invalidateQueries({
+        queryKey: leadQueryKeys.kanbans(organization.id),
+      }),
+      queryClient.invalidateQueries({
+        queryKey: leadQueryKeys.work(organization.id),
       }),
       queryClient.invalidateQueries({
         queryKey: leadQueryKeys.detail(organization.id, leadId),
@@ -45,7 +55,10 @@ export function useLeadMutations(leadId: string) {
       queryClient.invalidateQueries({
         queryKey: leadQueryKeys.cycles(organization.id, leadId),
       }),
-    ]);
+    ];
+    if (includeMetrics)
+      refreshes.push(invalidateLeadMetrics(queryClient, organization.id));
+    await Promise.all(refreshes);
   };
 
   const update = useMutation({
@@ -62,7 +75,7 @@ export function useLeadMutations(leadId: string) {
       current: LeadDetailSnapshot;
       body: UpdateLeadInput;
     }) => api.update(current, body),
-    onSuccess: refreshLead,
+    onSuccess: () => refreshLead(false),
   });
 
   const assign = useMutation({
@@ -79,7 +92,7 @@ export function useLeadMutations(leadId: string) {
       current: LeadDetailSnapshot;
       responsibleMembershipId: string | null;
     }) => api.assign(current, responsibleMembershipId),
-    onSuccess: refreshLead,
+    onSuccess: () => refreshLead(true),
   });
 
   const act = useMutation({
@@ -98,7 +111,8 @@ export function useLeadMutations(leadId: string) {
       intent: LeadIdempotentAction;
       idempotencyKey: IdempotencyKey;
     }) => api.act(current, intent, idempotencyKey),
-    onSuccess: refreshLead,
+    onSuccess: (_receipt, variables) =>
+      refreshLead(leadActionAffectsMetrics(variables.intent.action)),
   });
 
   return { update, assign, act, refreshLead };

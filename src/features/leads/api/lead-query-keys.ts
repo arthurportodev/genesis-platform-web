@@ -12,6 +12,7 @@ import {
   canonicalLeadReturnReviewFilters,
   canonicalLeadUnassignedFilters,
 } from "@/features/leads/api/lead-filters";
+import type { CanonicalMetricsPeriod } from "@/features/leads/model/lead-metrics-period";
 
 function root(organizationId: string) {
   if (!organizationId)
@@ -86,6 +87,10 @@ export const leadQueryKeys = {
       "return-reviews",
       canonicalLeadReturnReviewFilters(filters),
     ] as const,
+  metricsRoot: (organizationId: string) =>
+    [...root(organizationId), "metrics"] as const,
+  metrics: (organizationId: string, period: CanonicalMetricsPeriod) =>
+    [...root(organizationId), "metrics", period] as const,
 };
 
 export function isLeadKanbanAggregateKey(

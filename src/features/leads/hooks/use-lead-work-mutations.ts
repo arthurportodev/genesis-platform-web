@@ -21,6 +21,7 @@ import {
   compatibleWorkDetail,
 } from "@/features/leads/api/lead-work-preflight";
 import { useLeadApi } from "@/features/leads/hooks/use-lead-queries";
+import { invalidateLeadMetrics } from "@/features/leads/hooks/use-lead-metrics";
 import { toAppError } from "@/shared/api/errors";
 import { environment } from "@/shared/config/environment";
 import type { IdempotencyKey } from "@/shared/api/idempotency";
@@ -136,6 +137,7 @@ export function useLeadWorkMutations() {
       invalidateQuery(leadQueryKeys.kanbans(organization.id)),
       invalidateQuery(leadQueryKeys.detail(organization.id, leadId)),
       invalidateQuery(leadQueryKeys.timeline(organization.id, leadId)),
+      invalidateLeadMetrics(queryClient, organization.id),
     ];
     if (command === "dismiss") {
       await Promise.all([

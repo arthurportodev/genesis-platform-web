@@ -18,7 +18,8 @@ import { LeadsPage } from "@/features/leads/LeadsPage";
 import { LeadDetailPage } from "@/features/leads/LeadDetailPage";
 import { LeadPipelinePage } from "@/features/leads/LeadPipelinePage";
 import { LeadFollowUpPage } from "@/features/leads/LeadFollowUpPage";
-import { MetricsPage } from "@/features/metrics/MetricsPage";
+import { LeadMetricsPage } from "@/features/leads/LeadMetricsPage";
+import { validateMetricsSearch } from "@/features/leads/model/lead-metrics-period";
 import { SettingsPage } from "@/features/settings/SettingsPage";
 import {
   isAuthenticatedState,
@@ -153,7 +154,8 @@ const followUpRoute = createRoute({
 const metricsRoute = createRoute({
   getParentRoute: () => appRoute,
   path: "/metrics",
-  component: MetricsPage,
+  validateSearch: validateMetricsSearch,
+  component: LeadMetricsPage,
 });
 
 const settingsRoute = createRoute({

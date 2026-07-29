@@ -1,6 +1,7 @@
 # ADR-005 — Follow-up e filas operacionais de Leads
 
-- Estado: Proposta no candidato `0.7.4`
+- Estado: Incorporada pelo PR #5, squash
+  `f9fc37dd31fa2116a66354d46938c60d566fe101`
 - Data: 2026-07-29
 
 ## Contexto
@@ -59,8 +60,8 @@ de detalhe; essa leitura é necessária porque itens de fila não fornecem ETag.
 Uma tela continuamente em foco pode envelhecer na virada do dia até refresh
 manual, risco aceito para evitar polling e autoridade temporal local.
 
-Métricas, calendário, WhatsApp, automações, comunicação, Vercel e deploy
-permanecem fora do escopo.
+Métricas foram tratadas posteriormente pelo ADR-006. Calendário, WhatsApp,
+automações, comunicação, Vercel e deploy permanecem fora do escopo.
 
 ## Fontes
 

@@ -97,6 +97,20 @@ assignment não usa chave nem admite replay cego. Sucesso é server-confirmed e
 invalida apenas filas, Inbox, Pipeline e recursos do Lead realmente afetados.
 `409/412` atualizam o estado e exigem nova confirmação.
 
+Metrics permanece no domínio `features/leads` e consome somente
+`GET /api/v1/leads/metrics/summary`. A query usa a sub-raiz tenant-scoped
+`leads/metrics`, período canônico default ou range civil, `staleTime` de 30
+segundos, refetch por foco quando stale e nenhum polling. `from/to` válidos ficam
+na query string; o período default continua omitido e é calculado pelo backend.
+
+A resposta Zod é indivisível e mantém o snapshot atual separado dos eventos do
+período. `asOf` e `timeZone` da Organization governam formatação e presets; o
+navegador não reclassifica o dia comercial. Owner/admin montam a consulta e
+member recebe estado seguro sem request. Perda de papel cancela e remove a
+sub-raiz de Metrics. Mutações invalidam essa raiz somente quando alteram os
+contadores. A visualização usa cards, lista e barras CSS acessíveis, sem
+dependência gráfica ou persistência.
+
 Um estado geral de navegação de Leads registra origem Inbox, Pipeline ou
 Follow-up. Tabs, filtros e posição do Follow-up sobrevivem à ida ao detalhe
 somente em memória e são descartados em reload, troca de Organization, logout ou
@@ -113,5 +127,5 @@ Organizations exigem `/select-organization`. Redirects usam replace.
 
 NestJS em `arthurportodev/genesis-platform-api` permanece a autoridade de
 identidade, tenant e autorização. A matriz de capacidades de Leads é somente UX.
-Criação de Lead, estágios customizáveis, métricas, calendário, automações, Vercel,
+Criação de Lead, estágios customizáveis, calendário, automações, Vercel,
 domínio, DNS e deploy não fazem parte desta implementação.

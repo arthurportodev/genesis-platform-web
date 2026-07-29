@@ -27,9 +27,31 @@ it("mantém todas as chaves de Lead sob o tenant", () => {
       organizationId,
       defaultLeadReturnReviewFilters,
     ),
+    leadQueryKeys.metrics(organizationId, { kind: "default" }),
   ]) {
     expect(key.slice(0, 3)).toEqual(["organization", organizationId, "leads"]);
   }
+});
+
+it("separa Metrics por Organization e período canônico", () => {
+  expect(leadQueryKeys.metrics("org-a", { kind: "default" })).toEqual([
+    "organization",
+    "org-a",
+    "leads",
+    "metrics",
+    { kind: "default" },
+  ]);
+  expect(leadQueryKeys.metrics("org-a", { kind: "default" })).not.toEqual(
+    leadQueryKeys.metrics("org-a", {
+      kind: "range",
+      from: "2026-07-01" as never,
+      to: "2026-07-29" as never,
+    }),
+  );
+  expect(leadQueryKeys.metrics("org-a", { kind: "default" })).not.toEqual(
+    leadQueryKeys.metrics("org-b", { kind: "default" }),
+  );
+  expect(() => leadQueryKeys.metricsRoot("")).toThrow(/Organization/iu);
 });
 
 it("separa filas, Memberships e Organizations sem incluir cursor", () => {

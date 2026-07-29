@@ -14,6 +14,7 @@ async function resetServer(page: Page) {
 async function serverState(page: Page): Promise<{
   refreshCount: number;
   activeRefreshTokens: number;
+  metricsRequests: number;
 }> {
   const response = await page.request.get("/__test/state");
   const value: unknown = await response.json();
@@ -23,13 +24,16 @@ async function serverState(page: Page): Promise<{
     !("refreshCount" in value) ||
     typeof value.refreshCount !== "number" ||
     !("activeRefreshTokens" in value) ||
-    typeof value.activeRefreshTokens !== "number"
+    typeof value.activeRefreshTokens !== "number" ||
+    !("metricsRequests" in value) ||
+    typeof value.metricsRequests !== "number"
   ) {
     throw new Error("Estado inválido do servidor E2E.");
   }
   return {
     refreshCount: value.refreshCount,
     activeRefreshTokens: value.activeRefreshTokens,
+    metricsRequests: value.metricsRequests,
   };
 }
 
@@ -562,6 +566,212 @@ test("Follow-up mobile mantém tabs, Sheet e touch targets acessíveis", async (
   await expectTouchTarget(
     page.getByRole("button", { name: "Ações rápidas de Lead de Follow-up" }),
   );
+});
+
+test("Metrics owner usa período, URL, histórico, reload e refresh acessível", async ({
+  page,
+}) => {
+  await login(page, "owner@example.test", "/app/metrics");
+  await expect(page).toHaveURL(/\/app\/metrics$/u);
+  await expect(
+    page.getByRole("heading", { name: "Métricas", level: 1 }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Visão atual" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Desempenho do período" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("group", { name: "Leads ativos" }).getByText("42"),
+  ).toBeVisible();
+  await expect(page.getByText("Fuso da operação: America/Belem")).toBeVisible();
+  await expect(page.getByText(/conversão/iu)).toHaveCount(0);
+  await expect(
+    page.getByRole("listitem", { name: /Campanha: 12 Leads, 40%/iu }),
+  ).toBeVisible();
+
+  const period = page.getByLabel("Seleção de período");
+  await period.selectOption("last7");
+  await expect(page).toHaveURL(/from=2026-07-23&to=2026-07-29/u);
+  await page.goBack();
+  await expect(page).toHaveURL(/\/app\/metrics$/u);
+  await page.goForward();
+  await expect(page).toHaveURL(/from=2026-07-23&to=2026-07-29/u);
+
+  await period.selectOption("last90");
+  await expect(page).toHaveURL(/from=2026-05-01&to=2026-07-29/u);
+  await period.selectOption("currentMonth");
+  await expect(page).toHaveURL(/from=2026-07-01&to=2026-07-29/u);
+  await period.selectOption("last30");
+  await expect(page).toHaveURL(/\/app\/metrics$/u);
+
+  await period.selectOption("custom");
+  await page.getByLabel("De", { exact: true }).fill("2026-08-10");
+  await page.getByLabel("Até", { exact: true }).fill("2026-08-10");
+  await page.getByRole("button", { name: "Aplicar período" }).click();
+  await expect(page).toHaveURL(/from=2026-08-10&to=2026-08-10/u);
+  await page.reload();
+  await expect(page.getByLabel("De", { exact: true })).toHaveValue(
+    "2026-08-10",
+  );
+
+  await page.getByRole("button", { name: "Atualizar" }).click();
+  await expect(page.getByRole("status")).toContainText(
+    /Métricas atualizadas/iu,
+  );
+});
+
+test("Metrics canonicaliza URL inválida, avisa e foca erro personalizado", async ({
+  page,
+}) => {
+  await login(page, "owner@example.test", "/app/metrics?foo=bar");
+  await expect(
+    page.getByText(/Parâmetros de período desconhecidos foram ignorados/iu),
+  ).toBeVisible();
+  await expect(page).toHaveURL(/\/app\/metrics$/u);
+  const period = page.getByLabel("Seleção de período");
+  await period.selectOption("custom");
+  await page.getByLabel("De", { exact: true }).fill("2026-08-11");
+  await page.getByLabel("Até", { exact: true }).fill("2026-08-10");
+  await page.getByRole("button", { name: "Aplicar período" }).click();
+  await expect(page.getByRole("alert")).toBeFocused();
+  await expect(page).toHaveURL(/\/app\/metrics$/u);
+});
+
+test("Metrics aceita admin e bloqueia member antes da consulta", async ({
+  page,
+}) => {
+  await login(page, "admin@example.test", "/app/metrics");
+  await expect(page.getByRole("group", { name: "Leads ativos" })).toBeVisible();
+  await page.getByRole("button", { name: "Abrir menu do usuário" }).click();
+  await page.getByRole("menuitem", { name: "Sair", exact: true }).click();
+  await expect(
+    page.getByRole("heading", { name: "Acesse sua conta" }),
+  ).toBeVisible();
+  await page.goBack();
+  await expect(page.getByText("42")).toHaveCount(0);
+
+  await login(page, "member@example.test", "/app/metrics");
+  await expect(page.getByText(/Somente owner ou admin/iu)).toBeVisible();
+  await expect(page.getByRole("link", { name: "Métricas" })).toHaveCount(0);
+  expect((await serverState(page)).metricsRequests).toBe(1);
+});
+
+test("Metrics diferencia zeros válidos e source futura", async ({ page }) => {
+  await page.request.post("/__test/metrics-zeros");
+  await login(page, "owner@example.test", "/app/metrics");
+  await expect(
+    page.getByRole("group", { name: "Leads ativos" }).getByText("0"),
+  ).toBeVisible();
+  await expect(
+    page.getByText("Nenhum Lead foi criado no período selecionado."),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("group", { name: /Taxa de ganho/iu }).getByText("—"),
+  ).toBeVisible();
+
+  await page.getByRole("button", { name: "Abrir menu do usuário" }).click();
+  await page.getByRole("menuitem", { name: "Sair", exact: true }).click();
+  await resetServer(page);
+  await page.request.post("/__test/metrics-future-source");
+  await login(page, "owner@example.test", "/app/metrics");
+  await expect(page.getByText("Origem não catalogada")).toBeVisible();
+  await expect(page.getByText("(partner_referral)")).toBeVisible();
+});
+
+for (const [status, message] of [
+  [400, /Período não aceito/iu],
+  [429, /cooldown/iu],
+  [500, /Não foi possível carregar as métricas/iu],
+  [503, /não está pronta para uma leitura confiável/iu],
+] as const) {
+  test(`Metrics trata ${status} sem mostrar zeros`, async ({ page }) => {
+    await page.request.post(`/__test/metrics-status-${status}`);
+    await login(page, "owner@example.test", "/app/metrics");
+    await expect(page.getByText(message)).toBeVisible();
+    await expect(page.getByRole("group", { name: "Leads ativos" })).toHaveCount(
+      0,
+    );
+  });
+}
+
+test("Metrics trata 403 após dados carregados de forma fail-closed", async ({
+  page,
+}) => {
+  await login(page, "owner@example.test", "/app/metrics");
+  await expect(page.getByText("42")).toBeVisible();
+  await page.request.post("/__test/metrics-status-403");
+  await page.getByRole("button", { name: "Atualizar" }).click();
+  await expect(page.getByText(/Somente owner ou admin/iu)).toBeVisible();
+  await expect(page.getByText("42")).toHaveCount(0);
+});
+
+test("Metrics 401 encerra a sessão sem manter dados", async ({ page }) => {
+  await page.request.post("/__test/metrics-status-401");
+  await login(page, "owner@example.test", "/app/metrics");
+  await expect(
+    page.getByRole("heading", { name: "Acesse sua conta" }),
+  ).toBeVisible();
+  await expect(page.getByText("42")).toHaveCount(0);
+});
+
+test("Metrics troca para Organization member sem manter dados do tenant anterior", async ({
+  page,
+}) => {
+  await login(page, "multi@example.test", "/app/metrics");
+  await page
+    .getByRole("button", { name: /Genesis Teste.*Papel: owner/iu })
+    .click();
+  await page.getByRole("link", { name: "Métricas" }).click();
+  await expect(
+    page.getByRole("group", { name: "Leads ativos" }).getByText("42"),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Selecionar organização" }).click();
+  await page.getByRole("menuitem", { name: "Segunda Organização" }).click();
+  await expect(page.getByText(/Somente owner ou admin/iu)).toBeVisible();
+  await expect(page.getByText("42")).toHaveCount(0);
+  await expect(page.getByRole("link", { name: "Métricas" })).toHaveCount(0);
+});
+
+test("Metrics ignora resposta tardia do tenant anterior", async ({ page }) => {
+  await page.request.post("/__test/metrics-delay");
+  await login(page, "multi@example.test", "/app/metrics");
+  await page
+    .getByRole("button", { name: /Genesis Teste.*Papel: owner/iu })
+    .click();
+  await page.getByRole("link", { name: "Métricas" }).click();
+  await expect
+    .poll(async () => (await serverState(page)).metricsRequests)
+    .toBe(1);
+  await page.getByRole("button", { name: "Selecionar organização" }).click();
+  await page.getByRole("menuitem", { name: "Segunda Organização" }).click();
+  await expect(page.getByText(/Somente owner ou admin/iu)).toBeVisible();
+  await page.waitForTimeout(900);
+  await expect(page.getByText("42")).toHaveCount(0);
+});
+
+test("Metrics mobile preserva touch, teclado e visualização textual", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await login(page, "owner@example.test", "/app/metrics");
+  const refresh = page.getByRole("button", { name: "Atualizar" });
+  const period = page.getByLabel("Seleção de período");
+  await expectTouchTarget(refresh);
+  await expectTouchTarget(period);
+  await page.getByRole("button", { name: "Abrir menu", exact: true }).click();
+  const mobileMenu = page.getByRole("dialog", { name: "Menu principal" });
+  await expectTouchTarget(mobileMenu.getByRole("link", { name: "Métricas" }));
+  await page.getByRole("button", { name: "Fechar menu" }).click();
+  await expect(mobileMenu).toBeHidden();
+  await period.focus();
+  await page.keyboard.press("End");
+  await expect(page.getByLabel("De", { exact: true })).toBeVisible();
+  await expect(
+    page.getByRole("listitem", { name: /Campanha: 12 Leads, 40%/iu }),
+  ).toBeVisible();
+  await expect(page.locator("main")).not.toHaveCSS("overflow-x", "scroll");
 });
 
 function leadIdForTest(): string {

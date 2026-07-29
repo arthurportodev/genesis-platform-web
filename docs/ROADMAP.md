@@ -14,9 +14,10 @@
       `859823501bbdee03441a9fa865d823f3890be07a`).
 - [x] Pipeline Kanban de Leads (`0.7.3`, PR #4, squash
       `1040523fa4b415e1cdf25d7f61085c3765f33eb9`).
-- [ ] Follow-up e filas operacionais (`0.7.4`, candidato local dependente dos
+- [x] Follow-up e filas operacionais (`0.7.4`, PR #5, squash
+      `f9fc37dd31fa2116a66354d46938c60d566fe101`).
+- [ ] Métricas operacionais de Leads (`0.7.5`, candidato local dependente dos
       Gates de entrega).
-- Integração futura de métricas.
 - Observabilidade e acessibilidade incremental.
 - Tarefa independente para proxy de produção, projeto Vercel, domínio e deploy.
 

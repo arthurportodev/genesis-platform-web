@@ -7,8 +7,27 @@ import type {
 } from "@/features/leads/api/lead-contracts";
 import { createLeadApi } from "@/features/leads/api/lead-api";
 import { leadQueryKeys } from "@/features/leads/api/lead-query-keys";
+import type { CanonicalMetricsPeriod } from "@/features/leads/model/lead-metrics-period";
+import { isRetryableQueryError } from "@/shared/api/errors";
 
 type LeadApi = ReturnType<typeof createLeadApi>;
+
+export function leadMetricsQueryOptions(
+  api: LeadApi,
+  organizationId: string,
+  period: CanonicalMetricsPeriod,
+) {
+  return {
+    queryKey: leadQueryKeys.metrics(organizationId, period),
+    queryFn: ({ signal }: { signal: AbortSignal }) =>
+      api.metrics(period, signal),
+    staleTime: 30_000,
+    gcTime: 5 * 60_000,
+    refetchOnWindowFocus: true,
+    retry: (failureCount: number, error: unknown) =>
+      failureCount < 1 && isRetryableQueryError(error),
+  };
+}
 
 export function leadDetailQueryOptions(
   api: LeadApi,

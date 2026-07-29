@@ -321,7 +321,8 @@ export function createAuthenticatedHttpClient(
       } catch (error) {
         const normalized = toAppError(error);
         if (normalized.kind === "forbidden" && organizationId) {
-          await dependencies.rebootstrap();
+          void dependencies.rebootstrap().catch(() => undefined);
+          throw normalized;
         }
         if (normalized.kind !== "unauthorized" || !canReplay(options))
           throw normalized;
