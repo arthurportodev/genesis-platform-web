@@ -24,7 +24,12 @@ const retiredRefreshFamilies = new Map<string, string>();
 let refreshCount = 0;
 let sequence = 0;
 let leadRevision = 3;
+let leadStage = "qualification";
 let conflictNextLeadMutation = false;
+let pipelineContinuationFails = false;
+let pipelineConflictStatus: 409 | 412 | null = null;
+let pipelineUncertainOnce = false;
+const completedPipelineMoves = new Set<string>();
 
 const leadId = "00000000-0000-4000-8000-000000000010";
 const secondLeadId = "00000000-0000-4000-8000-000000000020";
@@ -318,6 +323,53 @@ async function handleApi(
     });
     return;
   }
+  if (pathname === "/api/v1/leads/kanban" && request.method === "GET") {
+    const stage = requestUrl.searchParams.get("stage");
+    const cursor = requestUrl.searchParams.get("cursor");
+    if (stage && cursor && pipelineContinuationFails) {
+      authError(response, 503, "Pipeline continuation unavailable.");
+      return;
+    }
+    const secondOrganization =
+      tenant.organizationId === "00000000-0000-4000-8000-000000000004";
+    const currentLead = leadDetail(
+      secondOrganization ? secondLeadId : leadId,
+      secondOrganization ? "Lead Segunda" : "Lead Exemplo",
+    );
+    const q = requestUrl.searchParams.get("q")?.toLocaleLowerCase("pt-BR");
+    const visible =
+      !q || currentLead.displayName.toLocaleLowerCase("pt-BR").includes(q);
+    const stages = stage
+      ? [stage]
+      : ["new", "qualification", "diagnosis", "proposal", "negotiation"];
+    json(response, 200, {
+      asOf: new Date().toISOString(),
+      columns: stages.map((candidate) => ({
+        stage: candidate,
+        total: visible && candidate === leadStage ? 2 : 0,
+        items:
+          visible && candidate === leadStage
+            ? cursor
+              ? [
+                  leadListItem({
+                    ...currentLead,
+                    id: "00000000-0000-4000-8000-000000000030",
+                    displayName: "Lead Continuação",
+                  }),
+                ]
+              : [leadListItem(currentLead)]
+            : [],
+        page: {
+          limit: 20,
+          nextCursor:
+            visible && candidate === leadStage && !cursor
+              ? "opaque-kanban-cursor"
+              : null,
+        },
+      })),
+    });
+    return;
+  }
   if (pathname === "/api/v1/members" && request.method === "GET") {
     json(response, 200, {
       items: [
@@ -341,6 +393,50 @@ async function handleApi(
       detailMatch[1] === secondLeadId ? "Lead Segunda" : "Lead Exemplo";
     const lead = leadDetail(detailMatch[1], name);
     json(response, 200, lead, { ETag: `"lead:${lead.id}:${lead.revision}"` });
+    return;
+  }
+  if (
+    pathname === `/api/v1/leads/${leadId}/move` &&
+    request.method === "POST"
+  ) {
+    const key = request.headers["idempotency-key"];
+    if (typeof key !== "string" || !request.headers["if-match"]) {
+      authError(response, 428, "If-Match and Idempotency-Key are required.");
+      return;
+    }
+    if (completedPipelineMoves.has(key)) {
+      response.writeHead(204, {
+        "Cache-Control": "no-store",
+        ETag: `"lead:${leadId}:${leadRevision}"`,
+        "Idempotency-Replayed": "true",
+      });
+      response.end();
+      return;
+    }
+    if (!validLeadMutationHeaders(request)) {
+      authError(response, 412, "Lead revision conflict.");
+      return;
+    }
+    if (pipelineConflictStatus) {
+      const status = pipelineConflictStatus;
+      pipelineConflictStatus = null;
+      authError(response, status, "Lead revision conflict.");
+      return;
+    }
+    const body = (await readJson(request)) as { stage?: string };
+    if (body.stage) leadStage = body.stage;
+    leadRevision += 1;
+    completedPipelineMoves.add(key);
+    if (pipelineUncertainOnce) {
+      pipelineUncertainOnce = false;
+      response.destroy();
+      return;
+    }
+    response.writeHead(204, {
+      "Cache-Control": "no-store",
+      ETag: `"lead:${leadId}:${leadRevision}"`,
+    });
+    response.end();
     return;
   }
   if (
@@ -446,7 +542,7 @@ function leadDetail(id: string, displayName: string) {
     serviceInterest: "Consultoria",
     responsibleMembershipId: "00000000-0000-4000-8000-000000000003",
     status: "active",
-    stage: "qualification",
+    stage: leadStage,
     latestCycleNumber: "1",
     returnReviewPending: false,
     revision: String(leadRevision),
@@ -580,7 +676,44 @@ export async function startWebSessionServer() {
         refreshCount = 0;
         sequence = 0;
         leadRevision = 3;
+        leadStage = "qualification";
         conflictNextLeadMutation = false;
+        pipelineContinuationFails = false;
+        pipelineConflictStatus = null;
+        pipelineUncertainOnce = false;
+        completedPipelineMoves.clear();
+        json(response, 200, { ok: true });
+        return;
+      }
+      if (
+        url.pathname === "/__test/pipeline-continuation-fail" &&
+        request.method === "POST"
+      ) {
+        pipelineContinuationFails = true;
+        json(response, 200, { ok: true });
+        return;
+      }
+      if (
+        url.pathname === "/__test/pipeline-conflict-409" &&
+        request.method === "POST"
+      ) {
+        pipelineConflictStatus = 409;
+        json(response, 200, { ok: true });
+        return;
+      }
+      if (
+        url.pathname === "/__test/pipeline-conflict-412" &&
+        request.method === "POST"
+      ) {
+        pipelineConflictStatus = 412;
+        json(response, 200, { ok: true });
+        return;
+      }
+      if (
+        url.pathname === "/__test/pipeline-uncertain" &&
+        request.method === "POST"
+      ) {
+        pipelineUncertainOnce = true;
         json(response, 200, { ok: true });
         return;
       }

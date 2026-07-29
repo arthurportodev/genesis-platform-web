@@ -86,7 +86,11 @@ export function LeadActions({
   ) => {
     setError(null);
     setMessage(null);
-    const key = intentKeys.current.keyFor(intentName, intent);
+    const key = intentKeys.current.keyFor(
+      intentName,
+      intent,
+      current.lead.revision,
+    );
     try {
       await mutations.act.mutateAsync({ current, intent, idempotencyKey: key });
       intentKeys.current.forget(intentName);

@@ -75,6 +75,14 @@ reordenar. Um snapshot `{ etag, leadId, revision }` impede usar uma versão em
 outro Lead; o ETag continua opaco. Em `409/412`, o rascunho é preservado, os
 dados são relidos e não existe reenvio automático.
 
+O Pipeline usa uma query agregada para as cinco colunas e uma infinite query
+independente por estágio para continuações. Filtros e cursores ficam somente em
+memória; todo fetch recebe AbortSignal. Páginas são deduplicadas por `id`, maior
+`revision` e `asOf`, sem recalcular totais do backend. O movimento é
+server-confirmed: usa ETag de detalhe exatamente compatível ou faz novo GET,
+envia If-Match e Idempotency-Key vinculada à revisão de origem e relê o Kanban
+completo após sucesso. Não há drag-and-drop, polling ou atualização otimista.
+
 ## Router
 
 `src/app/router/router.tsx` usa context tipado e `beforeLoad`. Rotas
@@ -86,5 +94,5 @@ Organizations exigem `/select-organization`. Redirects usam replace.
 
 NestJS em `arthurportodev/genesis-platform-api` permanece a autoridade de
 identidade, tenant e autorização. A matriz de capacidades de Leads é somente UX.
-Criação de Lead, Pipeline, filas globais, métricas, Vercel, domínio, DNS e deploy
-não fazem parte desta implementação.
+Criação de Lead, estágios customizáveis, filas globais, métricas, Vercel,
+domínio, DNS e deploy não fazem parte desta implementação.

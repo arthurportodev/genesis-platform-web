@@ -18,6 +18,7 @@ Consulte `ROADMAP.md`, `TASK_LOG.md` e `PROMPT_TEMPLATES.md` conforme a tarefa.
 ## Regra de honestidade operacional
 
 O frontend possui integração de autenticação, sessão e Organization com os seis
-endpoints web de `/api/v1/auth`. Isso não torna guards frontend uma fronteira de
-autorização e não torna dados de CRM disponíveis. Estados vazios e indisponíveis
-continuam obrigatórios onde não existe endpoint integrado.
+endpoints web de `/api/v1/auth`, além de Inbox, detalhe e Pipeline de Leads sobre
+os contratos oficiais. Isso não torna guards frontend uma fronteira de
+autorização. Estados vazios e indisponíveis continuam obrigatórios onde não
+existe endpoint integrado.

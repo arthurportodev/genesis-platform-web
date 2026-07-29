@@ -1,5 +1,10 @@
 import { HttpResponse, http } from "msw";
 
+import type {
+  LeadListItem,
+  LeadStage,
+} from "@/features/leads/api/lead-contracts";
+
 export const testLeadId = "00000000-0000-4000-8000-000000000010";
 export const testMemberId = "00000000-0000-4000-8000-000000000011";
 const cycleId = "00000000-0000-4000-8000-000000000012";
@@ -70,6 +75,12 @@ export const testLead = {
   counts: { timeline: 1, cycles: 1, activities: 0, notes: 0 },
 } as const;
 
+export function testLeadListItem(
+  overrides: Partial<LeadListItem> = {},
+): LeadListItem {
+  return { ...(listItem() as LeadListItem), ...overrides };
+}
+
 function listItem() {
   return {
     id: testLead.id,
@@ -110,8 +121,46 @@ export function createLeadHandlers(
     organizationId?: string;
     mutationStatus?: number;
     nextCursor?: string | null;
+    kanbanStatus?: number;
+    kanbanContinuationStatus?: number;
+    kanbanNextCursor?: string | null;
+    onKanban?: (url: URL) => void;
+    onDetail?: () => void;
+    moveDelayMs?: number;
+    moveNetworkFailures?: number;
   } = {},
 ) {
+  let currentStage: LeadStage = testLead.stage;
+  let currentRevision: string = testLead.revision;
+  let remainingMoveNetworkFailures = options.moveNetworkFailures ?? 0;
+  const kanbanResponse = (stage?: string) => {
+    const stages = stage
+      ? [stage]
+      : ["new", "qualification", "diagnosis", "proposal", "negotiation"];
+    return {
+      asOf: "2026-07-28T16:00:00.000Z",
+      columns: stages.map((candidate) => ({
+        stage: candidate,
+        total: candidate === currentStage ? 1 : 0,
+        items:
+          candidate === currentStage
+            ? [
+                testLeadListItem({
+                  stage: currentStage,
+                  revision: currentRevision,
+                }),
+              ]
+            : [],
+        page: {
+          limit: 20,
+          nextCursor:
+            candidate === currentStage
+              ? (options.kanbanNextCursor ?? null)
+              : null,
+        },
+      })),
+    };
+  };
   return [
     http.get("/api/v1/leads", ({ request }) => {
       options.onList?.(new URL(request.url));
@@ -135,6 +184,25 @@ export function createLeadHandlers(
         },
       });
     }),
+    http.get("/api/v1/leads/kanban", ({ request }) => {
+      const url = new URL(request.url);
+      options.onKanban?.(url);
+      if (!requireTenant(request, options.organizationId))
+        return HttpResponse.json(
+          { statusCode: 403, message: "Forbidden" },
+          { status: 403 },
+        );
+      const stage = url.searchParams.get("stage") ?? undefined;
+      const status = stage
+        ? options.kanbanContinuationStatus
+        : options.kanbanStatus;
+      if (status && status !== 200)
+        return HttpResponse.json(
+          { statusCode: status, message: "Kanban unavailable" },
+          { status },
+        );
+      return HttpResponse.json(kanbanResponse(stage));
+    }),
     http.get("/api/v1/members", () =>
       HttpResponse.json({
         items: [
@@ -152,14 +220,18 @@ export function createLeadHandlers(
       }),
     ),
     http.get(`/api/v1/leads/${testLeadId}`, () => {
+      options.onDetail?.();
       if (options.detailStatus && options.detailStatus !== 200)
         return HttpResponse.json(
           { statusCode: options.detailStatus, message: "Detail unavailable" },
           { status: options.detailStatus },
         );
-      return HttpResponse.json(testLead, {
-        headers: { ETag: `"lead:${testLeadId}:3"` },
-      });
+      return HttpResponse.json(
+        { ...testLead, stage: currentStage, revision: currentRevision },
+        {
+          headers: { ETag: `"lead:${testLeadId}:${currentRevision}"` },
+        },
+      );
     }),
     http.get(`/api/v1/leads/${testLeadId}/timeline`, () =>
       HttpResponse.json({
@@ -244,21 +316,40 @@ export function createLeadHandlers(
       "/reactivate",
       "/return-review/dismiss",
     ].map((suffix) =>
-      http.post(`/api/v1/leads/${testLeadId}${suffix}`, ({ request }) => {
+      http.post(`/api/v1/leads/${testLeadId}${suffix}`, async ({ request }) => {
         options.onMutation?.(request);
-        if (options.mutationStatus && options.mutationStatus !== 201)
+        if (suffix === "/move" && remainingMoveNetworkFailures > 0) {
+          remainingMoveNetworkFailures -= 1;
+          return HttpResponse.error();
+        }
+        const expectedStatus = suffix === "/move" ? 204 : 201;
+        if (options.mutationStatus && options.mutationStatus !== expectedStatus)
           return HttpResponse.json(
             { statusCode: options.mutationStatus, message: "Mutation failed" },
             { status: options.mutationStatus },
           );
         if (
-          request.headers.get("if-match") !== `"lead:${testLeadId}:3"` ||
+          request.headers.get("if-match") !==
+            `"lead:${testLeadId}:${currentRevision}"` ||
           !request.headers.has("idempotency-key")
         )
           return HttpResponse.json(
             { statusCode: 428, message: "Headers required" },
             { status: 428 },
           );
+        if (suffix === "/move") {
+          if (options.moveDelayMs)
+            await new Promise((resolve) =>
+              globalThis.setTimeout(resolve, options.moveDelayMs),
+            );
+          const body = (await request.json()) as { stage?: LeadStage };
+          if (body.stage) currentStage = body.stage;
+          currentRevision = String(BigInt(currentRevision) + 1n);
+          return new HttpResponse(null, {
+            status: 204,
+            headers: { ETag: `"lead:${testLeadId}:${currentRevision}"` },
+          });
+        }
         return HttpResponse.json(
           { id: "00000000-0000-4000-8000-000000000015" },
           { status: 201, headers: { ETag: `"lead:${testLeadId}:4"` } },

@@ -16,7 +16,7 @@ import { SelectOrganizationPage } from "@/features/organizations/SelectOrganizat
 import { OverviewPage } from "@/features/dashboard/OverviewPage";
 import { LeadsPage } from "@/features/leads/LeadsPage";
 import { LeadDetailPage } from "@/features/leads/LeadDetailPage";
-import { PipelinePage } from "@/features/pipeline/PipelinePage";
+import { LeadPipelinePage } from "@/features/leads/LeadPipelinePage";
 import { FollowUpPage } from "@/features/follow-up/FollowUpPage";
 import { MetricsPage } from "@/features/metrics/MetricsPage";
 import { SettingsPage } from "@/features/settings/SettingsPage";
@@ -141,7 +141,7 @@ const leadDetailRoute = createRoute({
 const pipelineRoute = createRoute({
   getParentRoute: () => appRoute,
   path: "/pipeline",
-  component: PipelinePage,
+  component: LeadPipelinePage,
 });
 
 const followUpRoute = createRoute({

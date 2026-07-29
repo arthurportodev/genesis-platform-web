@@ -1,6 +1,7 @@
 # ADR-003 — Inbox e detalhe operacional do Lead
 
-- Estado: Proposta no candidato `0.7.2`
+- Estado: Incorporada pelo PR #3, squash
+  `859823501bbdee03441a9fa865d823f3890be07a`
 - Data: 2026-07-29
 
 ## Contexto
@@ -37,7 +38,8 @@ segunda camada de sessão, inventar endpoints ou antecipar Pipeline e filas.
 
 A operação pode listar, filtrar, abrir e atuar sobre Leads existentes com
 isolamento por Organization e concorrência explícita. O frontend continua sem
-criação de Lead, Pipeline/Kanban, filas globais, métricas ou autorização própria.
+criação de Lead, filas globais, métricas ou autorização própria. O Pipeline foi
+tratado posteriormente pelo ADR-004, sem reescrever esta decisão.
 Vercel, proxy externo, domínio e deploy permanecem tarefas independentes.
 
 ## Fontes
