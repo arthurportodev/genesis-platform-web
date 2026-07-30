@@ -16,6 +16,16 @@ Este é o ponto de entrada obrigatório para trabalho no frontend.
 
 Consulte `ROADMAP.md`, `TASK_LOG.md` e `PROMPT_TEMPLATES.md` conforme a tarefa.
 
+## Roteamento operacional V2
+
+Reidrate primeiro apenas as fontes diretamente relacionadas ao delta registradas
+no Task Manifest. Expanda a leitura quando houver drift de base, autoridade
+conflitante, impacto em fronteira protegida, finding High sem causa local ou
+qualquer finding Critical. Em tarefas Critical, invoque
+`$genesis-task-orchestrator` e, para a revisão final read-only,
+`$genesis-independent-verifier`. O fallback sem Skills preserva exatamente os
+mesmos contratos em `AGENTS.md`, schemas e scripts.
+
 ## Regra de honestidade operacional
 
 O frontend possui integração de autenticação, sessão e Organization com os seis

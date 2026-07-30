@@ -42,3 +42,29 @@ Com Gate 3 e checks verdes no head aprovado, use squash merge. Depois:
 4. registre o fechamento.
 
 Tag, release, deploy, Vercel, domínio e DNS são autorizações independentes.
+
+## Contrato V2 e identidade do candidato
+
+O Task Manifest usa `contractVersion: 2.0.0`, mas o parser mantém dual-read de
+V1/V2. O V2 declara níveis de validação, fontes de reidratação, gatilhos de
+expansão, envelope de autonomia, artefatos estruturados e o conjunto canônico.
+
+`npm run task:contracts` valida os cinco schemas, as duas Skills, o
+manifesto-exemplo, o commit upstream e os hashes de paridade. O fingerprint V2
+separa:
+
+- `contentFingerprint`: path, tipo Git, modo efetivo e conteúdo após o clean
+  filter;
+- `gitStateFingerprint`: branch, base e classificação
+  committed/staged/unstaged/untracked;
+- `candidateId`: task, base, versão do contrato e conteúdo.
+
+A transição `untracked-to-tracked` só é válida quando declarada, o conjunto de
+paths e o conteúdo permanecem idênticos e o index/commit representa integralmente
+o candidato. Artefatos locais só são excluídos quando são arquivos regulares,
+ignorados e não rastreados; um path rastreado nunca pode ser ocultado por ser
+declarado como artefato.
+
+No frontend, `npm test` limita o Vitest a um worker para evitar contenção e
+timeouts não determinísticos nos testes de interface. Isso altera apenas o
+agendamento do runner, não a cobertura nem os limites individuais dos testes.

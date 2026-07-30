@@ -18,6 +18,9 @@
 - `ADR-008-vercel-same-origin-production.md`: Vercel, proxy server-side
   same-origin em `/api/v1`, Preview fail-closed, cookies host-only e fronteira
   com a origem protegida; Accepted, ainda não implementado.
+- `ADR-009-development-operating-system-v2-parity.md`: distribuição controlada
+  do contrato V2 sob autoridade do backend, dual-read V1/V2, hashes de paridade,
+  Skills repo-local, fingerprints e verifier independente.
 
 ADRs são imutáveis depois de substituídas. Uma mudança relevante deve criar uma
 nova decisão e apontar qual documento anterior foi superado.

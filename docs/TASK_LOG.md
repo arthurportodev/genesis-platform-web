@@ -133,3 +133,19 @@ estágios customizáveis, drag-and-drop e produção permanecem indisponíveis.
   remota.
 
 A incorporação deste conjunto documental conclui a tarefa 0.8.1.
+
+## 0.8.1.1 — Sistema Operacional de Desenvolvimento V2
+
+- Classe/perfil: Critical / critical.
+- Autoridade: backend aprovado no commit
+  `ad8e36772bed7910c2d484255ce2c806024ce04d`.
+- Base frontend: `bfe7c81fca34f723677e2fe5097598d92f487838`.
+- Escopo: contratos compartilhados byte a byte, upstream e hashes de paridade,
+  Task Manifest dual-read V1/V2, fingerprints V2, candidate ID, Skills,
+  schemas, checks locais/CI e documentação.
+- Adaptação frontend: TypeScript, Vitest e Playwright substituem os comandos
+  específicos de NestJS, Jest, banco e Docker.
+- Estado: candidato local; publicação depende de autorização específica após
+  validação Critical e verifier independente.
+- Limites: produto, backend, infraestrutura, dependências, lockfile e produção
+  não foram alterados.

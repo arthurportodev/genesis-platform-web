@@ -36,6 +36,9 @@ jobs:
       - name: Install Playwright browser
         run: npx playwright install --with-deps chromium
 
+      - name: Validate development-operation contracts
+        run: npm run task:contracts
+
       - name: Check task tools formatting
         run: npm run format:check:task-tools
 

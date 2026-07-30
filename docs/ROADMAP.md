@@ -29,6 +29,8 @@ estão disponíveis e não são compromissos automáticos.
 - ✅ `0.8.0` — Arquitetura e Plano de Produção: Gate 1 técnico read-only; as
   decisões humanas foram aprovadas em 30 de julho de 2026.
 - 🚧 `0.8.1` — Reconciliação Canônica da Documentação, nos dois repositórios.
+- 🚧 `0.8.1.1` — Portabilidade e paridade frontend do Sistema Operacional de
+  Desenvolvimento V2; candidato local, ainda sem autorização de publicação.
 - ⬜ `0.8.2` — Hardening e Imagem de Produção da API.
 - ⬜ `0.8.3` — PostgreSQL, Roles, Migrations e Restore.
 - ⬜ `0.8.4` — Stack da API na Hetzner.

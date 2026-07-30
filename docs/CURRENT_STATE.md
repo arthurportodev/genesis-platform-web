@@ -85,3 +85,15 @@ A arquitetura aprovada em 30 de julho de 2026 mantém o frontend na Vercel em
 o `vercel.json` atual contém apenas o fallback da SPA, Preview permanece sem
 API e `/api/v1` ainda não está pronto em produção. O backend é a autoridade do
 plano geral e dos critérios para entrada de dados reais.
+
+## Sistema Operacional de Desenvolvimento V2
+
+O candidato local da tarefa `0.8.1.1` porta o contrato V2 aprovado no backend
+`ad8e36772bed7910c2d484255ce2c806024ce04d`. Ele acrescenta dual-read de Task
+Manifest V1/V2, duas Skills repo-local, cinco schemas, paridade por hashes,
+identidade separada de conteúdo/estado Git, `candidateId`, envelope estruturado
+para findings High e evidência independente. Os comandos específicos do
+frontend mantêm Prettier, ESLint, TypeScript, Vitest, build e Playwright.
+
+Este estado permanece candidato local: não houve stage, commit, push, PR, merge,
+deploy nem mutação de produção no frontend.

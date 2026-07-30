@@ -1,0 +1,8 @@
+# Development-operation contracts use the backend authority's Prettier policy.
+# They are validated separately by npm run format:check:task-tools.
+.agents/
+.codex/task-manifest.json
+.codex/task-manifest.example.json
+schemas/development-operations/
+scripts/
+test/task-tools/

@@ -1,5 +1,10 @@
 # Modelos de prompt
 
+Em tarefa Critical, comece com `$genesis-task-orchestrator`. Depois que o
+candidato estiver estável e validado, use `$genesis-independent-verifier` em
+execução independente e estritamente read-only. Sem suporte a Skills, declare o
+fallback e aplique os mesmos schemas, scripts, Gates e evidências.
+
 ## Implementação
 
 ```text
@@ -12,6 +17,8 @@ Escopo permitido: <caminhos>.
 Critérios de aceitação: <lista verificável>.
 Proibições e decisões humanas: <lista>.
 Execute preflight, validação do perfil, fingerprints texto/JSON e reporte o diff.
+Registre contractVersion, upstream, contentFingerprint, gitStateFingerprint e
+candidateId.
 Não faça stage, commit, push, PR ou operações remotas antes do Gate 2.
 ```
 
@@ -19,6 +26,7 @@ Não faça stage, commit, push, PR ou operações remotas antes do Gate 2.
 
 ```text
 Revise o diff da tarefa <id> contra <sha> sem editar arquivos.
+Skill: $genesis-independent-verifier.
 Priorize segurança, contratos, arquitetura, acessibilidade, testes e escopo.
 Reporte findings com severidade, arquivo, linha e evidência. Declare
 explicitamente quando não houver findings e vincule o resultado ao fingerprint.

@@ -28,3 +28,17 @@ O perfil depende do delta real: uma tarefa `Simple` não implica necessariamente
 Eleve a classe ou interrompa quando houver dúvida sobre impacto transversal.
 Findings médios ou maiores em segurança, contratos, supply chain, arquitetura,
 CI, GitHub, escopo ou dependências exigem decisão humana.
+
+## Gates, severidade e autonomia V2
+
+Gate 1 aprova decisões estruturais; Gate 2 aprova um candidato identificado por
+base, caminhos, `contentFingerprint` e `candidateId`; Gate 3 autoriza merge
+de um PR e head SHA específicos. CI verde não presume nenhum Gate.
+
+Critical sempre interrompe. Low e Medium admitem correção proporcional dentro
+do escopo. High admite correção autônoma somente quando a invariável já está
+aprovada, existe uma correção dominante, local, reversível e objetivamente
+verificável, sem decisão material nem mudança de fronteira proibida. A correção
+exige finding estruturado, regressão específica, validações focused e Critical,
+novo fingerprint/ID e reverificação independente. Reclassificar Critical exige
+evidência objetiva e candidato inalterado.

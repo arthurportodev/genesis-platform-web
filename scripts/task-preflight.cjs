@@ -1,112 +1,135 @@
-"use strict";
-
-const fs = require("node:fs");
-const path = require("node:path");
-
-const { collectCandidatePaths } = require("./lib/task-candidate.cjs");
+const { existsSync, lstatSync } = require('node:fs');
+const { join } = require('node:path');
 const {
-  validateFocusedScripts,
-} = require("./lib/task-focused-script-policy.cjs");
-const { lines, runGit } = require("./lib/task-git.cjs");
-const { loadManifest, pathIsAllowed } = require("./lib/task-manifest.cjs");
+  MANIFEST_PATH,
+  hasObviousSecret,
+  inspectCandidate,
+} = require('./lib/task-candidate.cjs');
+const {
+  gitText,
+  isIgnored,
+  isTracked,
+  lines,
+  runGit,
+} = require('./lib/task-git.cjs');
+const { loadTaskManifest } = require('./lib/task-manifest.cjs');
 
-const SECRET_PATTERNS = [
-  /-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----/u,
-  /(?:api[_-]?key|access[_-]?token|client[_-]?secret)\s*[:=]\s*['"][^'"]{8,}['"]/iu,
-];
-
-function inspectCandidatePaths(manifest, candidatePaths, root) {
-  const outsideScope = candidatePaths.filter(
-    (candidate) => !pathIsAllowed(manifest, candidate),
+function runPreflight({ cwd = process.cwd(), startedAt = Date.now() } = {}) {
+  const manifestPath = join(cwd, ...MANIFEST_PATH.split('/'));
+  const manifest = loadTaskManifest({
+    manifestPath,
+    packageJsonPath: join(cwd, 'package.json'),
+  });
+  const failures = [];
+  const branch = gitText(['branch', '--show-current'], { cwd });
+  const sha = gitText(['rev-parse', 'HEAD'], { cwd });
+  const baseExists = runGit(
+    ['cat-file', '-e', `${manifest.git.baseSha}^{commit}`],
+    { cwd, allowFailure: true },
   );
-  if (outsideScope.length > 0) {
-    throw new Error(`Arquivos fora do escopo: ${outsideScope.join(", ")}.`);
-  }
-
-  const secretFindings = [];
-  for (const candidate of candidatePaths) {
-    const absolute = path.join(root, candidate);
-    if (!fs.existsSync(absolute) || fs.statSync(absolute).isDirectory())
-      continue;
-    const content = fs.readFileSync(absolute, "utf8");
-    if (SECRET_PATTERNS.some((pattern) => pattern.test(content))) {
-      secretFindings.push(candidate);
-    }
-  }
-  if (secretFindings.length > 0) {
-    throw new Error(
-      `Possível segredo encontrado em: ${secretFindings.join(", ")}.`,
-    );
-  }
-}
-
-function runPreflight(root = process.cwd()) {
-  const { manifest } = loadManifest(root);
-  validateFocusedScripts(manifest.validation.focusedScripts);
-
-  const branch = runGit(["branch", "--show-current"], { cwd: root }).stdout;
-  if (branch !== manifest.git.branch) {
-    throw new Error(
-      `Branch atual ${branch || "(detached)"} difere de ${manifest.git.branch}.`,
-    );
-  }
-
-  runGit(["cat-file", "-e", `${manifest.git.baseSha}^{commit}`], { cwd: root });
   const ancestor = runGit(
-    ["merge-base", "--is-ancestor", manifest.git.baseSha, "HEAD"],
-    { cwd: root, allowFailure: true },
+    ['merge-base', '--is-ancestor', manifest.git.baseSha, 'HEAD'],
+    { cwd, allowFailure: true },
   );
+  const staged = lines(gitText(['diff', '--cached', '--name-only'], { cwd }));
+  const diffCheck =
+    baseExists.status === 0
+      ? runGit(['diff', '--check', manifest.git.baseSha], {
+          cwd,
+          allowFailure: true,
+        })
+      : { status: 1, stdout: '' };
+  const candidate =
+    baseExists.status === 0
+      ? inspectCandidate(manifest, cwd)
+      : { tracked: [], untracked: [], failures: [] };
+
+  if (branch !== manifest.git.branch) {
+    failures.push(
+      `branch mismatch: expected ${manifest.git.branch}, got ${branch}.`,
+    );
+  }
+  if (baseExists.status !== 0) {
+    failures.push(`base commit is unavailable: ${manifest.git.baseSha}.`);
+  }
   if (ancestor.status !== 0) {
-    throw new Error("O SHA-base não é ancestral de HEAD.");
+    failures.push(`HEAD is not based on ${manifest.git.baseSha}.`);
   }
-
-  if (manifest.git.requireCleanStage) {
-    const staged = lines(
-      runGit(["diff", "--cached", "--name-only"], { cwd: root }).stdout,
+  if (manifest.git.requireCleanStage && staged.length > 0) {
+    failures.push(`stage is not empty: ${staged.join(', ')}.`);
+  }
+  if (baseExists.status === 0 && diffCheck.status !== 0) {
+    failures.push(
+      `git diff --check failed: ${(diffCheck.stdout ?? '').trim()}`,
     );
-    if (staged.length > 0) {
-      throw new Error(`O estágio Git deve estar vazio: ${staged.join(", ")}.`);
+  }
+  if (!existsSync(manifestPath)) failures.push('task manifest is missing.');
+  if (!isIgnored(MANIFEST_PATH, cwd))
+    failures.push('task manifest is not ignored.');
+  if (isTracked(MANIFEST_PATH, cwd)) failures.push('task manifest is tracked.');
+
+  const artifactLabels = {
+    taskPacket: 'Task Packet',
+    findings: 'findings artifact',
+    verifierEvidence: 'verifier evidence artifact',
+    handoff: 'handoff artifact',
+  };
+  for (const [key, artifact] of Object.entries(manifest.artifacts)) {
+    if (!artifact) continue;
+    const label = artifactLabels[key] ?? `${key} artifact`;
+    const artifactPath = join(cwd, ...artifact.split('/'));
+    if (!existsSync(artifactPath)) {
+      failures.push(`${label} is missing: ${artifact}.`);
+    } else if (!lstatSync(artifactPath).isFile()) {
+      failures.push(`${label} is not a regular file: ${artifact}.`);
     }
+    if (!isIgnored(artifact, cwd))
+      failures.push(`${label} is not ignored: ${artifact}.`);
+    if (isTracked(artifact, cwd))
+      failures.push(`${label} is tracked: ${artifact}.`);
   }
 
-  const packetPath = path.join(root, manifest.artifacts.taskPacket);
-  if (!fs.existsSync(packetPath)) {
-    throw new Error(`Task Packet ausente: ${manifest.artifacts.taskPacket}.`);
+  failures.push(...candidate.failures);
+  if (baseExists.status === 0 && hasObviousSecret(manifest, candidate, cwd)) {
+    failures.push('possible secret found in candidate content.');
   }
 
-  const ignored = runGit(
-    [
-      "check-ignore",
-      ".codex/task-manifest.json",
-      manifest.artifacts.taskPacket,
-    ],
-    { cwd: root, allowFailure: true },
-  );
-  if (ignored.status !== 0 || lines(ignored.stdout).length !== 2) {
-    throw new Error(
-      "Manifesto e Task Packet locais devem estar ignorados pelo Git.",
-    );
-  }
-
-  const candidates = collectCandidatePaths(manifest.git.baseSha, root);
-  inspectCandidatePaths(manifest, candidates, root);
-
-  console.log(
-    `Preflight aprovado para ${manifest.task.id} (classe ${manifest.task.class}; perfil ${manifest.validation.profile}).`,
-  );
-  console.log(`Branch: ${branch}`);
-  console.log(`Base: ${manifest.git.baseSha}`);
-  console.log(`Arquivos candidatos: ${candidates.length}`);
-  return { manifest, candidates };
+  const result = {
+    command: 'npm run task:preflight',
+    status: failures.length === 0 ? 'passed' : 'failed',
+    durationMs: Date.now() - startedAt,
+    task: manifest.task.id,
+    manifestSourceVersion: manifest.version,
+    normalizedManifestVersion: manifest.normalizedVersion,
+    contractVersion: manifest.contractVersion,
+    branch,
+    sha,
+    baseSha: manifest.git.baseSha,
+    stagedFiles: staged.length,
+    trackedFiles: candidate.tracked.length,
+    untrackedFiles: candidate.untracked.length,
+    candidatePaths: [
+      ...new Set([...candidate.tracked, ...candidate.untracked]),
+    ].sort(),
+    expectedTransitions: manifest.git.expectedTransitions,
+    validationLevels: manifest.validation.levels,
+    failures: [...new Set(failures)].sort(),
+  };
+  return result;
 }
 
-if (require.main === module) {
+function main() {
   try {
-    runPreflight();
+    const result = runPreflight();
+    for (const failure of result.failures) console.error(`FAIL: ${failure}`);
+    console.log(JSON.stringify(result));
+    if (result.status !== 'passed') process.exitCode = 1;
   } catch (error) {
-    console.error(`Preflight reprovado: ${error.message}`);
+    console.error(`FAIL: ${error.message}`);
     process.exitCode = 1;
   }
 }
 
-module.exports = { SECRET_PATTERNS, inspectCandidatePaths, runPreflight };
+if (require.main === module) main();
+
+module.exports = { runPreflight };
