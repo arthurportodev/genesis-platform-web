@@ -42,6 +42,34 @@ No desenvolvimento, o Vite lê `GENESIS_API_PROXY_TARGET` sem prefixo
 `VITE_` e aceita somente origem HTTP(S) sem credenciais ou path. Ausência do target responde fail-closed. Vercel conserva apenas o
 fallback SPA: external rewrite de produção não foi implementado.
 
+## Arquitetura alvo de produção
+
+Em 30 de julho de 2026 foi aceita, sem ainda ser implementada, a topologia:
+
+```text
+Navegador
+→ app.agenciagenesis.com.br
+→ Vercel
+→ proxy server-side de /api/v1
+→ origin-api.agenciagenesis.com.br
+→ Traefik
+→ API NestJS
+→ PostgreSQL
+```
+
+O navegador continuará usando somente `/api/v1`; a origem será configuração
+server-only, com HTTPS e proteção contra bypass. O hop browser→Vercel é
+same-origin e não depende de CORS. Preview deve responder fail-closed e nunca
+usar a origem de produção. Cookies de sessão permanecem host-only no domínio
+`app`; headers de request e response necessários ao contrato devem ser
+preservados, e respostas de API usam `no-store`. O fallback SPA nunca pode
+capturar `/api/v1`.
+
+A implementação será dividida entre `0.8.5` (origem protegida), `0.8.6`
+(proxy e segurança), `0.8.7` (projeto Vercel) e `0.8.8` (domínio e DNS). O
+plano geral, PostgreSQL, Hetzner, backup, restore e DAG são autoridade do
+repositório backend em `docs/PRODUCTION.md`.
+
 ## Organization e cache
 
 Bootstrap é a fonte única de user, memberships, roles e Organizations. Somente o
@@ -146,4 +174,7 @@ Organizations exigem `/select-organization`. Redirects usam replace.
 NestJS em `arthurportodev/genesis-platform-api` permanece a autoridade de
 identidade, tenant e autorização. A matriz de capacidades de Leads é somente UX.
 Importação de Leads, formulário público, estágios customizáveis, calendário,
-automações, Vercel, domínio, DNS e deploy não fazem parte desta implementação.
+automações, Vercel, domínio, DNS e deploy não fazem parte do estado
+implementado. A arquitetura de produção aceita está registrada em
+[PRODUCTION.md](PRODUCTION.md) e no
+[ADR-008](decisions/ADR-008-vercel-same-origin-production.md).

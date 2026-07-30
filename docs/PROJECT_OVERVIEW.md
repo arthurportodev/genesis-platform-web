@@ -1,8 +1,8 @@
 # Visão do projeto
 
-A Genesis Platform Web é a interface administrativa da operação comercial. A
-fundação oferece navegação, composição visual, formulários, estados operacionais
-e infraestrutura de qualidade para evoluções posteriores.
+A Genesis Platform Web é a interface administrativa da operação comercial. O
+frontend oficial consome o backend `arthurportodev/genesis-platform-api` sem
+duplicar autorização, regras tenant ou decisões de negócio.
 
 ## Stack oficial
 
@@ -14,24 +14,38 @@ e infraestrutura de qualidade para evoluções posteriores.
 
 ## Escopo implementado
 
-- Login real e restauração de sessão pelo contrato cookie-only de refresh.
-- Access token somente em memória, CSRF e coordenação segura entre abas.
-- Bootstrap e seleção de Organization ativa validada.
-- Cliente HTTP, guards, isolamento de cache tenant e infraestrutura de
-  ETag/idempotência.
-- Shell administrativo responsivo e rotas canônicas.
-- Estados vazios, indisponíveis, de carregamento e de erro reutilizáveis.
-- Pipeline de validação local e CI.
+- Sessão web real, access somente em memória, refresh cookie-only, CSRF e
+  coordenação segura entre abas.
+- Bootstrap, seleção e troca de Organization ativa, guards e cache
+  tenant-scoped.
+- Cliente HTTP same-origin em `/api/v1`, proxy Vite local e falha fechada sem
+  target.
+- Inbox, detalhe, Pipeline, Follow-up, filas operacionais e métricas de Leads.
+- Criação manual server-confirmed de Leads para owner, admin e member.
+- Shell administrativo responsivo, estados operacionais, testes e CI.
 
-## Fora do escopo
+Esse ciclo funcional foi concluído na Fase `0.7`: criar Lead → Inbox → detalhe
+→ Pipeline → Follow-up → métricas.
 
-Autorização real continua no backend. Telemetria, dados e mutações de CRM,
-persistência de Query Cache e deploy remoto permanecem fora do escopo.
+## Estado atual e limites
 
-## Destinos planejados
+A Fase `0.8` é a fase atual e prepara a primeira produção. A arquitetura Vercel
+com proxy same-origin foi aceita, mas ainda não foi implementada. Não existem
+projeto Vercel, domínio, DNS, proxy de produção, deploy, staging ou acesso de
+Preview à API. O frontend não está pronto para dados reais.
 
-O domínio planejado é `app.agenciagenesis.com.br` e o destino de deploy é a
-Vercel. O único backend oficial é `arthurportodev/genesis-platform-api`. A
-integração do navegador usa path relativo `/api/v1` e proxy Vite local. O proxy
-externo da Vercel, domínio, DNS e deploy continuam não configurados; previews
-permanecem fail-closed e não acessam produção.
+Importação de Leads, formulário público conectado, comunicação externa,
+WhatsApp, automações, calendário, estágios customizáveis e drag-and-drop
+continuam indisponíveis e não constituem compromissos automáticos de produto.
+
+## Destinos aprovados
+
+- Aplicação: `app.agenciagenesis.com.br` na Vercel.
+- Navegador: somente paths relativos `/api/v1`.
+- Origem server-only: `origin-api.agenciagenesis.com.br`.
+- Backend e plano geral: `arthurportodev/genesis-platform-api`.
+- Preview: interface fail-closed, sem API de produção.
+
+Consulte [PRODUCTION.md](PRODUCTION.md) para o plano específico do frontend e
+o documento homônimo do backend para a arquitetura geral e o DAG da Fase
+`0.8`.

@@ -43,6 +43,8 @@ Para tarefas governadas, crie o manifesto local a partir de
 `npm run task:validate` e `npm run task:fingerprint`.
 
 Leia [docs/START_HERE.md](docs/START_HERE.md) antes de contribuir.
+O [plano de produção do frontend](docs/PRODUCTION.md) registra o estado atual,
+a arquitetura Vercel aprovada e as dependências de publicação.
 
 ## Destinos planejados
 
@@ -62,8 +64,11 @@ Leia [docs/START_HERE.md](docs/START_HERE.md) antes de contribuir.
   timezone da Organization e acesso exclusivo de owner/admin na tarefa `0.7.5`.
 - Criação manual: página `/app/leads/new`, contrato server-confirmed,
   idempotência somente em memória e resultados identificados para owner/admin
-  ou opacos para member na candidata `0.7.6`.
+  ou opacos para member, incorporada na tarefa `0.7.6` pelo PR #7, squash
+  `4e4f8db0fcd31a4280d72f8cba0a1e0b47f4fa92`.
 - Não existe drag-and-drop ou estágios customizáveis no frontend.
 
 Projeto Vercel, domínio, DNS, proxy de produção e ambientes publicados ainda não
-estão configurados.
+estão configurados. A Fase `0.7` está concluída; a Fase `0.8` prepara a
+produção sem autorizar dados reais antes dos critérios operacionais e da
+aprovação humana de abertura.

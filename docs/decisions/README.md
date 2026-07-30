@@ -12,7 +12,12 @@
 - `ADR-006-lead-operational-metrics.md`: resumo agregado, snapshot versus
   período civil, acesso owner/admin, cache tenant e visualização acessível.
 - `ADR-007-manual-lead-creation.md`: formulário completo, respostas por papel,
-  idempotência em memória, resultado incerto, PII e invalidações específicas.
+  idempotência em memória, resultado incerto, PII e invalidações específicas;
+  Accepted, incorporado pelo PR #7 no squash
+  `4e4f8db0fcd31a4280d72f8cba0a1e0b47f4fa92`.
+- `ADR-008-vercel-same-origin-production.md`: Vercel, proxy server-side
+  same-origin em `/api/v1`, Preview fail-closed, cookies host-only e fronteira
+  com a origem protegida; Accepted, ainda não implementado.
 
 ADRs são imutáveis depois de substituídas. Uma mudança relevante deve criar uma
 nova decisão e apontar qual documento anterior foi superado.

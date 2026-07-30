@@ -93,7 +93,8 @@
 ## 0.7.6 — Criação Manual de Leads
 
 - Classe/perfil: Critical / critical.
-- Estado: candidata local em validação para Gate 2, sem PR ou entrega remota.
+- Estado: incorporada na `main` pelo PR #7, squash
+  `4e4f8db0fcd31a4280d72f8cba0a1e0b47f4fa92`.
 - Base frontend: `1ac7e26cda535cbf3e5c02dd78da4e0fb95a2e9e`.
 - Backend canônico read-only:
   `57f6955b3a90a29517d5477e75aac97032425ed1`.
@@ -102,3 +103,33 @@
   invalidações específicas, proteção de PII, desktop/mobile e acessibilidade.
 - Limites: backend, dependências e lockfile inalterados; sem importação,
   formulário público, integrações externas, Vercel ou deploy.
+
+## Fase 0.7 — Frontend operacional
+
+**Concluída.** As tarefas `0.7.1.1`–`0.7.6` entregaram o ciclo criar Lead →
+Inbox → detalhe → Pipeline → Follow-up → métricas. Importação, formulário
+público conectado, comunicação externa, WhatsApp, automações, calendário,
+estágios customizáveis, drag-and-drop e produção permanecem indisponíveis.
+
+## 0.8.0 — Arquitetura e Plano de Produção
+
+- Natureza: Gate 1 técnico e operacional, estritamente read-only.
+- Resultado: Gate 1 recomendado com decisões humanas pendentes; as decisões
+  foram aprovadas pelo Product Owner em 30 de julho de 2026.
+- Evidências negativas: sem branch, alteração de arquivo, PR, build, migration,
+  seed, mudança em Vercel/DNS/Hetzner ou deploy.
+- Decisão: Vercel e `app.agenciagenesis.com.br`, com proxy server-side de
+  `/api/v1` para a origem protegida
+  `origin-api.agenciagenesis.com.br`; Preview fail-closed.
+
+## 0.8.1 — Reconciliação Canônica da Documentação
+
+- Classe/perfil: Normal / docs.
+- Responsabilidade: frontend e backend, com um único builder e consistência
+  entre os dois candidatos.
+- Resultado esperado: documentos canônicos, decisões aceitas, Fase `0.7`
+  encerrada e plano `0.8.1`–`0.8.11` coerente.
+- Limites: exclusivamente documental; sem código, infraestrutura ou operação
+  remota.
+
+A incorporação deste conjunto documental conclui a tarefa 0.8.1.
