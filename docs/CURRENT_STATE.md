@@ -9,9 +9,12 @@ Atualizado em 30 de julho de 2026 para a Fase `0.8`.
   `4e4f8db0fcd31a4280d72f8cba0a1e0b47f4fa92`.
 - **Gate técnico concluído:** `0.8.0` — Arquitetura e Plano de Produção,
   estritamente read-only, sem branch, PR, build, migration, seed ou deploy.
-- **Tarefa documental atual:** `0.8.1` — Reconciliação Canônica da
-  Documentação. A incorporação deste conjunto documental conclui a tarefa
-  `0.8.1`.
+- **Última tarefa de governança concluída:** `0.8.1.1` — Sistema Operacional de
+  Desenvolvimento V2, incorporado no backend pelo PR #26, squash
+  `27d85416507ae4d8391d74b4181f8400c6d61301`, e no frontend pelo PR #9,
+  squash `890a49fb62fd194f8c2adf04fbfeb0cdd84e32bf`.
+- **Próxima tarefa:** `0.8.2` — Hardening e Imagem de Produção da API, sob
+  autoridade do backend, ainda não iniciada.
 
 ## Disponível
 
@@ -88,16 +91,19 @@ plano geral e dos critérios para entrada de dados reais.
 
 ## Sistema Operacional de Desenvolvimento V2
 
-O candidato frontend da tarefa `0.8.1.1` porta o contrato V2 aprovado no backend
-`ad8e36772bed7910c2d484255ce2c806024ce04d`. Ele acrescenta dual-read de Task
-Manifest V1/V2, duas Skills repo-local, cinco schemas, paridade por hashes,
-identidade separada de conteúdo/estado Git, `candidateId`, envelope estruturado
-para findings High e evidência independente. Os comandos específicos do
-frontend mantêm Prettier, ESLint, TypeScript, Vitest, build e Playwright.
+A tarefa `0.8.1.1` está incorporada. O backend mantém a autoridade canônica do
+contrato operacional V2 no squash
+`27d85416507ae4d8391d74b4181f8400c6d61301`; o frontend foi incorporado pelo PR
+#9 no squash `890a49fb62fd194f8c2adf04fbfeb0cdd84e32bf`, com os nove contratos
+compartilhados byte a byte equivalentes à árvore backend.
 
-O candidato aprovado no Gate 2 local foi publicado inicialmente no PR draft
-`#9`, com base `bfe7c81fca34f723677e2fe5097598d92f487838` e head
-`79c79990516dc255fa064c75fb18c7f7819f015f`. A CI remota `30564099395` desse
-head foi aprovada. O Gate 2 remoto não foi concedido e depende do fechamento
-formal de F-008. Não houve merge, auto-merge, promoção para ready for review,
-deploy ou mutação de produção; o Gate 3 continua obrigatório.
+O contrato vigente preserva dual-read de Task Manifest V1/V2, duas Skills
+repo-local, cinco schemas, paridade por hashes, identidade separada de
+conteúdo/estado Git, `candidateId`, envelope estruturado para findings High e
+evidência independente. Prettier, ESLint, TypeScript, Vitest, build e Playwright
+permanecem nos comandos específicos do frontend. As CIs pós-merge backend
+`30567270626` e frontend `30567803632` foram aprovadas.
+
+F-001 a F-008 estão resolvidos. O operador remoto permanece não implementado e
+nenhum deploy, alteração de Vercel, infraestrutura, banco, secret ou mutação de
+produção ocorreu. A próxima tarefa sequencial é `0.8.2`.

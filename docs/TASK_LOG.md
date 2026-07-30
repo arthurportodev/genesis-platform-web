@@ -132,7 +132,9 @@ estágios customizáveis, drag-and-drop e produção permanecem indisponíveis.
 - Limites: exclusivamente documental; sem código, infraestrutura ou operação
   remota.
 
-A incorporação deste conjunto documental conclui a tarefa 0.8.1.
+A tarefa foi incorporada no frontend pelo PR #8, squash
+`bfe7c81fca34f723677e2fe5097598d92f487838`, e no backend pelo PR #25,
+squash `6a1a5bafc14195cbd8cf6f8b85077a4e1081381c`.
 
 ## 0.8.1.1 — Sistema Operacional de Desenvolvimento V2
 
@@ -145,7 +147,15 @@ A incorporação deste conjunto documental conclui a tarefa 0.8.1.
   schemas, checks locais/CI e documentação.
 - Adaptação frontend: TypeScript, Vitest e Playwright substituem os comandos
   específicos de NestJS, Jest, banco e Docker.
-- Estado: candidato local; publicação depende de autorização específica após
-  validação Critical e verifier independente.
+- Estado: incorporada serialmente no backend pelo PR #26, squash
+  `27d85416507ae4d8391d74b4181f8400c6d61301`, e no frontend pelo PR #9,
+  squash `890a49fb62fd194f8c2adf04fbfeb0cdd84e32bf`.
+- CIs pós-merge: backend `30567270626` e frontend `30567803632`, ambas
+  aprovadas sem checks pendentes.
+- Paridade final: nove contratos compartilhados byte a byte equivalentes entre
+  a árvore backend incorporada e o frontend.
+- Findings: F-001 a F-008 resolvidos, sem findings novos ou limitações.
+- Próxima tarefa: `0.8.2` — Hardening e Imagem de Produção da API, ainda não
+  iniciada e sob autoridade do backend.
 - Limites: produto, backend, infraestrutura, dependências, lockfile e produção
   não foram alterados.
