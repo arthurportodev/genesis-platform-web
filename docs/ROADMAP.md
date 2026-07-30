@@ -28,9 +28,12 @@ estão disponíveis e não são compromissos automáticos.
 
 - ✅ `0.8.0` — Arquitetura e Plano de Produção: Gate 1 técnico read-only; as
   decisões humanas foram aprovadas em 30 de julho de 2026.
-- 🚧 `0.8.1` — Reconciliação Canônica da Documentação, nos dois repositórios.
-- 🚧 `0.8.1.1` — Portabilidade e paridade frontend do Sistema Operacional de
-  Desenvolvimento V2; candidato local, ainda sem autorização de publicação.
+- ✅ `0.8.1` — Reconciliação Canônica da Documentação, incorporada no frontend
+  pelo PR #8, squash `bfe7c81fca34f723677e2fe5097598d92f487838`.
+- ✅ `0.8.1.1` — Portabilidade e paridade frontend do Sistema Operacional de
+  Desenvolvimento V2, incorporada pelo PR #9 no squash
+  `890a49fb62fd194f8c2adf04fbfeb0cdd84e32bf`; backend canônico no squash
+  `27d85416507ae4d8391d74b4181f8400c6d61301` e paridade 9/9 confirmada.
 - ⬜ `0.8.2` — Hardening e Imagem de Produção da API.
 - ⬜ `0.8.3` — PostgreSQL, Roles, Migrations e Restore.
 - ⬜ `0.8.4` — Stack da API na Hetzner.
@@ -41,6 +44,9 @@ estão disponíveis e não são compromissos automáticos.
 - ⬜ `0.8.9` — Observabilidade, Backup e Runbooks.
 - ⬜ `0.8.10` — Bootstrap Seguro.
 - ⬜ `0.8.11` — Smoke e Abertura Controlada.
+
+A próxima tarefa sequencial é `0.8.2`, sob autoridade do backend. Ela permanece
+planejada e não iniciada.
 
 Este repositório é autoridade para `0.8.6`–`0.8.8` no que se refere a Vercel,
 proxy same-origin, Preview, cookies e segurança web. O backend mantém o plano
