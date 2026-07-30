@@ -1,6 +1,17 @@
 # Estado atual
 
-Atualizado para o candidato local da tarefa `0.7.6`.
+Atualizado em 30 de julho de 2026 para a Fase `0.8`.
+
+- **Fase concluída:** `0.7` — Frontend operacional.
+- **Fase atual:** `0.8` — Infraestrutura e produção.
+- **Última tarefa funcional concluída:** `0.7.6` — Criação Manual de Leads,
+  incorporada pelo PR #7 no squash
+  `4e4f8db0fcd31a4280d72f8cba0a1e0b47f4fa92`.
+- **Gate técnico concluído:** `0.8.0` — Arquitetura e Plano de Produção,
+  estritamente read-only, sem branch, PR, build, migration, seed ou deploy.
+- **Tarefa documental atual:** `0.8.1` — Reconciliação Canônica da
+  Documentação. A incorporação deste conjunto documental conclui a tarefa
+  `0.8.1`.
 
 ## Disponível
 
@@ -65,7 +76,12 @@ Atualizado para o candidato local da tarefa `0.7.6`.
 - Persistência de access, bootstrap ou Query Cache.
 - Proxy externo e projeto Vercel, domínio, DNS, staging ou deploy.
 - Preview com acesso à API.
+- Projeto Vercel, proxy de produção, domínio, DNS, TLS e deploy publicados.
+- Aplicação operacionalmente pronta ou autorizada para dados reais.
 
-A tarefa `0.7.5` foi incorporada pelo PR #6 no squash
-`1ac7e26cda535cbf3e5c02dd78da4e0fb95a2e9e`. O candidato `0.7.6` ainda não
-possui PR, squash SHA, release ou deploy.
+A arquitetura aprovada em 30 de julho de 2026 mantém o frontend na Vercel em
+`app.agenciagenesis.com.br`, encaminhando `/api/v1` por proxy server-side para
+`origin-api.agenciagenesis.com.br`. A decisão está aceita, não implementada:
+o `vercel.json` atual contém apenas o fallback da SPA, Preview permanece sem
+API e `/api/v1` ainda não está pronto em produção. O backend é a autoridade do
+plano geral e dos critérios para entrada de dados reais.

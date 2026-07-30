@@ -1,27 +1,49 @@
 # Roadmap
 
-## Fundação e sessão web
+Estados: ✅ Concluído · 🚧 Em andamento · ⬜ Planejado · ⏸ Adiado
 
-- [x] Bootstrap do repositório frontend e governança local (`0.7.1.1`).
-- [x] Shell administrativo, rotas e estados operacionais honestos.
-- [x] Cliente HTTP, sessão web, Organization ativa e guards (`0.7.1.2`).
-- [x] Coordenação segura de refresh entre abas e fallback fail-closed.
-- [x] Testes unitários, MSW, concorrência, CI e Chromium real.
+## 0.7 — Frontend operacional ✅
 
-## Próximas tarefas, sem compromisso de escopo
+- ✅ `0.7.1.1` — Bootstrap do Repositório Frontend (PR #1, squash
+  `30b91272088dd9be03b8bd9feffbf74dac48acc7`).
+- ✅ `0.7.1.2` — Sessão Web, Organization Ativa e HTTP (PR #2, squash
+  `633ace9b55ec25e70f1f88089865f89db464ed5f`).
+- ✅ `0.7.2` — Inbox e Detalhe (PR #3, squash
+  `859823501bbdee03441a9fa865d823f3890be07a`).
+- ✅ `0.7.3` — Pipeline Kanban (PR #4, squash
+  `1040523fa4b415e1cdf25d7f61085c3765f33eb9`).
+- ✅ `0.7.4` — Follow-up e Filas Operacionais (PR #5, squash
+  `f9fc37dd31fa2116a66354d46938c60d566fe101`).
+- ✅ `0.7.5` — Métricas Operacionais (PR #6, squash
+  `1ac7e26cda535cbf3e5c02dd78da4e0fb95a2e9e`).
+- ✅ `0.7.6` — Criação Manual de Leads (PR #7, squash
+  `4e4f8db0fcd31a4280d72f8cba0a1e0b47f4fa92`).
 
-- [x] Inbox e detalhe operacional de Leads (`0.7.2`, PR #3, squash
-      `859823501bbdee03441a9fa865d823f3890be07a`).
-- [x] Pipeline Kanban de Leads (`0.7.3`, PR #4, squash
-      `1040523fa4b415e1cdf25d7f61085c3765f33eb9`).
-- [x] Follow-up e filas operacionais (`0.7.4`, PR #5, squash
-      `f9fc37dd31fa2116a66354d46938c60d566fe101`).
-- [x] Métricas operacionais de Leads (`0.7.5`, PR #6, squash
-      `1ac7e26cda535cbf3e5c02dd78da4e0fb95a2e9e`).
-- [ ] Criação manual de Leads (`0.7.6`, candidata local dependente dos Gates de
-      entrega).
-- Observabilidade e acessibilidade incremental.
-- Tarefa independente para proxy de produção, projeto Vercel, domínio e deploy.
+O ciclo funcional existente é: criar Lead → Inbox → detalhe → Pipeline →
+Follow-up → métricas. Importação, formulário público conectado, comunicação,
+WhatsApp, automações, calendário, estágios customizáveis e drag-and-drop não
+estão disponíveis e não são compromissos automáticos.
 
-Previews permanecem sem API e jamais apontam para produção. Cada item exige
-contrato, tarefa e Gates próprios.
+## 0.8 — Infraestrutura e produção 🚧
+
+- ✅ `0.8.0` — Arquitetura e Plano de Produção: Gate 1 técnico read-only; as
+  decisões humanas foram aprovadas em 30 de julho de 2026.
+- 🚧 `0.8.1` — Reconciliação Canônica da Documentação, nos dois repositórios.
+- ⬜ `0.8.2` — Hardening e Imagem de Produção da API.
+- ⬜ `0.8.3` — PostgreSQL, Roles, Migrations e Restore.
+- ⬜ `0.8.4` — Stack da API na Hetzner.
+- ⬜ `0.8.5` — Origem, Traefik, TLS e Firewall.
+- ⬜ `0.8.6` — Proxy e Segurança do Frontend.
+- ⬜ `0.8.7` — Projeto Vercel.
+- ⬜ `0.8.8` — Domínio e DNS do App.
+- ⬜ `0.8.9` — Observabilidade, Backup e Runbooks.
+- ⬜ `0.8.10` — Bootstrap Seguro.
+- ⬜ `0.8.11` — Smoke e Abertura Controlada.
+
+Este repositório é autoridade para `0.8.6`–`0.8.8` no que se refere a Vercel,
+proxy same-origin, Preview, cookies e segurança web. O backend mantém o plano
+geral, as demais responsabilidades e o DAG canônico. Nenhum item planejado
+prova implementação, publicação ou prontidão para dados reais.
+
+Previews permanecem fail-closed e nunca acessam a API de produção. Billing
+permanece adiado, sem escopo aprovado.

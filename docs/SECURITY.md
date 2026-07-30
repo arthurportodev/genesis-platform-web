@@ -104,6 +104,20 @@ públicas e não podem conter segredos. Previews permanecem sem acesso à API e
 nunca apontam para produção. Proxy Vercel, domínio e deploy não estão
 configurados.
 
+## Controles aprovados para a primeira produção
+
+A decisão aceita, ainda não implementada, usa Vercel e proxy same-origin em
+`/api/v1`. A origem `origin-api.agenciagenesis.com.br` será server-only,
+protegida contra bypass e acessível por HTTPS; Preview não recebe esse destino
+e falha fechado. O proxy deve preservar os headers contratuais, não armazenar
+respostas de API e impedir que o fallback SPA responda por `/api/v1`.
+
+Cookies permanecem host-only no domínio `app.agenciagenesis.com.br`; o hop
+browser→Vercel não usa CORS. CSRF, validação de `Origin`, forwarded headers e
+trust proxy serão testados ponta a ponta antes da abertura. Nenhum segredo ou
+URL de origem entra no bundle público. Publicação técnica não equivale a
+prontidão operacional nem autoriza dados reais.
+
 ## Fronteira de autorização
 
 O backend NestJS continua validando sessão, Organization, membership e papel em

@@ -1,7 +1,9 @@
 # ADR-007 — Criação Manual de Leads
 
-- Estado: Proposta no candidato `0.7.6`
+- Estado: Accepted
 - Data: 2026-07-29
+- Incorporação: PR #7, squash
+  `4e4f8db0fcd31a4280d72f8cba0a1e0b47f4fa92`
 
 ## Contexto
 
