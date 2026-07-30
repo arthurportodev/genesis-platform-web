@@ -15,13 +15,14 @@
     "lint": "eslint . --max-warnings 0",
     "format": "prettier --write . --ignore-unknown",
     "format:check": "prettier --check . --ignore-unknown",
-    "format:check:task-tools": "prettier --check \"scripts/**/*.cjs\" \"test/task-tools/**/*.cjs\"",
-    "test": "vitest run",
+    "format:check:task-tools": "prettier --check \"scripts/**/*.cjs\" \"test/task-tools/**/*.cjs\" \".codex/task-manifest.example.json\" \".agents/skills/**/*.md\" \".agents/skills/**/*.yaml\" \"schemas/development-operations/**/*.json\" --ignore-path .gitignore --single-quote --trailing-comma all",
+    "test": "vitest run --maxWorkers=1",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
     "test:task-tools": "node --test test/task-tools/*.test.cjs",
     "task:preflight": "node scripts/task-preflight.cjs",
     "task:fingerprint": "node scripts/task-fingerprint.cjs",
+    "task:contracts": "node scripts/task-contracts.cjs",
     "task:validate": "node scripts/task-validate.cjs"
   },
   "dependencies": {

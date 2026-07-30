@@ -85,3 +85,19 @@ A arquitetura aprovada em 30 de julho de 2026 mantém o frontend na Vercel em
 o `vercel.json` atual contém apenas o fallback da SPA, Preview permanece sem
 API e `/api/v1` ainda não está pronto em produção. O backend é a autoridade do
 plano geral e dos critérios para entrada de dados reais.
+
+## Sistema Operacional de Desenvolvimento V2
+
+O candidato frontend da tarefa `0.8.1.1` porta o contrato V2 aprovado no backend
+`ad8e36772bed7910c2d484255ce2c806024ce04d`. Ele acrescenta dual-read de Task
+Manifest V1/V2, duas Skills repo-local, cinco schemas, paridade por hashes,
+identidade separada de conteúdo/estado Git, `candidateId`, envelope estruturado
+para findings High e evidência independente. Os comandos específicos do
+frontend mantêm Prettier, ESLint, TypeScript, Vitest, build e Playwright.
+
+O candidato aprovado no Gate 2 local foi publicado inicialmente no PR draft
+`#9`, com base `bfe7c81fca34f723677e2fe5097598d92f487838` e head
+`79c79990516dc255fa064c75fb18c7f7819f015f`. A CI remota `30564099395` desse
+head foi aprovada. O Gate 2 remoto não foi concedido e depende do fechamento
+formal de F-008. Não houve merge, auto-merge, promoção para ready for review,
+deploy ou mutação de produção; o Gate 3 continua obrigatório.

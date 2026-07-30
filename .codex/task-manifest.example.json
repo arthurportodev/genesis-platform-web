@@ -1,30 +1,53 @@
 {
-  "version": 1,
+  "version": 2,
+  "contractVersion": "2.0.0",
   "task": {
-    "id": "0.0.0",
-    "title": "Descreva a tarefa",
-    "class": "Normal"
+    "id": "X.Y",
+    "title": "Example critical frontend task",
+    "class": "critical"
   },
   "git": {
-    "branch": "feat/0.0.0-descricao",
-    "baseSha": "SUBSTITUA_PELO_SHA_COMPLETO",
-    "requireCleanStage": true
+    "branch": "agent/example-critical-task",
+    "baseSha": "0000000000000000000000000000000000000000",
+    "requireCleanStage": true,
+    "expectedTransitions": ["untracked-to-tracked"]
   },
   "scope": {
-    "allowedPaths": ["src/**", "test/**"],
+    "allowedPaths": ["src/features/example/**", "test/**", "docs/**"],
     "protectedPaths": [
-      ".git/**",
-      ".env",
-      ".env.*",
-      "node_modules/**",
-      "dist/**"
+      "src/app/providers/**",
+      "src/features/auth/**",
+      "package-lock.json"
     ]
   },
   "artifacts": {
-    "taskPacket": ".codex/task-packets/0.0.0.md"
+    "taskPacket": ".codex/task-packets/X.Y.md"
   },
   "validation": {
-    "profile": "focused",
-    "focusedScripts": ["typecheck", "test"]
+    "profile": "critical",
+    "focusedScripts": [],
+    "levels": ["immediate", "focused", "integration", "complete"]
+  },
+  "rehydration": {
+    "directSources": [
+      "AGENTS.md",
+      "docs/TASK_CLASSIFICATION.md",
+      "docs/DEVELOPMENT_WORKFLOW.md"
+    ],
+    "expansionTriggers": [
+      "base drift",
+      "conflicting authority",
+      "protected contract impact",
+      "High finding without a local cause",
+      "Critical finding"
+    ]
+  },
+  "autonomy": {
+    "allowHighCorrections": true,
+    "requireIndependentReverification": true
+  },
+  "contracts": {
+    "authorityRepository": "arthurportodev/genesis-platform-api",
+    "contractSet": "schemas/development-operations/contract-set.json"
   }
 }

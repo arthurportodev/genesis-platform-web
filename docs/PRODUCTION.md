@@ -102,3 +102,15 @@ mas não basta para dados reais. Estes só entram após restore testado, smoke
 sintético completo, alertas ativos, origem protegida, portas internas
 bloqueadas, rotação da credencial inicial e aprovação humana específica. Os
 critérios completos são autoridade do plano backend.
+
+## Operador remoto futuro
+
+O operador remoto de produção ainda não está implementado. Sua criação pertence
+a uma tarefa futura, com contrato e autorização próprios; este documento não
+autoriza deploy nem mutação de Vercel, DNS ou infraestrutura.
+
+A execução será serial, com um writer por recurso compartilhado, allowlist de
+operações, locks, dry run e interrupção em caso de drift. Cada dry run ou
+execução real deverá produzir `evidence-manifest.v1`, ligado ao commit, imagem,
+configuração, estado inicial/final, health, smoke, rollback e autorização do
+operador.

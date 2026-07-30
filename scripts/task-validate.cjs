@@ -1,77 +1,165 @@
-"use strict";
+const { spawnSync } = require('node:child_process');
+const { join } = require('node:path');
+const { MANIFEST_PATH } = require('./lib/task-candidate.cjs');
+const { loadTaskManifest } = require('./lib/task-manifest.cjs');
 
-const { spawnSync } = require("node:child_process");
+function npmCommand(args, env = process.env, platform = process.platform) {
+  if (env.npm_execpath) {
+    return {
+      label: `npm ${args.join(' ')}`,
+      command: process.execPath,
+      args: [env.npm_execpath, ...args],
+    };
+  }
+  return {
+    label: `npm ${args.join(' ')}`,
+    command: platform === 'win32' ? 'npm.cmd' : 'npm',
+    args,
+  };
+}
 
-const {
-  validateFocusedScripts,
-} = require("./lib/task-focused-script-policy.cjs");
-const { loadManifest } = require("./lib/task-manifest.cjs");
-
-const standardChecks = ["format:check", "lint", "typecheck", "test", "build"];
-
-function validationPlan(manifest) {
+function buildValidationPlan(manifest, env = process.env) {
+  const npm = (...args) => npmCommand(args, env);
+  const preflight = npm('run', 'task:preflight');
+  const contracts = npm('run', 'task:contracts');
+  const taskFormat = npm('run', 'format:check:task-tools');
+  const fingerprint = npm('run', 'task:fingerprint', '--', '--json');
   switch (manifest.validation.profile) {
-    case "docs":
-      return ["task:preflight", "format:check:task-tools", "task:fingerprint"];
-    case "focused":
+    case 'docs':
       return [
-        "task:preflight",
-        ...validateFocusedScripts(manifest.validation.focusedScripts),
-        "task:fingerprint",
+        preflight,
+        contracts,
+        taskFormat,
+        {
+          label: 'git diff --check',
+          command: 'git',
+          args: ['diff', '--check'],
+        },
+        fingerprint,
       ];
-    case "normal":
-      return ["task:preflight", ...standardChecks, "task:fingerprint"];
-    case "critical":
+    case 'focused':
       return [
-        "task:preflight",
-        "format:check:task-tools",
-        "test:task-tools",
-        ...standardChecks,
-        "test:e2e",
-        "task:fingerprint",
+        preflight,
+        contracts,
+        ...manifest.validation.focusedScripts.map((script) =>
+          npm('run', script),
+        ),
+        fingerprint,
+      ];
+    case 'normal':
+      return [
+        preflight,
+        contracts,
+        taskFormat,
+        npm('run', 'format:check'),
+        npm('run', 'lint'),
+        npm('run', 'typecheck'),
+        npm('run', 'build'),
+        npm('run', 'test:task-tools'),
+        npm('test'),
+        fingerprint,
+      ];
+    case 'critical':
+      return [
+        preflight,
+        contracts,
+        taskFormat,
+        npm('run', 'test:task-tools'),
+        npm('run', 'format:check'),
+        npm('run', 'lint'),
+        npm('run', 'typecheck'),
+        npm('test'),
+        npm('run', 'build'),
+        npm('run', 'test:e2e'),
+        fingerprint,
       ];
     default:
-      throw new Error(`Perfil desconhecido: ${manifest.validation.profile}.`);
+      throw new Error(
+        `unsupported validation profile: ${manifest.validation.profile}`,
+      );
   }
 }
 
-function runNpmScript(script, root) {
-  const npmCli = process.env.npm_execpath;
-  if (!npmCli) {
-    throw new Error("Execute a validação pelo script npm run task:validate.");
+function runValidationPlan(
+  profile,
+  plan,
+  {
+    cwd = process.cwd(),
+    env = process.env,
+    spawn = spawnSync,
+    now = Date.now,
+    stdout = process.stdout,
+    stderr = process.stderr,
+  } = {},
+) {
+  stdout.write(`Validation profile: ${profile}\n`);
+  stdout.write('Commands:\n');
+  for (const entry of plan) stdout.write(`- ${entry.label}\n`);
+
+  const totalStartedAt = now();
+  const results = [];
+  for (const entry of plan) {
+    const startedAt = now();
+    stdout.write(`\n$ ${entry.label}\n`);
+    const result = spawn(entry.command, entry.args, {
+      cwd,
+      env,
+      stdio: 'inherit',
+    });
+    const exitCode = result.status ?? 1;
+    const commandResult = {
+      command: entry.label,
+      durationMs: now() - startedAt,
+      exitCode,
+      status: exitCode === 0 ? 'passed' : 'failed',
+    };
+    results.push(commandResult);
+    stdout.write(`${JSON.stringify(commandResult)}\n`);
+    if (result.error) stderr.write(`${result.error.message}\n`);
+    if (exitCode !== 0) {
+      return {
+        profile,
+        status: 'failed',
+        exitCode,
+        durationMs: now() - totalStartedAt,
+        results,
+      };
+    }
   }
-  const result = spawnSync(process.execPath, [npmCli, "run", script], {
-    cwd: root,
-    encoding: "utf8",
-    stdio: "inherit",
-    windowsHide: true,
-  });
-  if (result.error) {
-    throw new Error(
-      `Não foi possível iniciar npm run ${script}: ${result.error.message}`,
-    );
-  }
-  if (result.status !== 0) {
-    throw new Error(`npm run ${script} falhou.`);
-  }
+  return {
+    profile,
+    status: 'passed',
+    exitCode: 0,
+    durationMs: now() - totalStartedAt,
+    results,
+  };
 }
 
-function runValidation(root = process.cwd()) {
-  const { manifest } = loadManifest(root);
-  const plan = validationPlan(manifest);
-  console.log(`Plano ${manifest.validation.profile}: ${plan.join(" -> ")}`);
-  for (const script of plan) runNpmScript(script, root);
-  console.log(`Validação ${manifest.validation.profile} aprovada.`);
-  return plan;
-}
-
-if (require.main === module) {
+function main() {
   try {
-    runValidation();
+    const cwd = process.cwd();
+    const manifest = loadTaskManifest({
+      manifestPath: join(cwd, ...MANIFEST_PATH.split('/')),
+      packageJsonPath: join(cwd, 'package.json'),
+    });
+    const plan = buildValidationPlan(manifest);
+    const result = runValidationPlan(manifest.validation.profile, plan, {
+      cwd,
+    });
+    console.log(
+      JSON.stringify({ command: 'npm run task:validate', ...result }),
+    );
+    process.exitCode = result.exitCode;
   } catch (error) {
-    console.error(`Validação reprovada: ${error.message}`);
+    console.error(`FAIL: ${error.message}`);
     process.exitCode = 1;
   }
 }
 
-module.exports = { runValidation, validationPlan };
+if (require.main === module) main();
+
+module.exports = {
+  buildValidationPlan,
+  npmCommand,
+  runValidationPlan,
+};

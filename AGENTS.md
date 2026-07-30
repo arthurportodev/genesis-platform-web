@@ -3,6 +3,12 @@
 Estas regras valem para todo o repositório e integram o Sistema Operacional de
 Desenvolvimento da Genesis Platform.
 
+O contrato operacional vigente é o V2 (`contractVersion: 2.0.0`), distribuído
+sob autoridade do repositório `arthurportodev/genesis-platform-api`. O conjunto
+local registra o commit upstream aprovado e hashes SHA-256 de cada Skill e
+schema compartilhado. A leitura de manifestos permanece dual-read: V1 continua
+aceito e é normalizado para as invariantes V2.
+
 ## Antes de alterar código
 
 1. Leia `docs/START_HERE.md` e os documentos apontados por ele.
@@ -14,6 +20,11 @@ Desenvolvimento da Genesis Platform.
    exemplo e um Task Packet em `.codex/task-packets/<id>.md`.
 5. Confirme branch, SHA-base, estágio limpo e escopo com
    `npm run task:preflight`.
+6. Em tarefas Critical, invoque explicitamente
+   `$genesis-task-orchestrator` antes da escrita e
+   `$genesis-independent-verifier` quando o candidato estiver estável. Se o
+   runtime não suportar Skills, aplique os mesmos documentos, schemas e scripts
+   como fallback obrigatório.
 
 ## Gates e Git
 
@@ -30,6 +41,14 @@ Desenvolvimento da Genesis Platform.
 - Operações Git remotas são serializadas por um único operador. Correções
   descobertas durante a entrega retornam ao builder, à validação e ao verifier;
   não são aplicadas diretamente no fluxo remoto.
+- A invocação das duas Skills é explícita em tarefas Critical; presença dos
+  arquivos repo-local não conta como execução.
+- Um finding Critical sempre interrompe. Um finding High só pode ser corrigido
+  autonomamente quando todo o predicado de autonomia estruturado estiver
+  satisfeito, com teste de regressão, validação final Critical, novo candidato e
+  reverificação independente.
+- Aprovações vinculam `baseSha`, `contentFingerprint` e `candidateId`.
+  `gitStateFingerprint` registra a classificação Git separadamente.
 
 ## Limites permanentes
 
@@ -46,6 +65,8 @@ Desenvolvimento da Genesis Platform.
 ## Entrega
 
 - Execute o perfil de validação registrado no manifesto.
+- Execute `npm run task:contracts` para verificar schemas, Skills, upstream e
+  hashes de paridade.
 - O check obrigatório da CI é `Validate frontend`.
 - Registre estado e decisões relevantes nos documentos canônicos.
 - Não faça commit, push, PR, merge, tag, release ou deploy sem o Gate aplicável e
