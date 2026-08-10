@@ -1,0 +1,24 @@
+{
+  "schemaVersion": "1.0.0",
+  "instanceKind": "current",
+  "project": "genesis-platform",
+  "mode": "pointer-only",
+  "authority": {
+    "repository": "arthurportodev/genesis-platform-api",
+    "branch": "main",
+    "path": "docs/memory/project-state.v1.json",
+    "acceptedSchemaMajor": 1,
+    "resolutionOrder": [
+      "explicit-checkout",
+      "sibling-checkout",
+      "remote-read-only"
+    ]
+  },
+  "receipt": {
+    "transitionId": "GH-01-CROSS-REPO",
+    "targetStateRevision": "GH-01-COMPLETE",
+    "baseSha": "1c2ba2af9306f13b9995b48619f4aafb682385cf",
+    "revisionSource": "containing-commit",
+    "generatedAt": "2026-08-10T12:28:06.317Z"
+  }
+}

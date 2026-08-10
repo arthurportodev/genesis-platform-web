@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted para o contrato; candidato frontend ainda local.
+Accepted.
 
 ## Contexto
 
@@ -41,3 +41,10 @@ migração instantânea de tarefas em andamento.
 
 Esta decisão não autoriza stage, commit, publicação, merge, deploy ou qualquer
 mutação de produção.
+
+## Snapshot histórico de implementação
+
+O candidato descrito originalmente por este ADR foi incorporado no frontend
+pelo squash `890a49fb62fd194f8c2adf04fbfeb0cdd84e32bf`. Esse registro é
+proveniência histórica; o contrato vigente continua sendo verificado por
+`contract-set.json` e `npm run task:contracts`.

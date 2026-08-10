@@ -1,4 +1,11 @@
-# Roadmap
+<!-- genesis-memory-history:v1 -->
+
+# Roadmap — snapshot histórico/superseded
+
+Todo o conteúdo abaixo é um snapshot histórico/superseded do planejamento Web
+anterior. Ele é preservado para rastreabilidade, não descreve o trabalho
+vigente e nunca deve ser usado como fallback. O estado e a ação canônicos são
+resolvidos pela memória da API através do pointer Web.
 
 Estados: ✅ Concluído · 🚧 Em andamento · ⬜ Planejado · ⏸ Adiado
 
@@ -45,13 +52,12 @@ estão disponíveis e não são compromissos automáticos.
 - ⬜ `0.8.10` — Bootstrap Seguro.
 - ⬜ `0.8.11` — Smoke e Abertura Controlada.
 
-A próxima tarefa sequencial é `0.8.2`, sob autoridade do backend. Ela permanece
-planejada e não iniciada.
+No snapshot, a sequência apontava `0.8.2` como item seguinte. Essa indicação foi
+superseded pela autoridade temporal da API.
 
-Este repositório é autoridade para `0.8.6`–`0.8.8` no que se refere a Vercel,
-proxy same-origin, Preview, cookies e segurança web. O backend mantém o plano
-geral, as demais responsabilidades e o DAG canônico. Nenhum item planejado
-prova implementação, publicação ou prontidão para dados reais.
+À época, este repositório detalhava `0.8.6`–`0.8.8` no que se referia a Vercel,
+proxy same-origin, Preview, cookies e segurança web. A decisão arquitetural
+permanece nos documentos estáveis, mas a sequência de tarefas não é vigente.
 
 Previews permanecem fail-closed e nunca acessam a API de produção. Billing
 permanece adiado, sem escopo aprovado.

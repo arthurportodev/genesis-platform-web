@@ -1,109 +1,27 @@
-# Estado atual
+<!-- genesis-memory-bridge:v1 -->
 
-Atualizado em 30 de julho de 2026 para a Fase `0.8`.
+# Ponte para o estado canônico
 
-- **Fase concluída:** `0.7` — Frontend operacional.
-- **Fase atual:** `0.8` — Infraestrutura e produção.
-- **Última tarefa funcional concluída:** `0.7.6` — Criação Manual de Leads,
-  incorporada pelo PR #7 no squash
-  `4e4f8db0fcd31a4280d72f8cba0a1e0b47f4fa92`.
-- **Gate técnico concluído:** `0.8.0` — Arquitetura e Plano de Produção,
-  estritamente read-only, sem branch, PR, build, migration, seed ou deploy.
-- **Última tarefa de governança concluída:** `0.8.1.1` — Sistema Operacional de
-  Desenvolvimento V2, incorporado no backend pelo PR #26, squash
-  `27d85416507ae4d8391d74b4181f8400c6d61301`, e no frontend pelo PR #9,
-  squash `890a49fb62fd194f8c2adf04fbfeb0cdd84e32bf`.
-- **Próxima tarefa:** `0.8.2` — Hardening e Imagem de Produção da API, sob
-  autoridade do backend, ainda não iniciada.
+Este repositório não mantém uma projeção nem uma cópia manual da memória
+temporal da Genesis Platform. A autoridade única do Genesis Harness v0.1 fica
+no repositório `arthurportodev/genesis-platform-api`, no caminho
+`docs/memory/project-state.v1.json` da branch `main`.
 
-## Disponível
+Resolva primeiro
+[`memory/project-state.pointer.v1.json`](memory/project-state.pointer.v1.json)
+e siga, nesta ordem:
 
-- React/Vite/TypeScript estrito, shell administrativo e design system inicial.
-- Cliente HTTP centralizado sobre `fetch`, paths `/api/v1`, timeout/abort e
-  erros tipados.
-- Login real, access somente em memória, refresh cookie-only e CSRF.
-- Restauração, Web Locks, BroadcastChannel, single-flight e fallback seguro.
-- Bootstrap, zero/uma/várias Organizations, preferência UUID e troca atômica.
-- Guards reais, `returnTo` seguro, logout e logout-all.
-- Query keys tenant-scoped, limpeza de cache, ETag e idempotência opt-in.
-- Vitest/MSW, concorrência e Playwright Chromium com stub HTTP same-origin.
-- Proxy Vite local por `GENESIS_API_PROXY_TARGET`, fail-closed sem target.
-- Inbox real de Leads com busca protegida, filtros, ordenação, paginação por
-  cursor, tabela desktop e cards mobile.
-- Detalhe do Lead, próxima ação, ciclos e histórico incremental em ordem
-  cronológica.
-- Atualização, atribuição, notas, atividades, próxima ação e ciclo comercial com
-  ETag/If-Match e Idempotency-Key conforme o contrato backend.
-- Diretório de responsáveis somente para owner/admin; capacidade frontend é
-  apenas UX e nunca substitui autorização do backend.
-- Pipeline com cinco estágios canônicos, carga inicial agregada, filtros em
-  memória e paginação independente por coluna.
-- Cards com PII minimizada, layout horizontal no desktop, uma etapa por vez no
-  mobile e filtros em Sheet.
-- Movimento server-confirmed sem drag-and-drop: detalhe/ETag opaco como
-  preflight, If-Match, Idempotency-Key vinculada à revisão, conflitos sem retry
-  automático e releitura completa do quadro.
-- Follow-up com tabs por papel, segmentos atrasadas/hoje/futuras, filas sem
-  responsável e retornos administrativos, lazy loading e paginação incremental.
-- Modelos especializados das filas descartam telefone e e-mail antes do Query
-  Cache; filtros, cursores e contexto de retorno permanecem somente em memória.
-- Ações rápidas de Next Action, assignment e dismiss usam detalhe/ETag opaco,
-  intenção idempotente contextual quando aplicável, conflitos sem retry,
-  tratamento de resultado remoto incerto e invalidação específica.
-- Página `/app/metrics` para owner/admin sobre o resumo oficial do backend, com
-  snapshot atual, período default/customizado, presets, query string validada,
-  timezone da Organization e refresh manual sem polling.
-- Métricas mantêm snapshot e eventos do período separados, identificam won/lost
-  como ciclos, limitam a taxa de ganho aos ciclos decididos e apresentam origem
-  inicial em lista e barras CSS acessíveis, sem biblioteca gráfica.
-- Query Cache de Metrics é tenant-scoped, somente em memória e removido na troca
-  de Organization, logout ou perda de papel; member não monta a consulta.
-- Página `/app/leads/new` acessível pelo botão `Novo Lead` somente na Inbox,
-  com formulário responsivo, validação Zod, proteção de draft e UTMs
-  secundárias.
-- Criação server-confirmed por `POST /api/v1/leads`, Idempotency-Key UUID v4 sem
-  If-Match, owner/admin com responsável opcional e member sem diretório.
-- Resultados `201/200` identificados navegam ao detalhe oficial; `204` member é
-  opaco e retorna à Inbox. Telefone existente é sucesso de nova entrada, não
-  erro de duplicidade.
-- Intenção incerta permanece somente em memória e permite confirmar com a mesma
-  chave ou abandonar; nenhum payload, draft ou chave entra em storage, URL ou
-  caches persistidos.
+1. checkout explícito fornecido pelo operador;
+2. checkout irmão da API;
+3. origem remota pública em modo read-only.
 
-## Não disponível
+Valide identidade, major de schema, receipt e `memoryRevision` antes de usar os
+fatos retornados. O pointer é somente localização, compatibilidade e
+proveniência; ele não contém fase, trabalho, fatos operacionais, blockers nem
+decisões humanas.
 
-- Importação de Lead, formulário público, drag-and-drop, estágios
-  customizáveis, calendário, automações e comunicação externa.
-- Autorização frontend como fronteira de segurança; o backend continua sendo a
-  única autoridade.
-- Persistência de access, bootstrap ou Query Cache.
-- Proxy externo e projeto Vercel, domínio, DNS, staging ou deploy.
-- Preview com acesso à API.
-- Projeto Vercel, proxy de produção, domínio, DNS, TLS e deploy publicados.
-- Aplicação operacionalmente pronta ou autorizada para dados reais.
-
-A arquitetura aprovada em 30 de julho de 2026 mantém o frontend na Vercel em
-`app.agenciagenesis.com.br`, encaminhando `/api/v1` por proxy server-side para
-`origin-api.agenciagenesis.com.br`. A decisão está aceita, não implementada:
-o `vercel.json` atual contém apenas o fallback da SPA, Preview permanece sem
-API e `/api/v1` ainda não está pronto em produção. O backend é a autoridade do
-plano geral e dos critérios para entrada de dados reais.
-
-## Sistema Operacional de Desenvolvimento V2
-
-A tarefa `0.8.1.1` está incorporada. O backend mantém a autoridade canônica do
-contrato operacional V2 no squash
-`27d85416507ae4d8391d74b4181f8400c6d61301`; o frontend foi incorporado pelo PR
-#9 no squash `890a49fb62fd194f8c2adf04fbfeb0cdd84e32bf`, com os nove contratos
-compartilhados byte a byte equivalentes à árvore backend.
-
-O contrato vigente preserva dual-read de Task Manifest V1/V2, duas Skills
-repo-local, cinco schemas, paridade por hashes, identidade separada de
-conteúdo/estado Git, `candidateId`, envelope estruturado para findings High e
-evidência independente. Prettier, ESLint, TypeScript, Vitest, build e Playwright
-permanecem nos comandos específicos do frontend. As CIs pós-merge backend
-`30567270626` e frontend `30567803632` foram aprovadas.
-
-F-001 a F-008 estão resolvidos. O operador remoto permanece não implementado e
-nenhum deploy, alteração de Vercel, infraestrutura, banco, secret ou mutação de
-produção ocorreu. A próxima tarefa sequencial é `0.8.2`.
+Se a autoridade não puder ser lida, reporte `AUTHORITY_UNAVAILABLE` e mantenha
+os fatos como desconhecidos. Durante a janela Web-first/API-last, reporte também
+`MEMORY_TRANSITION_PENDING` quando o receipt ainda não tiver sido ativado pela
+autoridade. Esses estados podem coexistir. Nunca use uma versão anterior deste
+arquivo, o roadmap, um ADR ou outro documento Web como fallback temporal.

@@ -24,15 +24,15 @@ duplicar autorização, regras tenant ou decisões de negócio.
 - Criação manual server-confirmed de Leads para owner, admin e member.
 - Shell administrativo responsivo, estados operacionais, testes e CI.
 
-Esse ciclo funcional foi concluído na Fase `0.7`: criar Lead → Inbox → detalhe
-→ Pipeline → Follow-up → métricas.
+O ciclo funcional implementado é: criar Lead → Inbox → detalhe → Pipeline →
+Follow-up → métricas.
 
-## Estado atual e limites
+## Limites estruturais
 
-A Fase `0.8` é a fase atual e prepara a primeira produção. A arquitetura Vercel
-com proxy same-origin foi aceita, mas ainda não foi implementada. Não existem
-projeto Vercel, domínio, DNS, proxy de produção, deploy, staging ou acesso de
-Preview à API. O frontend não está pronto para dados reais.
+A arquitetura de publicação aceita usa Vercel e proxy same-origin. Preview é
+fail-closed e nunca recebe acesso à API de produção. Status operacional,
+publicação e autorização de dados reais pertencem à memória canônica da API,
+não a esta visão de produto.
 
 Importação de Leads, formulário público conectado, comunicação externa,
 WhatsApp, automações, calendário, estágios customizáveis e drag-and-drop
@@ -40,12 +40,12 @@ continuam indisponíveis e não constituem compromissos automáticos de produto.
 
 ## Destinos aprovados
 
-- Aplicação: `app.agenciagenesis.com.br` na Vercel.
+- Aplicação: Vercel, com hostname final governado pela autoridade operacional.
 - Navegador: somente paths relativos `/api/v1`.
-- Origem server-only: `origin-api.agenciagenesis.com.br`.
+- Origem: server-only, HTTPS e protegida contra bypass.
 - Backend e plano geral: `arthurportodev/genesis-platform-api`.
 - Preview: interface fail-closed, sem API de produção.
 
-Consulte [PRODUCTION.md](PRODUCTION.md) para o plano específico do frontend e
-o documento homônimo do backend para a arquitetura geral e o DAG da Fase
-`0.8`.
+Consulte [PRODUCTION.md](PRODUCTION.md) para o contrato estável do frontend e o
+[pointer](memory/project-state.pointer.v1.json) para estado e sequência
+operacional.

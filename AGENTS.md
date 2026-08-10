@@ -9,6 +9,22 @@ local registra o commit upstream aprovado e hashes SHA-256 de cada Skill e
 schema compartilhado. A leitura de manifestos permanece dual-read: V1 continua
 aceito e é normalizado para as invariantes V2.
 
+## Autoridade de memória
+
+Fatos temporais cross-repo têm uma única autoridade no backend:
+`arthurportodev/genesis-platform-api`, branch `main`, caminho
+`docs/memory/project-state.v1.json`. Este repositório mantém somente o pointer
+verificável `docs/memory/project-state.pointer.v1.json` e a bridge estável
+`docs/CURRENT_STATE.md`; não mantém projeção nem cache temporal.
+
+Resolva o pointer por checkout explícito, checkout irmão ou origem remota
+read-only. Valide schema, receipt e `memoryRevision`. Se a autoridade estiver
+indisponível, declare `AUTHORITY_UNAVAILABLE`; na janela Web-first/API-last,
+`MEMORY_TRANSITION_PENDING` pode coexistir. Nunca use README, roadmap, ADR,
+TASK_LOG ou uma versão anterior da bridge como fallback. ADRs decidem “por quê”;
+o JSON autoritativo responde fase, trabalho, operação, blockers e decisões
+humanas.
+
 ## Antes de alterar código
 
 1. Leia `docs/START_HERE.md` e os documentos apontados por ele.
@@ -68,6 +84,9 @@ aceito e é normalizado para as invariantes V2.
 - Execute `npm run task:contracts` para verificar schemas, Skills, upstream e
   hashes de paridade.
 - O check obrigatório da CI é `Validate frontend`.
-- Registre estado e decisões relevantes nos documentos canônicos.
+- Atualize o pointer apenas em transição cross-repo; fatos temporais são
+  atualizados atomicamente no candidato API autoritativo.
+- Registre decisões duráveis em ADRs e história no `TASK_LOG`, sem duplicar
+  memória temporal.
 - Não faça commit, push, PR, merge, tag, release ou deploy sem o Gate aplicável e
   autorização específica.
