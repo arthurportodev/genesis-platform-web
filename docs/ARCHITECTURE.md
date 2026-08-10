@@ -39,19 +39,20 @@ tenant-scoped. ETag, If-Match e Idempotency-Key são opt-in. O descritor
 mantém a mesma chave em um único replay após refresh.
 
 No desenvolvimento, o Vite lê `GENESIS_API_PROXY_TARGET` sem prefixo
-`VITE_` e aceita somente origem HTTP(S) sem credenciais ou path. Ausência do target responde fail-closed. Vercel conserva apenas o
-fallback SPA: external rewrite de produção não foi implementado.
+`VITE_` e aceita somente origem HTTP(S) sem credenciais ou path. Ausência do
+target responde fail-closed. O contrato Vercel preserva esse comportamento: a
+configuração de origem é server-only e o fallback SPA não captura `/api/v1`.
 
 ## Arquitetura alvo de produção
 
-Em 30 de julho de 2026 foi aceita, sem ainda ser implementada, a topologia:
+Foi aceita a seguinte topologia de referência:
 
 ```text
 Navegador
-→ app.agenciagenesis.com.br
+→ hostname final da aplicação
 → Vercel
 → proxy server-side de /api/v1
-→ origin-api.agenciagenesis.com.br
+→ origem HTTPS server-only
 → Traefik
 → API NestJS
 → PostgreSQL
@@ -65,10 +66,9 @@ usar a origem de produção. Cookies de sessão permanecem host-only no domínio
 preservados, e respostas de API usam `no-store`. O fallback SPA nunca pode
 capturar `/api/v1`.
 
-A implementação será dividida entre `0.8.5` (origem protegida), `0.8.6`
-(proxy e segurança), `0.8.7` (projeto Vercel) e `0.8.8` (domínio e DNS). O
-plano geral, PostgreSQL, Hetzner, backup, restore e DAG são autoridade do
-repositório backend em `docs/PRODUCTION.md`.
+A ordem de implementação, os nomes finais e a satisfação dos gates pertencem à
+memória canônica da API. Este documento preserva somente a fronteira técnica:
+Vercel, proxy same-origin, origem protegida, API e PostgreSQL privado.
 
 ## Organization e cache
 
@@ -173,8 +173,9 @@ Organizations exigem `/select-organization`. Redirects usam replace.
 
 NestJS em `arthurportodev/genesis-platform-api` permanece a autoridade de
 identidade, tenant e autorização. A matriz de capacidades de Leads é somente UX.
-Importação de Leads, formulário público, estágios customizáveis, calendário,
-automações, Vercel, domínio, DNS e deploy não fazem parte do estado
-implementado. A arquitetura de produção aceita está registrada em
+Importação de Leads, formulário público, estágios customizáveis, calendário e
+automações ficam fora do escopo implementado do produto. Status de Vercel,
+domínio, DNS e deploy é temporal e vem da autoridade da API. A arquitetura de
+produção aceita está registrada em
 [PRODUCTION.md](PRODUCTION.md) e no
 [ADR-008](decisions/ADR-008-vercel-same-origin-production.md).

@@ -24,8 +24,9 @@ pelo servidor Vite e nunca entra no bundle. O backend local deve usar
 `FRONTEND_URL=http://localhost:5173`. Nunca versione arquivos `.env` reais.
 
 O navegador chama exclusivamente paths relativos `/api/v1`. Sem target de
-proxy, o Vite responde fail-closed nesses paths. O proxy de produção na Vercel
-ainda não está configurado e previews não podem acessar a API de produção.
+proxy, o Vite responde fail-closed nesses paths. Previews não podem acessar a
+API de produção; o contrato de publicação mantém proxy same-origin e falha
+fechada.
 
 ## Validação
 
@@ -43,13 +44,16 @@ Para tarefas governadas, crie o manifesto local a partir de
 `npm run task:validate` e `npm run task:fingerprint`.
 
 Leia [docs/START_HERE.md](docs/START_HERE.md) antes de contribuir.
-O [plano de produção do frontend](docs/PRODUCTION.md) registra o estado atual,
-a arquitetura Vercel aprovada e as dependências de publicação.
+Para fatos temporais, resolva o
+[pointer da memória canônica](docs/memory/project-state.pointer.v1.json). O
+[contrato de produção do frontend](docs/PRODUCTION.md) preserva a arquitetura
+Vercel aprovada e os gates estáveis, sem duplicar status operacional.
 
-## Destinos planejados
+## Destinos arquiteturais
 
-- Domínio: `app.agenciagenesis.com.br`.
-- Deploy do frontend: Vercel.
+- Hospedagem do frontend: Vercel.
+- Hostname operacional: deve ser obtido da autoridade canônica indicada pelo
+  contrato de memória; não é uma constante deste README.
 - Backend oficial: `arthurportodev/genesis-platform-api`.
 - Integração web local: implementada por path same-origin `/api/v1` e proxy
   Vite na tarefa `0.7.1.2`.
@@ -68,7 +72,6 @@ a arquitetura Vercel aprovada e as dependências de publicação.
   `4e4f8db0fcd31a4280d72f8cba0a1e0b47f4fa92`.
 - Não existe drag-and-drop ou estágios customizáveis no frontend.
 
-Projeto Vercel, domínio, DNS, proxy de produção e ambientes publicados ainda não
-estão configurados. A Fase `0.7` está concluída; a Fase `0.8` prepara a
-produção sem autorizar dados reais antes dos critérios operacionais e da
-aprovação humana de abertura.
+Status de publicação, domínio, DNS, proxy e autorização de dados reais são
+consultados exclusivamente na memória canônica da API. Este README não é uma
+fonte de fase, trabalho ou prontidão operacional.

@@ -159,3 +159,28 @@ squash `6a1a5bafc14195cbd8cf6f8b85077a4e1081381c`.
   iniciada e sob autoridade do backend.
 - Limites: produto, backend, infraestrutura, dependências, lockfile e produção
   não foram alterados.
+
+## GH-01 Phase A — Web Satellite Candidate
+
+- Classe/perfil: Critical / critical, com validação focal L0–L2 e verifier
+  independente.
+- Base Web: `1c2ba2af9306f13b9995b48619f4aafb682385cf`.
+- Referência API read-only:
+  `6c4bbb9b909dcd243f3e3d5165bf9368c3e16264`.
+- Estado deste registro: candidato local para Gate 2; não incorporado e sem
+  conclusão global da GH-01.
+- Receipt: `GH-01-CROSS-REPO`, alvo `GH-01-COMPLETE`, proveniência
+  `containing-commit`; o SHA final será conhecido somente após integração Web.
+- Entrega candidata: pointer-only, bridge estável, schema protótipo, validator
+  Node built-ins, testes herméticos, CI local e reconciliação das fontes Web.
+- Onboarding controle: PASS em 3m36,9s, zero perguntas, reexplicações,
+  intervenções humanas ou mutações; detectou corretamente o drift histórico do
+  Web e usou a API como fonte temporal.
+- Histórico superseded: referências anteriores à sequência `0.8.2`–`0.8.11`,
+  ao host Hetzner e a hostnames fixos descrevem o snapshot da época e não são
+  estado vigente.
+- Janela de transição: a autoridade API não existe na base de referência;
+  `AUTHORITY_UNAVAILABLE` e `MEMORY_TRANSITION_PENDING` são esperados sem
+  fallback local até o Candidate B.
+- Limites: API, produto, dependências, package/lockfile, infraestrutura,
+  produção e Git/GitHub não foram alterados.

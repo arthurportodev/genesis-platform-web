@@ -45,6 +45,12 @@ jobs:
       - name: Test task tools
         run: npm run test:task-tools
 
+      - name: Validate project memory pointer
+        run: node scripts/validate-project-memory.cjs --mode local
+
+      - name: Test project memory validator
+        run: node --test test/project-memory/project-memory.test.cjs
+
       - name: Check formatting
         run: npm run format:check
 

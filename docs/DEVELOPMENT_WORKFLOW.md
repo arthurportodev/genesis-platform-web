@@ -17,6 +17,23 @@
 - Dependências devem ter finalidade explícita e lockfile revisado.
 - Durante esta fase, stage, commit, push e criação de PR são proibidos.
 
+## Memória canônica cross-repo
+
+A API é a única autoridade temporal; o Web mantém pointer-only e uma bridge
+sem projeção. Uma transição cross-repo é preparada Web-first/API-last:
+
+1. o candidato Web registra receipt com `baseSha`, `targetStateRevision` e
+   `revisionSource=containing-commit`;
+2. a janela intermediária é reportada como `MEMORY_TRANSITION_PENDING`, sem
+   fallback para documentos Web;
+3. o candidato API registra o SHA Web final como `memoryRevision`, valida esse
+   commit e ativa a revisão-alvo no mesmo PR autoritativo.
+
+O schema API deve representar `nextTask` como `identified`, `undecided` ou
+`none`; placeholders como `TBD` são proibidos. Fatos temporais e projeção API
+são atualizados atomicamente na tarefa que muda o estado, sem closeout separado.
+Roadmap, ADR e TASK_LOG preservam direção, decisão e história, respectivamente.
+
 ## Validação e Gate 2
 
 Use `npm run task:validate`; o plano depende do perfil, não do nome da classe. O
@@ -42,6 +59,15 @@ Com Gate 3 e checks verdes no head aprovado, use squash merge. Depois:
 4. registre o fechamento.
 
 Tag, release, deploy, Vercel, domínio e DNS são autorizações independentes.
+
+## Invariante do Remote Operator
+
+`remoteOperatorStatus=conceptual-only`. A capability não existe como
+implementação nem autorização operacional. Qualquer desenho futuro exige
+contrato, allowlist, locks, dry run, rollback e autorização próprios, com um
+writer por recurso compartilhado. Cada execução deve produzir
+`evidence-manifest.v1` vinculado ao candidato e ao operador. Disponibilidade de
+ferramenta nunca concede permissão de mutação.
 
 ## Contrato V2 e identidade do candidato
 

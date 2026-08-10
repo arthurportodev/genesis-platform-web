@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/arthurportodev/genesis-platform-web/schemas/genesis-harness/project-state.pointer.v1.schema.json",
+  "title": "Genesis Platform Web canonical-state pointer v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "instanceKind",
+    "project",
+    "mode",
+    "authority",
+    "receipt"
+  ],
+  "properties": {
+    "schemaVersion": { "const": "1.0.0" },
+    "instanceKind": { "const": "current" },
+    "project": { "const": "genesis-platform" },
+    "mode": { "const": "pointer-only" },
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "repository",
+        "branch",
+        "path",
+        "acceptedSchemaMajor",
+        "resolutionOrder"
+      ],
+      "properties": {
+        "repository": {
+          "const": "arthurportodev/genesis-platform-api"
+        },
+        "branch": { "const": "main" },
+        "path": { "const": "docs/memory/project-state.v1.json" },
+        "acceptedSchemaMajor": { "const": 1 },
+        "resolutionOrder": {
+          "const": ["explicit-checkout", "sibling-checkout", "remote-read-only"]
+        }
+      }
+    },
+    "receipt": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "transitionId",
+        "targetStateRevision",
+        "baseSha",
+        "revisionSource",
+        "generatedAt"
+      ],
+      "properties": {
+        "transitionId": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{1,79}$"
+        },
+        "targetStateRevision": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{2,79}$"
+        },
+        "baseSha": {
+          "type": "string",
+          "pattern": "^(?!0{40}$)[a-f0-9]{40}$"
+        },
+        "revisionSource": { "const": "containing-commit" },
+        "generatedAt": { "type": "string", "format": "date-time" }
+      }
+    }
+  }
+}

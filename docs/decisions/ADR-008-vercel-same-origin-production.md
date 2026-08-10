@@ -5,48 +5,46 @@
 
 ## Contexto
 
-O frontend já usa paths relativos `/api/v1` e mantém access token somente em
-memória, refresh em cookie `HttpOnly` e CSRF cookie-to-header. A primeira
-produção precisa preservar esse contrato sem expor a origem backend ao
-JavaScript, permitir CORS amplo ou conectar Previews à produção.
+O frontend usa paths relativos `/api/v1` e mantém access token somente em
+memória, refresh em cookie `HttpOnly` e CSRF cookie-to-header. A publicação
+precisa preservar esse contrato sem expor a origem backend ao JavaScript,
+permitir CORS amplo ou conectar Previews à produção.
 
 ## Decisão
 
-O frontend será publicado na Vercel em `app.agenciagenesis.com.br`. Um proxy
-server-side encaminhará `/api/v1` para a origem fixa e server-only
-`origin-api.agenciagenesis.com.br`, protegida por HTTPS e contra bypass. O
-navegador nunca usa a origem diretamente.
+O frontend será publicado na Vercel. Um proxy server-side encaminhará
+`/api/v1` para uma origem fixa, HTTPS, server-only e protegida contra bypass. O
+navegador nunca usa a origem diretamente; os hostnames finais são decisões
+operacionais registradas na memória canônica.
 
 Production recebe o destino do proxy; Preview não o recebe e falha fechado.
-Cookies permanecem host-only no domínio `app`, e o hop browser→Vercel é
-same-origin, sem CORS. O proxy preserva cookies, status, body e headers
+Cookies permanecem host-only no domínio da aplicação, e o hop navegador→Vercel
+é same-origin, sem CORS. O proxy preserva cookies, status, body e headers
 contratuais, aplica `no-store` para API e impede que o fallback SPA capture
 `/api/v1`.
 
-A implementação depende de `0.8.5` (origem), `0.8.6` (proxy e segurança),
-`0.8.7` (projeto Vercel) e `0.8.8` (domínio e DNS). O rollback usa uma versão
-Vercel anterior validada e, quando aplicável, rollback controlado de DNS.
+O rollback usa uma versão Vercel anterior validada e, quando aplicável,
+rollback controlado de DNS. A ordem operacional e a satisfação dos gates vêm
+da autoridade temporal da API, não deste ADR.
 
 ## Alternativas consideradas
 
-- **B — navegador chamar a origem backend diretamente:** rejeitada para a
-  primeira produção por ampliar CORS, exposição da origem e complexidade de
-  cookies/CSRF.
-- **C — hospedar frontend e backend juntos na Hetzner:** rejeitada para a
-  primeira produção por abandonar o destino Vercel aprovado e acoplar ciclos
-  de publicação sem necessidade atual.
+- **B — navegador chamar a origem backend diretamente:** rejeitada por ampliar
+  CORS, exposição da origem e complexidade de cookies/CSRF.
+- **C — hospedar frontend e backend juntos:** rejeitada para a primeira
+  produção por abandonar o destino Vercel aprovado e acoplar ciclos de
+  publicação sem necessidade comprovada.
 
 ## Consequências
 
-A Vercel passa a ser uma fronteira server-side confiável que precisa de
-configuração mínima, logs seguros, testes de proxy e separação rígida de
-ambientes. A origem não pode ficar publicamente contornável, e Preview deve
-perder funcionalidade de API em vez de alcançar produção. Publicação e
-rollback do frontend ficam independentes do deploy da API, respeitando seus
-contratos comuns.
+A Vercel é uma fronteira server-side que exige configuração mínima, logs
+seguros, testes de proxy e separação rígida de ambientes. A origem não pode ser
+contornável, e Preview perde funcionalidade de API em vez de alcançar produção.
+Publicação e rollback do frontend permanecem independentes do deploy da API,
+respeitando os contratos comuns.
 
-## Implementação
+## Relação com memória
 
-Esta decisão está aceita, mas ainda não implementada. O estado atual e os
-passos futuros estão em [PRODUCTION.md](../PRODUCTION.md). O backend mantém a
-arquitetura geral no ADR-011 e em seu `docs/PRODUCTION.md`.
+Este ADR responde por que a arquitetura foi escolhida. Ele não comprova
+publicação, disponibilidade, hostnames, trabalho ou prontidão; esses fatos são
+resolvidos pelo pointer Web na autoridade da API.
