@@ -184,3 +184,16 @@ squash `6a1a5bafc14195cbd8cf6f8b85077a4e1081381c`.
   fallback local até o Candidate B.
 - Limites: API, produto, dependências, package/lockfile, infraestrutura,
   produção e Git/GitHub não foram alterados.
+
+## 0.8-MVP-08 — Candidato API/Web para Gate de merge
+
+Em 13 de agosto de 2026, Gate 1 autorizou o candidato local e CI não produtiva.
+O Web candidato adiciona Function Node.js same-origin, Preview/hosts gerados
+fail-closed, negação de fallback SPA em `/api/v1`, proveniência canônica do IP,
+preservação HTTP, cookies host-only, `Location` relativa segura e no-store sem
+CDN HIT. O lockfile foi normalizado e dois transitivos de tooling vulneráveis
+foram atualizados dentro dos ranges existentes; a auditoria de produção passou
+com zero findings.
+
+Nenhum secret, Vercel, deploy, DNS, VPS, usuário ou dado real foi criado ou
+alterado. Resultados finais, SHAs e PR pertencem ao checkpoint VERIFY.

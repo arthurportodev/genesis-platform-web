@@ -40,8 +40,10 @@ mantém a mesma chave em um único replay após refresh.
 
 No desenvolvimento, o Vite lê `GENESIS_API_PROXY_TARGET` sem prefixo
 `VITE_` e aceita somente origem HTTP(S) sem credenciais ou path. Ausência do
-target responde fail-closed. O contrato Vercel preserva esse comportamento: a
-configuração de origem é server-only e o fallback SPA não captura `/api/v1`.
+target responde fail-closed. Em produção, uma entrypoint Node.js 24 executa a
+Function apenas no hostname final e em `VERCEL_ENV=production`; rotas explícitas
+encaminham `/api/v1`, bloqueiam o nome físico da Function e só então permitem o
+fallback da SPA.
 
 ## Arquitetura alvo de produção
 
@@ -58,13 +60,14 @@ Navegador
 → PostgreSQL
 ```
 
-O navegador continuará usando somente `/api/v1`; a origem será configuração
-server-only, com HTTPS e proteção contra bypass. O hop browser→Vercel é
-same-origin e não depende de CORS. Preview deve responder fail-closed e nunca
-usar a origem de produção. Cookies de sessão permanecem host-only no domínio
-`app`; headers de request e response necessários ao contrato devem ser
-preservados, e respostas de API usam `no-store`. O fallback SPA nunca pode
-capturar `/api/v1`.
+O navegador continua usando somente `/api/v1`; a origem e sua chave são
+server-only. A Function canonicaliza o IP sobrescrito pela borda, remove qualquer
+proveniência fornecida pelo cliente e cria os dois headers internos consumidos
+por Traefik/API. O hop browser→Vercel é same-origin e não depende de CORS.
+Preview falha fechado. Cookies permanecem host-only; método, query, body,
+status, cookies e headers contratuais são preservados sob limites explícitos.
+Redirects só retornam paths relativos de API e todas as responses são
+`no-store` para browser e CDN.
 
 A ordem de implementação, os nomes finais e a satisfação dos gates pertencem à
 memória canônica da API. Este documento preserva somente a fronteira técnica:

@@ -1,4 +1,17 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }]
+  "functions": {
+    "api/proxy.ts": { "maxDuration": 10 }
+  },
+  "routes": [
+    { "src": "/api/v1", "dest": "/api/proxy?__genesis_proxy_path=" },
+    {
+      "src": "/api/v1/(.*)",
+      "dest": "/api/proxy?__genesis_proxy_path=$1"
+    },
+    { "src": "/api/proxy(?:/.*)?", "status": 404 },
+    { "handle": "filesystem" },
+    { "src": "/api/v1(?:/.*)?", "status": 404 },
+    { "src": "/.*", "dest": "/index.html" }
+  ]
 }

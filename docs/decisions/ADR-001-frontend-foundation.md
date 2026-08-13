@@ -42,5 +42,6 @@ autorização. O documento canônico consultado no backend foi
 - A estrutura suporta rotas profundas, responsividade e testes desde o início.
 - Autenticação e guards continuam ausentes até a tarefa `0.7.1.2`.
 - Dados vazios são estados válidos e não serão preenchidos com fixtures na UI.
-- Não existem SSR, server functions ou um segundo backend no frontend.
+- SSR e um segundo backend continuam ausentes. A exceção server-side estrita
+  para o proxy same-origin de produção é definida pelo ADR-010.
 - Novas dependências e mudanças transversais seguem classe `Critical`.

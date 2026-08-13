@@ -21,6 +21,9 @@
 - `ADR-009-development-operating-system-v2-parity.md`: distribuição controlada
   do contrato V2 sob autoridade do backend, dual-read V1/V2, hashes de paridade,
   Skills repo-local, fingerprints e verifier independente.
+- `ADR-010-vercel-proxy-http-contract.md`: especializa o ADR-008 com Function
+  Node.js, proveniência do IP, preservação HTTP, `Location`, cookies e cache;
+  Accepted provisionally, sem ativar produção.
 
 ADRs são imutáveis depois de substituídas. Uma mudança relevante deve criar uma
 nova decisão e apontar qual documento anterior foi superado.
