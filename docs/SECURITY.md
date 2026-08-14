@@ -104,6 +104,13 @@ públicas e não podem conter segredos. Previews permanecem sem acesso à API e
 nunca apontam para produção. A memória canônica registra disponibilidade de
 proxy, domínio e deploy sem alterar estas invariantes.
 
+Na Vercel, o target é aceito somente quando corresponde exatamente à origem
+canônica. A chave de origem é server-only e jamais é encaminhada à aplicação.
+A Function remove headers forwarded, `X-Vercel-*`, `X-Genesis-*`, hop-by-hop e
+tokens de `Connection`, valida o IP de plataforma canônico e sobrescreve a
+proveniência enviada a Traefik. Responses removem headers internos/cache,
+validam cookies host-only e impedem `Location` de criar bypass direto da API.
+
 ## Controles aprovados para a primeira produção
 
 A decisão aceita usa Vercel e proxy same-origin em `/api/v1`. A origem é

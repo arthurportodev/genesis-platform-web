@@ -10,11 +10,17 @@ curso e restrições vigentes pertencem à memória canônica da API, resolvida 
 O destino de publicação do frontend é a Vercel. O navegador usa exclusivamente
 paths relativos `/api/v1`; um proxy server-side same-origin encaminha essas
 requisições para uma origem HTTPS protegida e não acessível diretamente pelo
-JavaScript. Os nomes finais da aplicação e da origem são decisões operacionais
-da autoridade, não constantes deste documento.
+JavaScript. Hostnames e fatos operacionais são resolvidos exclusivamente pela
+memória canônica da API; este contrato não declara DNS, deploy ou
+disponibilidade live.
 
 Preview não recebe o destino de produção e falha fechado para `/api/v1`. O
 fallback da SPA nunca pode capturar paths de API.
+
+Deployments automáticos originados pelo Git permanecem globalmente desativados
+por `git.deploymentEnabled=false`. A proteção não impede um deployment manual
+controlado em fase operacional posterior e não constitui autorização para
+publicar, promover ou alterar Production.
 
 ## Contrato do proxy
 
@@ -24,6 +30,15 @@ fallback da SPA nunca pode capturar paths de API.
 - A origem usa HTTPS e precisa ser protegida contra bypass.
 - Ausência, erro ou configuração incompleta do proxy falha fechado.
 - Nenhuma alternativa de Preview ou origem não aprovada é usada como fallback.
+- A Function Node.js 24 possui timeout upstream de 8 segundos, duração máxima
+  versionada de 10 segundos e bodies limitados a 4,5 MB.
+- Headers hop-by-hop fixos e indicados por `Connection` são removidos nos dois
+  sentidos. Headers forwarded/internos do cliente são removidos e substituídos
+  pela proveniência server-side descrita no ADR-010.
+- `Location` só sobrevive como path relativo em `/api/v1`; cookies exigem
+  `Secure`, `Path=/` e ausência de `Domain`.
+- `Cache-Control`, `CDN-Cache-Control` e `Vercel-CDN-Cache-Control` são sempre
+  `no-store`; metadados de HIT do upstream nunca são propagados.
 
 ## Cookies, CSRF e Origin
 
@@ -32,6 +47,8 @@ navegador→Vercel é same-origin e não exige CORS. Login, refresh, logout e
 logout-all preservam CSRF cookie-to-header e validação de `Origin`. Cookies,
 redirects, `Set-Cookie`, ETag, `Location`, rate-limit e os demais headers do
 contrato precisam de verificação ponta a ponta no candidato de publicação.
+O candidato local cobre esses casos adversarialmente; a borda Vercel e os
+cookies do hostname final ainda exigem verificação pós-deploy.
 
 ## Ambientes
 

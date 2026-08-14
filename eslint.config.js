@@ -37,6 +37,10 @@ export default tseslint.config(
     languageOptions: { globals: globals.node },
   },
   {
+    files: ["api/**/*.ts", "src/server/**/*.ts"],
+    languageOptions: { globals: globals.node },
+  },
+  {
     files: ["src/shared/ui/**/*.{ts,tsx}"],
     rules: { "react-refresh/only-export-components": "off" },
   },
