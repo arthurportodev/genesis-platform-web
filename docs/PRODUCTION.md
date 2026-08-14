@@ -17,6 +17,11 @@ disponibilidade live.
 Preview não recebe o destino de produção e falha fechado para `/api/v1`. O
 fallback da SPA nunca pode capturar paths de API.
 
+Deployments automáticos originados pelo Git permanecem globalmente desativados
+por `git.deploymentEnabled=false`. A proteção não impede um deployment manual
+controlado em fase operacional posterior e não constitui autorização para
+publicar, promover ou alterar Production.
+
 ## Contrato do proxy
 
 - O destino da origem é configuração server-only, nunca uma variável `VITE_*`.

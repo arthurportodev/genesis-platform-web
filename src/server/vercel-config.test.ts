@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 interface VercelConfig {
   functions?: Record<string, { maxDuration?: number }>;
   git?: {
-    deploymentEnabled?: Record<string, boolean>;
+    deploymentEnabled?: boolean | Record<string, boolean>;
   };
   routes?: Array<{
     src?: string;
@@ -29,13 +29,10 @@ describe("Vercel production routing contract", () => {
     });
   });
 
-  it("suppresses automatic deployments only for the verification branch", () => {
+  it("suppresses every automatic Git deployment until the operational gate", () => {
     expect(config.git).toEqual({
-      deploymentEnabled: {
-        "codex/0.8-mvp-08-api-web": false,
-      },
+      deploymentEnabled: false,
     });
-    expect(config.git?.deploymentEnabled?.main).toBeUndefined();
   });
 
   it("routes only the public API namespace to the function and blocks its filesystem name", () => {

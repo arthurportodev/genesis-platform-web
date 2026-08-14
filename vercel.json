@@ -4,9 +4,7 @@
     "api/proxy.ts": { "maxDuration": 10 }
   },
   "git": {
-    "deploymentEnabled": {
-      "codex/0.8-mvp-08-api-web": false
-    }
+    "deploymentEnabled": false
   },
   "routes": [
     { "src": "/api/v1", "dest": "/api/proxy?__genesis_proxy_path=" },
