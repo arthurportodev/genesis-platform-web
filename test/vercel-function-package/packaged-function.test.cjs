@@ -156,6 +156,71 @@ test("the packaged Vercel Function is a closed, resolvable Node ESM bundle", asy
         }
       }
       assert.equal(upstreamContacts, 0);
+
+      process.env.VERCEL_ENV = "production";
+      process.env.GENESIS_API_PROXY_TARGET =
+        "https://api.agenciagenesismkt.com.br";
+      const syntheticOriginKey = "S".repeat(43);
+      process.env.GENESIS_ORIGIN_KEY = syntheticOriginKey;
+      globalThis.fetch = async (input, init) => {
+        upstreamContacts += 1;
+        assert.equal(
+          input.href,
+          "https://api.agenciagenesismkt.com.br/api/v1/auth/csrf?synthetic=1",
+        );
+        assert.equal(init.method, "GET");
+        assert.equal(
+          init.headers.get("origin"),
+          "https://app.agenciagenesismkt.com.br",
+        );
+        assert.equal(
+          init.headers.get("x-genesis-origin-key"),
+          syntheticOriginKey,
+        );
+        assert.equal(init.headers.get("host"), null);
+        assert.equal(init.headers.get("x-forwarded-host"), null);
+        assert.equal(init.headers.get("x-forwarded-proto"), null);
+        assert.equal(init.headers.get("x-vercel-deployment-url"), null);
+        return new Response(null, { status: 204 });
+      };
+
+      const emittedLogs = [];
+      const originalConsole = {
+        error: console.error,
+        log: console.log,
+        warn: console.warn,
+      };
+      let productionResponse;
+      try {
+        for (const method of Object.keys(originalConsole)) {
+          console[method] = (...values) => emittedLogs.push(values);
+        }
+        productionResponse = await packaged.default.fetch(
+          new Request(
+            "https://genesis-platform-c2.vercel.app/api/proxy?__genesis_proxy_path=auth%2Fcsrf&synthetic=1",
+            {
+              headers: {
+                host: "app.agenciagenesismkt.com.br",
+                origin: "https://app.agenciagenesismkt.com.br",
+                "x-forwarded-host": "app.agenciagenesismkt.com.br",
+                "x-forwarded-proto": "https",
+                "x-vercel-deployment-url": "genesis-platform-c2.vercel.app",
+                "x-vercel-forwarded-for": "203.0.113.9",
+              },
+            },
+          ),
+        );
+      } finally {
+        Object.assign(console, originalConsole);
+      }
+      assert.equal(productionResponse.status, 204);
+      assert.equal(productionResponse.headers.get("cache-control"), "no-store");
+      assert.equal(await productionResponse.text(), "");
+      assert.equal(
+        JSON.stringify(emittedLogs).includes(syntheticOriginKey),
+        false,
+      );
+      assert.equal(upstreamContacts, 1);
     } finally {
       globalThis.fetch = originalFetch;
       restoreEnvironment("VERCEL_ENV", previousVercelEnvironment);
