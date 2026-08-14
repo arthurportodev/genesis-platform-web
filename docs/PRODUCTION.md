@@ -10,9 +10,9 @@ curso e restrições vigentes pertencem à memória canônica da API, resolvida 
 O destino de publicação do frontend é a Vercel. O navegador usa exclusivamente
 paths relativos `/api/v1`; um proxy server-side same-origin encaminha essas
 requisições para uma origem HTTPS protegida e não acessível diretamente pelo
-JavaScript. O candidato aprovado fixa
-`app.agenciagenesismkt.com.br` e `api.agenciagenesismkt.com.br`; isso não
-comprova DNS, deploy ou disponibilidade live.
+JavaScript. Hostnames e fatos operacionais são resolvidos exclusivamente pela
+memória canônica da API; este contrato não declara DNS, deploy ou
+disponibilidade live.
 
 Preview não recebe o destino de produção e falha fechado para `/api/v1`. O
 fallback da SPA nunca pode capturar paths de API.
