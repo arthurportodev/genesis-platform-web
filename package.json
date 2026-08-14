@@ -19,6 +19,7 @@
     "test": "vitest run --maxWorkers=1",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
+    "test:vercel-package": "node --test test/vercel-function-package/*.test.cjs",
     "test:task-tools": "node --test test/task-tools/*.test.cjs",
     "task:preflight": "node scripts/task-preflight.cjs",
     "task:fingerprint": "node scripts/task-fingerprint.cjs",
