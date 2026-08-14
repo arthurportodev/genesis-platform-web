@@ -22,6 +22,12 @@ por `git.deploymentEnabled=false`. A proteção não impede um deployment manual
 controlado em fase operacional posterior e não constitui autorização para
 publicar, promover ou alterar Production.
 
+O entrypoint da Function usa import ESM relativo com extensão `.js`. A CI
+compila uma réplica fechada do pacote Node.js, exige todos os módulos internos
+dentro do bundle e inicializa o entrypoint empacotado. O teste também executa
+GET, HEAD e OPTIONS em Preview sintético, exige `404`/`no-store` e prova zero
+contato upstream. O build da SPA isolado não substitui essa regressão.
+
 ## Contrato do proxy
 
 - O destino da origem é configuração server-only, nunca uma variável `VITE_*`.

@@ -197,3 +197,17 @@ com zero findings.
 
 Nenhum secret, Vercel, deploy, DNS, VPS, usuário ou dado real foi criado ou
 alterado. Resultados finais, SHAs e PR pertencem ao checkpoint VERIFY.
+
+## 0.8-MVP-08 — Remediação do runtime da Function Web
+
+O baseline operacional `dpl_7rm5gaRDfvmVEDHjiJb9wFCF8jh9`, construído do
+commit Web `b6aa5af91d78a998aceacbe963ef45649dd00149`, foi rejeitado porque a
+Function emitida preservou um import ESM relativo sem extensão. Embora o módulo
+`src/server/api-proxy.js` estivesse presente no pacote, Node.js 24 não resolveu
+`../src/server/api-proxy` e encerrou com `ERR_MODULE_NOT_FOUND`.
+
+A remediação mantém a arquitetura e o contrato HTTP intactos: corrige somente
+o specifier para `.js` e adiciona uma regressão que compila, inspeciona,
+inicializa e exercita o pacote fechado da Function. Production foi restaurada
+ao deployment anterior; novo Preview e qualquer retomada operacional dependem
+dos gates próprios desta subfase.

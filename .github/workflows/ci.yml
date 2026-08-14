@@ -60,6 +60,9 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
 
+      - name: Validate packaged Vercel Function
+        run: npm run test:vercel-package
+
       - name: Unit and integration tests
         run: npm test
 
