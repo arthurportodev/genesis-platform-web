@@ -15,6 +15,15 @@ const environment: ProxyEnvironment = {
 
 function productionRequest(path: string, init: RequestInit = {}): Request {
   const headers = new Headers(init.headers);
+  if (!headers.has("host")) {
+    headers.set("host", "app.agenciagenesismkt.com.br");
+  }
+  if (!headers.has("x-forwarded-host")) {
+    headers.set("x-forwarded-host", "app.agenciagenesismkt.com.br");
+  }
+  if (!headers.has("x-forwarded-proto")) {
+    headers.set("x-forwarded-proto", "https");
+  }
   if (!headers.has("x-vercel-forwarded-for")) {
     headers.set("x-vercel-forwarded-for", "203.0.113.9");
   }
@@ -80,8 +89,16 @@ describe("Vercel same-origin API proxy", () => {
       return Promise.resolve(new Response(null, { status: 204 }));
     });
     const response = await handleApiProxy(
-      productionRequest(
-        "/api/proxy?__genesis_proxy_path=leads%2Fsynthetic&q=one&q=two",
+      new Request(
+        "https://genesis-platform-c2.vercel.app/api/proxy?__genesis_proxy_path=leads%2Fsynthetic&q=one&q=two",
+        {
+          headers: {
+            host: "app.agenciagenesismkt.com.br",
+            "x-forwarded-host": "app.agenciagenesismkt.com.br",
+            "x-forwarded-proto": "https",
+            "x-vercel-forwarded-for": "203.0.113.9",
+          },
+        },
       ),
       environment,
       { fetch },
@@ -100,7 +117,85 @@ describe("Vercel same-origin API proxy", () => {
       ],
       [
         new Request("https://candidate.vercel.app/api/v1/auth/bootstrap", {
-          headers: { "x-vercel-forwarded-for": "203.0.113.9" },
+          headers: {
+            host: "candidate.vercel.app",
+            "x-forwarded-host": "app.agenciagenesismkt.com.br",
+            "x-forwarded-proto": "https",
+            "x-vercel-forwarded-for": "203.0.113.9",
+          },
+        }),
+        environment,
+        404,
+      ],
+      [
+        new Request(
+          "https://candidate.vercel.app/api/proxy?__genesis_proxy_path=auth%2Fbootstrap",
+          {
+            headers: {
+              host: "app.agenciagenesismkt.com.br",
+              "x-forwarded-host": "candidate.vercel.app",
+              "x-forwarded-proto": "https",
+              "x-vercel-forwarded-for": "203.0.113.9",
+            },
+          },
+        ),
+        environment,
+        404,
+      ],
+      [
+        new Request(
+          "https://candidate.vercel.app/api/proxy?__genesis_proxy_path=auth%2Fbootstrap",
+          {
+            headers: {
+              host: "app.agenciagenesismkt.com.br",
+              "x-forwarded-host": "app.agenciagenesismkt.com.br",
+              "x-forwarded-proto": "http",
+              "x-vercel-forwarded-for": "203.0.113.9",
+            },
+          },
+        ),
+        environment,
+        404,
+      ],
+      [
+        new Request(
+          "https://app.agenciagenesismkt.com.br/api/v1/auth/bootstrap",
+          {
+            headers: { "x-vercel-forwarded-for": "203.0.113.9" },
+          },
+        ),
+        environment,
+        404,
+      ],
+      [
+        productionRequest("/api/v1/auth/bootstrap", {
+          headers: {
+            host: "app.agenciagenesismkt.com.br, candidate.vercel.app",
+          },
+        }),
+        environment,
+        404,
+      ],
+      [
+        productionRequest("/api/v1/auth/bootstrap", {
+          headers: {
+            "x-forwarded-host":
+              "app.agenciagenesismkt.com.br, candidate.vercel.app",
+          },
+        }),
+        environment,
+        404,
+      ],
+      [
+        productionRequest("/api/v1/auth/bootstrap", {
+          headers: { "x-forwarded-proto": "https, http" },
+        }),
+        environment,
+        404,
+      ],
+      [
+        productionRequest("/api/v1/auth/bootstrap", {
+          headers: { host: "app.agenciagenesismkt.com.br:443" },
         }),
         environment,
         404,

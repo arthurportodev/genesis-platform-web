@@ -28,6 +28,14 @@ dentro do bundle e inicializa o entrypoint empacotado. O teste também executa
 GET, HEAD e OPTIONS em Preview sintético, exige `404`/`no-store` e prova zero
 contato upstream. O build da SPA isolado não substitui essa regressão.
 
+Em Production, a autoridade pública é aceita somente quando `Host` e
+`X-Forwarded-Host` concordam exatamente com o hostname final e
+`X-Forwarded-Proto` é exatamente `https`. O `request.url` interno da Function
+é usado apenas para reconstruir o path e a query do rewrite explícito. Assim,
+o endereço interno do deployment não bloqueia a chamada legítima, enquanto
+Preview, acesso por host gerado, headers ausentes, duplicados ou divergentes e
+protocolo diferente de HTTPS continuam fail-closed antes do upstream.
+
 ## Contrato do proxy
 
 - O destino da origem é configuração server-only, nunca uma variável `VITE_*`.

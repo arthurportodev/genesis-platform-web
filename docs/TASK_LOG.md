@@ -211,3 +211,18 @@ o specifier para `.js` e adiciona uma regressão que compila, inspeciona,
 inicializa e exercita o pacote fechado da Function. Production foi restaurada
 ao deployment anterior; novo Preview e qualquer retomada operacional dependem
 dos gates próprios desta subfase.
+
+## 0.8-MVP-08 — Remediação da proveniência da Function Web
+
+No baseline `33e99bfcfb87375a801ac49343c28a9fe76e2bb2`, o artefato Node.js 24
+reproduziu o `404` do C2 antes do upstream: o rewrite apresentava o URL interno
+da Function, embora `Host`, `X-Forwarded-Host` e `X-Forwarded-Proto`
+identificassem a chamada HTTPS no domínio final. O gate comparava o hostname
+interno de `request.url` com o hostname público.
+
+A correção mantém rotas e arquitetura intactas. A autoridade pública agora
+exige concordância exata dos headers de host/protocolo da borda, enquanto o
+URL interno serve somente à reconstrução validada de path e query. A regressão
+empacotada prova um único contato upstream sintético no domínio final, zero
+contato em Preview e ausência do segredo sintético em logs/resposta. Nenhuma
+mudança de Production, DNS, VPS, API, banco ou segredo faz parte deste delta.

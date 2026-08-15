@@ -192,6 +192,14 @@ function isApiPath(url: URL): boolean {
   }
 }
 
+function hasProductionRequestAuthority(request: Request): boolean {
+  return (
+    request.headers.get("host") === PRODUCTION_FRONTEND_HOST &&
+    request.headers.get("x-forwarded-host") === PRODUCTION_FRONTEND_HOST &&
+    request.headers.get("x-forwarded-proto") === "https"
+  );
+}
+
 export function resolvePublicApiUrl(requestUrl: URL): URL | null {
   const internalValues = requestUrl.searchParams.getAll(
     INTERNAL_PATH_PARAMETER,
@@ -380,9 +388,7 @@ export async function handleApiProxy(
   const publicApiUrl = resolvePublicApiUrl(requestUrl);
   if (
     environment.VERCEL_ENV !== "production" ||
-    requestUrl.protocol !== "https:" ||
-    requestUrl.hostname !== PRODUCTION_FRONTEND_HOST ||
-    requestUrl.port !== "" ||
+    !hasProductionRequestAuthority(request) ||
     !publicApiUrl
   ) {
     return failClosed(404);
