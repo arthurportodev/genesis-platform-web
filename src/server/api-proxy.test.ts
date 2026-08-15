@@ -14,6 +14,18 @@ const environment: ProxyEnvironment = {
 };
 
 function productionRequest(path: string, init: RequestInit = {}): Request {
+  const requestUrl = new URL(`https://app.agenciagenesismkt.com.br${path}`);
+  if (
+    (requestUrl.pathname === "/api/v1" ||
+      requestUrl.pathname.startsWith("/api/v1/")) &&
+    !requestUrl.searchParams.has("__genesis_proxy_path")
+  ) {
+    const capture =
+      requestUrl.pathname === "/api/v1"
+        ? ""
+        : requestUrl.pathname.slice("/api/v1/".length);
+    requestUrl.search += `${requestUrl.search ? "&" : "?"}__genesis_proxy_path=${encodeURIComponent(capture)}`;
+  }
   const headers = new Headers(init.headers);
   if (!headers.has("host")) {
     headers.set("host", "app.agenciagenesismkt.com.br");
@@ -27,18 +39,18 @@ function productionRequest(path: string, init: RequestInit = {}): Request {
   if (!headers.has("x-vercel-forwarded-for")) {
     headers.set("x-vercel-forwarded-for", "203.0.113.9");
   }
-  return new Request(`https://app.agenciagenesismkt.com.br${path}`, {
+  return new Request(requestUrl, {
     ...init,
     headers,
   });
 }
 
 describe("Vercel same-origin API proxy", () => {
-  it("reconstructs only router-produced versioned paths and strips its reserved parameter", () => {
+  it("accepts only the cloud-observed public path with a matching router capture", () => {
     expect(
       resolvePublicApiUrl(
         new URL(
-          "https://app.agenciagenesismkt.com.br/api/proxy?__genesis_proxy_path=leads%2Fsynthetic&q=one&q=two",
+          "https://app.agenciagenesismkt.com.br/api/v1/leads/synthetic?__genesis_proxy_path=leads%2Fsynthetic&q=one&q=two",
         ),
       )?.href,
     ).toBe(
@@ -47,7 +59,7 @@ describe("Vercel same-origin API proxy", () => {
     expect(
       resolvePublicApiUrl(
         new URL(
-          "https://app.agenciagenesismkt.com.br/api/proxy?__genesis_proxy_path=",
+          "https://app.agenciagenesismkt.com.br/api/v1?__genesis_proxy_path=",
         ),
       )?.pathname,
     ).toBe("/api/v1");
@@ -56,8 +68,50 @@ describe("Vercel same-origin API proxy", () => {
         new URL(
           "https://app.agenciagenesismkt.com.br/api/v1/leads?q=synthetic",
         ),
-      )?.pathname,
-    ).toBe("/api/v1/leads");
+      ),
+    ).toBeNull();
+  });
+
+  it("reproduces the legacy C3 predicate and fixes that exact router shape", async () => {
+    const requestUrl = new URL(
+      "https://app.agenciagenesismkt.com.br/api/v1/auth/csrf?__genesis_proxy_path=auth%2Fcsrf&synthetic=1",
+    );
+    const legacyWouldResolvePublicPath =
+      requestUrl.pathname.startsWith("/api/v1/") &&
+      requestUrl.searchParams.getAll("__genesis_proxy_path").length === 0;
+    expect(legacyWouldResolvePublicPath).toBe(false);
+
+    const fetch = vi.fn((input: URL | RequestInfo) => {
+      const target =
+        input instanceof URL
+          ? input.href
+          : typeof input === "string"
+            ? input
+            : input.url;
+      expect(target).toBe(
+        "https://api.agenciagenesismkt.com.br/api/v1/auth/csrf?synthetic=1",
+      );
+      return Promise.resolve(new Response(null, { status: 204 }));
+    });
+    const log = vi.fn();
+    const response = await handleApiProxy(
+      new Request(requestUrl, {
+        headers: {
+          host: "app.agenciagenesismkt.com.br",
+          "x-forwarded-host": "app.agenciagenesismkt.com.br",
+          "x-forwarded-proto": "https",
+          "x-vercel-deployment-url":
+            "genesis-platform-synthetic-arthur433.vercel.app",
+          "x-vercel-forwarded-for": "203.0.113.9",
+        },
+      }),
+      environment,
+      { fetch, log },
+    );
+
+    expect(response.status).toBe(204);
+    expect(fetch).toHaveBeenCalledOnce();
+    expect(log).not.toHaveBeenCalled();
   });
 
   it.each([
@@ -65,7 +119,12 @@ describe("Vercel same-origin API proxy", () => {
     "/api/proxy?__genesis_proxy_path=one&__genesis_proxy_path=two",
     "/api/proxy?__genesis_proxy_path=%2Foutside",
     "/api/proxy?__genesis_proxy_path=..%2Foutside",
+    "/api/v1/leads",
+    "/api/v1/leads?__genesis_proxy_path=leads&__genesis_proxy_path=leads",
+    "/api/v1/leads?__genesis_proxy_path=%E0%A4%A",
     "/api/v1/leads?__genesis_proxy_path=forged",
+    "/api/v1/auth/csrf?__genesis_proxy_path=auth%2Fbootstrap",
+    "/api/v1/auth/csrf?__genesis_proxy_path=%2Fauth%2Fcsrf",
     "/api/v10/leads",
   ])("rejects forged or out-of-scope rewrite state %s", (path) => {
     expect(
@@ -75,37 +134,42 @@ describe("Vercel same-origin API proxy", () => {
     ).toBeNull();
   });
 
-  it("preserves the public path and query after Vercel's internal rewrite", async () => {
-    const fetch = vi.fn((input: URL | RequestInfo) => {
-      const target =
-        input instanceof URL
-          ? input.href
-          : typeof input === "string"
-            ? input
-            : input.url;
-      expect(target).toBe(
-        "https://api.agenciagenesismkt.com.br/api/v1/leads/synthetic?q=one&q=two",
-      );
-      return Promise.resolve(new Response(null, { status: 204 }));
-    });
-    const response = await handleApiProxy(
-      new Request(
-        "https://genesis-platform-c2.vercel.app/api/proxy?__genesis_proxy_path=leads%2Fsynthetic&q=one&q=two",
-        {
-          headers: {
-            host: "app.agenciagenesismkt.com.br",
-            "x-forwarded-host": "app.agenciagenesismkt.com.br",
-            "x-forwarded-proto": "https",
-            "x-vercel-forwarded-for": "203.0.113.9",
+  it.each(["GET", "HEAD", "OPTIONS"])(
+    "preserves %s, public path and query after Vercel's rewrite",
+    async (method) => {
+      const fetch = vi.fn((input: URL | RequestInfo, init?: RequestInit) => {
+        const target =
+          input instanceof URL
+            ? input.href
+            : typeof input === "string"
+              ? input
+              : input.url;
+        expect(target).toBe(
+          "https://api.agenciagenesismkt.com.br/api/v1/leads/synthetic?q=one&q=two",
+        );
+        expect(init?.method).toBe(method);
+        return Promise.resolve(new Response(null, { status: 204 }));
+      });
+      const response = await handleApiProxy(
+        new Request(
+          "https://genesis-platform-c2.vercel.app/api/v1/leads/synthetic?__genesis_proxy_path=leads%2Fsynthetic&q=one&q=two",
+          {
+            method,
+            headers: {
+              host: "app.agenciagenesismkt.com.br",
+              "x-forwarded-host": "app.agenciagenesismkt.com.br",
+              "x-forwarded-proto": "https",
+              "x-vercel-forwarded-for": "203.0.113.9",
+            },
           },
-        },
-      ),
-      environment,
-      { fetch },
-    );
-    expect(response.status).toBe(204);
-    expect(fetch).toHaveBeenCalledOnce();
-  });
+        ),
+        environment,
+        { fetch },
+      );
+      expect(response.status).toBe(204);
+      expect(fetch).toHaveBeenCalledOnce();
+    },
+  );
 
   it("fails closed for Preview, generated hosts, non-API paths and incomplete configuration", async () => {
     const fetch = vi.fn();
@@ -129,7 +193,7 @@ describe("Vercel same-origin API proxy", () => {
       ],
       [
         new Request(
-          "https://candidate.vercel.app/api/proxy?__genesis_proxy_path=auth%2Fbootstrap",
+          "https://candidate.vercel.app/api/v1/auth/bootstrap?__genesis_proxy_path=auth%2Fbootstrap",
           {
             headers: {
               host: "app.agenciagenesismkt.com.br",
@@ -144,7 +208,7 @@ describe("Vercel same-origin API proxy", () => {
       ],
       [
         new Request(
-          "https://candidate.vercel.app/api/proxy?__genesis_proxy_path=auth%2Fbootstrap",
+          "https://candidate.vercel.app/api/v1/auth/bootstrap?__genesis_proxy_path=auth%2Fbootstrap",
           {
             headers: {
               host: "app.agenciagenesismkt.com.br",
@@ -215,6 +279,48 @@ describe("Vercel same-origin API proxy", () => {
       expect(response.headers.get("cache-control")).toBe("no-store");
     }
     expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it("emits one enum-and-boolean event without sensitive request data", async () => {
+    const log = vi.fn();
+    const fetch = vi.fn();
+    const response = await handleApiProxy(
+      new Request(
+        "https://candidate.vercel.app/api/v1/auth/csrf?__genesis_proxy_path=auth%2Fcsrf&query-secret-marker=never-log",
+        {
+          headers: {
+            authorization: "Bearer synthetic-token-marker",
+            cookie: "session=synthetic-cookie-marker",
+            host: "candidate.vercel.app",
+            "x-forwarded-host": "candidate.vercel.app",
+            "x-forwarded-proto": "https",
+            "x-vercel-deployment-url": "candidate.vercel.app",
+            "x-vercel-forwarded-for": "198.51.100.77",
+          },
+        },
+      ),
+      {
+        VERCEL_ENV: "preview",
+        GENESIS_API_PROXY_TARGET: "https://api.agenciagenesismkt.com.br",
+        GENESIS_ORIGIN_KEY: "origin-key-marker".repeat(4),
+      },
+      { fetch, log },
+    );
+
+    expect(response.status).toBe(404);
+    expect(fetch).not.toHaveBeenCalled();
+    expect(log).toHaveBeenCalledOnce();
+    const serialized = JSON.stringify(log.mock.calls);
+    for (const forbidden of [
+      "never-log",
+      "query-secret-marker",
+      "synthetic-token-marker",
+      "synthetic-cookie-marker",
+      "198.51.100.77",
+      "origin-key-marker",
+    ]) {
+      expect(serialized).not.toContain(forbidden);
+    }
   });
 
   it("preserves method, query, body, Origin and CSRF while overwriting spoofable headers", async () => {

@@ -220,9 +220,29 @@ da Function, embora `Host`, `X-Forwarded-Host` e `X-Forwarded-Proto`
 identificassem a chamada HTTPS no domínio final. O gate comparava o hostname
 interno de `request.url` com o hostname público.
 
-A correção mantém rotas e arquitetura intactas. A autoridade pública agora
-exige concordância exata dos headers de host/protocolo da borda, enquanto o
-URL interno serve somente à reconstrução validada de path e query. A regressão
-empacotada prova um único contato upstream sintético no domínio final, zero
-contato em Preview e ausência do segredo sintético em logs/resposta. Nenhuma
-mudança de Production, DNS, VPS, API, banco ou segredo faz parte deste delta.
+A correção manteve rotas e arquitetura intactas e passou a exigir concordância
+exata dos headers de host/protocolo da borda. Naquele checkpoint, a regressão
+presumiu que `request.url` usava o pathname físico da Function e simulou a
+reconstrução de path/query nessa forma. A seção seguinte registra a evidência
+Vercel posterior que invalidou essa premissa e substituiu o teste falso
+positivo. Nenhuma mudança de Production, DNS, VPS, API, banco ou segredo fez
+parte daquele delta.
+
+## 0.8-MVP-08 — Forense e remediação do roteamento da Function Web
+
+O C3, construído do Web `d5c4f753e4d87c87dc1fe2c4dfa000ce946a7f2a`,
+respondeu `404 API integration unavailable` antes do upstream. A regressão do
+PR anterior era um falso positivo porque construía manualmente uma Request com
+pathname físico `/api/proxy`. O roteador Vercel real preserva o pathname
+público `/api/v1/...` e combina na query exatamente um capture reservado
+`__genesis_proxy_path`, cujas barras chegam percent-encoded. O código anterior
+rejeitava qualquer parâmetro reservado quando o pathname já era público; o
+predicado exato foi `public_api_url_unresolved`.
+
+A correção aceita somente essa forma observada: pathname público válido,
+capture único e canônico, igualdade exata entre o capture decodificado e o
+sufixo público e remoção exclusiva do parâmetro interno antes do upstream.
+Ausência, duplicação, má-formação, divergência e acesso ao pathname físico
+continuam fail-closed. A telemetria registra apenas enums e booleanos, sem URL,
+query value, IP, cookie, token, body ou segredo. O Preview diagnóstico foi
+excluído após a captura e não alterou Production, DNS, VPS, API ou banco.
