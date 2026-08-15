@@ -60,7 +60,48 @@ export interface ProxyEnvironment {
 
 export interface ProxyDependencies {
   fetch?: typeof globalThis.fetch;
+  log?: (event: SafeProxyTelemetry) => void;
   timeoutMs?: number;
+}
+
+export type ProxyRejectionReason =
+  | "client_ip_unavailable"
+  | "configuration_unavailable"
+  | "connection_header_invalid"
+  | "environment_not_production"
+  | "forwarded_host_mismatch"
+  | "forwarded_proto_mismatch"
+  | "host_authority_mismatch"
+  | "public_api_url_unresolved"
+  | "request_body_too_large"
+  | "request_body_unreadable"
+  | "request_content_length_invalid"
+  | "request_url_invalid"
+  | "upstream_body_unreadable"
+  | "upstream_headers_invalid"
+  | "upstream_length_invalid"
+  | "upstream_unreachable";
+
+export interface SafeProxyTelemetry {
+  event: "genesis_api_proxy_rejection";
+  reason: ProxyRejectionReason;
+  methodClass:
+    "DELETE" | "GET" | "HEAD" | "OPTIONS" | "OTHER" | "PATCH" | "POST" | "PUT";
+  pathClass: "internal_function" | "other" | "public_api" | "unparseable";
+  internalPathParameterCount: number;
+  internalPathCaptureClass:
+    "absent" | "empty" | "malformed" | "multiple" | "relative_path";
+  internalPathCaptureEncoding:
+    "absent" | "empty" | "literal_slash" | "other" | "percent_encoded_slash";
+  captureMatchesPublicPath: boolean;
+  publicQueryPresent: boolean;
+  environmentClass:
+    "development" | "other" | "preview" | "production" | "unavailable";
+  hostMatchesProduction: boolean;
+  forwardedHostMatchesProduction: boolean;
+  hostForwardedEqual: boolean;
+  protoClass: "http" | "https" | "other" | "unavailable";
+  deploymentHeaderPresent: boolean;
 }
 
 function failClosed(status: 400 | 404 | 413 | 502 | 503): Response {
@@ -75,6 +116,134 @@ function failClosed(status: 400 | 404 | 413 | 502 | 503): Response {
       },
     },
   );
+}
+
+function classifyMethod(method: string): SafeProxyTelemetry["methodClass"] {
+  switch (method) {
+    case "DELETE":
+    case "GET":
+    case "HEAD":
+    case "OPTIONS":
+    case "PATCH":
+    case "POST":
+    case "PUT":
+      return method;
+    default:
+      return "OTHER";
+  }
+}
+
+function classifyEnvironment(
+  value: string | undefined,
+): SafeProxyTelemetry["environmentClass"] {
+  if (value === undefined || value.length === 0) return "unavailable";
+  if (
+    value === "production" ||
+    value === "preview" ||
+    value === "development"
+  ) {
+    return value;
+  }
+  return "other";
+}
+
+function classifyProto(value: string | null): SafeProxyTelemetry["protoClass"] {
+  if (value === null || value.length === 0) return "unavailable";
+  if (value === "https" || value === "http") return value;
+  return "other";
+}
+
+function classifyPath(requestUrl: URL | null): SafeProxyTelemetry["pathClass"] {
+  if (!requestUrl) return "unparseable";
+  if (isApiPath(requestUrl)) return "public_api";
+  if (requestUrl.pathname === INTERNAL_FUNCTION_PATH)
+    return "internal_function";
+  return "other";
+}
+
+function rejectProxyRequest(
+  request: Request,
+  environment: ProxyEnvironment,
+  dependencies: ProxyDependencies,
+  requestUrl: URL | null,
+  reason: ProxyRejectionReason,
+  status: 400 | 404 | 413 | 502 | 503,
+): Response {
+  const host = request.headers.get("host");
+  const forwardedHost = request.headers.get("x-forwarded-host");
+  const internalPathParameterCount =
+    requestUrl?.searchParams.getAll(INTERNAL_PATH_PARAMETER).length ?? 0;
+  const internalValues =
+    requestUrl?.searchParams.getAll(INTERNAL_PATH_PARAMETER) ?? [];
+  const capturedPath = internalValues.length === 1 ? internalValues[0] : null;
+  const captureMalformed =
+    capturedPath !== null &&
+    (capturedPath.startsWith("/") ||
+      capturedPath.includes("\\") ||
+      capturedPath.includes("?") ||
+      capturedPath.includes("#"));
+  const internalPathCaptureClass: SafeProxyTelemetry["internalPathCaptureClass"] =
+    internalValues.length === 0
+      ? "absent"
+      : internalValues.length > 1
+        ? "multiple"
+        : capturedPath === ""
+          ? "empty"
+          : captureMalformed
+            ? "malformed"
+            : "relative_path";
+  const rawInternalCaptures = requestUrl
+    ? Array.from(
+        requestUrl.search
+          .slice(1)
+          .matchAll(/(?:^|&)__genesis_proxy_path=([^&]*)/giu),
+      ).map((match) => match[1])
+    : [];
+  const rawCapture =
+    rawInternalCaptures.length === 1 ? rawInternalCaptures[0] : null;
+  const internalPathCaptureEncoding: SafeProxyTelemetry["internalPathCaptureEncoding"] =
+    rawCapture === null
+      ? "absent"
+      : rawCapture === ""
+        ? "empty"
+        : /%2f/iu.test(rawCapture)
+          ? "percent_encoded_slash"
+          : rawCapture.includes("/")
+            ? "literal_slash"
+            : "other";
+  const expectedPublicCapture =
+    requestUrl && isApiPath(requestUrl)
+      ? requestUrl.pathname === API_PREFIX
+        ? ""
+        : requestUrl.pathname.slice(`${API_PREFIX}/`.length)
+      : null;
+  const publicQueryPresent =
+    requestUrl !== null &&
+    Array.from(requestUrl.searchParams.keys()).some(
+      (name) => name !== INTERNAL_PATH_PARAMETER,
+    );
+  const event: SafeProxyTelemetry = {
+    event: "genesis_api_proxy_rejection",
+    reason,
+    methodClass: classifyMethod(request.method),
+    pathClass: classifyPath(requestUrl),
+    internalPathParameterCount,
+    internalPathCaptureClass,
+    internalPathCaptureEncoding,
+    captureMatchesPublicPath:
+      capturedPath !== null && capturedPath === expectedPublicCapture,
+    publicQueryPresent,
+    environmentClass: classifyEnvironment(environment.VERCEL_ENV),
+    hostMatchesProduction: host === PRODUCTION_FRONTEND_HOST,
+    forwardedHostMatchesProduction: forwardedHost === PRODUCTION_FRONTEND_HOST,
+    hostForwardedEqual: host !== null && host === forwardedHost,
+    protoClass: classifyProto(request.headers.get("x-forwarded-proto")),
+    deploymentHeaderPresent: request.headers.has("x-vercel-deployment-url"),
+  };
+  (
+    dependencies.log ?? ((safeEvent) => console.info(JSON.stringify(safeEvent)))
+  )(event);
+  return failClosed(status);
 }
 
 function canonicalizeIpv4(value: string): string | null {
@@ -192,25 +361,26 @@ function isApiPath(url: URL): boolean {
   }
 }
 
-function hasProductionRequestAuthority(request: Request): boolean {
-  return (
-    request.headers.get("host") === PRODUCTION_FRONTEND_HOST &&
-    request.headers.get("x-forwarded-host") === PRODUCTION_FRONTEND_HOST &&
-    request.headers.get("x-forwarded-proto") === "https"
-  );
+function productionAuthorityRejection(
+  request: Request,
+): ProxyRejectionReason | null {
+  if (request.headers.get("host") !== PRODUCTION_FRONTEND_HOST) {
+    return "host_authority_mismatch";
+  }
+  if (request.headers.get("x-forwarded-host") !== PRODUCTION_FRONTEND_HOST) {
+    return "forwarded_host_mismatch";
+  }
+  if (request.headers.get("x-forwarded-proto") !== "https") {
+    return "forwarded_proto_mismatch";
+  }
+  return null;
 }
 
 export function resolvePublicApiUrl(requestUrl: URL): URL | null {
   const internalValues = requestUrl.searchParams.getAll(
     INTERNAL_PATH_PARAMETER,
   );
-  if (isApiPath(requestUrl)) {
-    return internalValues.length === 0 ? requestUrl : null;
-  }
-  if (
-    requestUrl.pathname !== INTERNAL_FUNCTION_PATH ||
-    internalValues.length !== 1
-  ) {
+  if (!isApiPath(requestUrl) || internalValues.length !== 1) {
     return null;
   }
 
@@ -223,11 +393,37 @@ export function resolvePublicApiUrl(requestUrl: URL): URL | null {
   ) {
     return null;
   }
+
+  const expectedPublicCapture =
+    requestUrl.pathname === API_PREFIX
+      ? ""
+      : requestUrl.pathname.slice(`${API_PREFIX}/`.length);
+  if (capturedPath !== expectedPublicCapture) return null;
+
+  const querySegments = requestUrl.search.slice(1).split("&");
+  const rawInternalSegments = querySegments.filter(
+    (segment) =>
+      segment.slice(0, segment.indexOf("=")) === INTERNAL_PATH_PARAMETER,
+  );
+  if (rawInternalSegments.length !== 1) return null;
+  const rawCapture = rawInternalSegments[0].slice(
+    rawInternalSegments[0].indexOf("=") + 1,
+  );
+  try {
+    if (decodeURIComponent(rawCapture.replace(/\+/gu, " ")) !== capturedPath) {
+      return null;
+    }
+  } catch {
+    return null;
+  }
+
   const publicUrl = new URL(requestUrl);
-  publicUrl.pathname = capturedPath
-    ? `${API_PREFIX}/${capturedPath}`
-    : API_PREFIX;
-  publicUrl.searchParams.delete(INTERNAL_PATH_PARAMETER);
+  const publicQuerySegments = querySegments.filter(
+    (segment) => segment !== rawInternalSegments[0],
+  );
+  publicUrl.search = publicQuerySegments.length
+    ? `?${publicQuerySegments.join("&")}`
+    : "";
   return isApiPath(publicUrl) ? publicUrl : null;
 }
 
@@ -383,31 +579,105 @@ export async function handleApiProxy(
   try {
     requestUrl = new URL(request.url);
   } catch {
-    return failClosed(400);
+    return rejectProxyRequest(
+      request,
+      environment,
+      dependencies,
+      null,
+      "request_url_invalid",
+      400,
+    );
   }
   const publicApiUrl = resolvePublicApiUrl(requestUrl);
-  if (
-    environment.VERCEL_ENV !== "production" ||
-    !hasProductionRequestAuthority(request) ||
-    !publicApiUrl
-  ) {
-    return failClosed(404);
+  if (environment.VERCEL_ENV !== "production") {
+    return rejectProxyRequest(
+      request,
+      environment,
+      dependencies,
+      requestUrl,
+      "environment_not_production",
+      404,
+    );
+  }
+  const authorityRejection = productionAuthorityRejection(request);
+  if (authorityRejection) {
+    return rejectProxyRequest(
+      request,
+      environment,
+      dependencies,
+      requestUrl,
+      authorityRejection,
+      404,
+    );
+  }
+  if (!publicApiUrl) {
+    return rejectProxyRequest(
+      request,
+      environment,
+      dependencies,
+      requestUrl,
+      "public_api_url_unresolved",
+      404,
+    );
   }
 
   const configuration = resolveConfiguration(environment);
-  if (!configuration) return failClosed(503);
+  if (!configuration) {
+    return rejectProxyRequest(
+      request,
+      environment,
+      dependencies,
+      requestUrl,
+      "configuration_unavailable",
+      503,
+    );
+  }
   const dynamic = parseConnectionTokens(request.headers);
-  if (dynamic === null) return failClosed(400);
+  if (dynamic === null) {
+    return rejectProxyRequest(
+      request,
+      environment,
+      dependencies,
+      requestUrl,
+      "connection_header_invalid",
+      400,
+    );
+  }
   const forwardedFor = request.headers.get("x-vercel-forwarded-for");
   const clientIp = forwardedFor
     ? canonicalizeVercelClientIp(forwardedFor)
     : null;
-  if (!clientIp) return failClosed(400);
+  if (!clientIp) {
+    return rejectProxyRequest(
+      request,
+      environment,
+      dependencies,
+      requestUrl,
+      "client_ip_unavailable",
+      400,
+    );
+  }
 
   const contentLength = parseContentLength(request.headers);
-  if (contentLength === null) return failClosed(400);
+  if (contentLength === null) {
+    return rejectProxyRequest(
+      request,
+      environment,
+      dependencies,
+      requestUrl,
+      "request_content_length_invalid",
+      400,
+    );
+  }
   if (contentLength !== undefined && contentLength > MAX_BODY_BYTES) {
-    return failClosed(413);
+    return rejectProxyRequest(
+      request,
+      environment,
+      dependencies,
+      requestUrl,
+      "request_body_too_large",
+      413,
+    );
   }
 
   let body: ArrayBuffer | undefined;
@@ -415,7 +685,16 @@ export async function handleApiProxy(
     try {
       body = await readBodyWithLimit(request.body);
     } catch (error) {
-      return failClosed(error instanceof BodyLimitExceeded ? 413 : 400);
+      return rejectProxyRequest(
+        request,
+        environment,
+        dependencies,
+        requestUrl,
+        error instanceof BodyLimitExceeded
+          ? "request_body_too_large"
+          : "request_body_unreadable",
+        error instanceof BodyLimitExceeded ? 413 : 400,
+      );
     }
   }
 
@@ -443,7 +722,14 @@ export async function handleApiProxy(
       signal: controller.signal,
     });
   } catch {
-    return failClosed(502);
+    return rejectProxyRequest(
+      request,
+      environment,
+      dependencies,
+      requestUrl,
+      "upstream_unreachable",
+      502,
+    );
   } finally {
     globalThis.clearTimeout(timeout);
   }
@@ -454,10 +740,26 @@ export async function handleApiProxy(
       upstreamLength === null ||
       (upstreamLength !== undefined && upstreamLength > MAX_BODY_BYTES)
     ) {
-      return failClosed(502);
+      return rejectProxyRequest(
+        request,
+        environment,
+        dependencies,
+        requestUrl,
+        "upstream_length_invalid",
+        502,
+      );
     }
     const headers = buildResponseHeaders(upstream);
-    if (!headers) return failClosed(502);
+    if (!headers) {
+      return rejectProxyRequest(
+        request,
+        environment,
+        dependencies,
+        requestUrl,
+        "upstream_headers_invalid",
+        502,
+      );
+    }
     const responseHasNoBody =
       request.method === "HEAD" ||
       upstream.status === 204 ||
@@ -471,7 +773,14 @@ export async function handleApiProxy(
       headers,
     });
   } catch {
-    return failClosed(502);
+    return rejectProxyRequest(
+      request,
+      environment,
+      dependencies,
+      requestUrl,
+      "upstream_body_unreadable",
+      502,
+    );
   }
 }
 

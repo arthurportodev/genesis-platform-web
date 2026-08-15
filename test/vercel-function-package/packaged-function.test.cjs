@@ -134,7 +134,7 @@ test("the packaged Vercel Function is a closed, resolvable Node ESM bundle", asy
       for (const method of ["GET", "HEAD", "OPTIONS"]) {
         const response = await packaged.default.fetch(
           new Request(
-            "https://candidate.vercel.app/api/v1/auth/bootstrap?synthetic=1",
+            "https://candidate.vercel.app/api/v1/auth/bootstrap?__genesis_proxy_path=auth%2Fbootstrap&synthetic=1",
             { method },
           ),
         );
@@ -187,6 +187,7 @@ test("the packaged Vercel Function is a closed, resolvable Node ESM bundle", asy
       const emittedLogs = [];
       const originalConsole = {
         error: console.error,
+        info: console.info,
         log: console.log,
         warn: console.warn,
       };
@@ -197,7 +198,7 @@ test("the packaged Vercel Function is a closed, resolvable Node ESM bundle", asy
         }
         productionResponse = await packaged.default.fetch(
           new Request(
-            "https://genesis-platform-c2.vercel.app/api/proxy?__genesis_proxy_path=auth%2Fcsrf&synthetic=1",
+            "https://genesis-platform-c2.vercel.app/api/v1/auth/csrf?__genesis_proxy_path=auth%2Fcsrf&synthetic=1",
             {
               headers: {
                 host: "app.agenciagenesismkt.com.br",

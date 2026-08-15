@@ -30,11 +30,14 @@ contato upstream. O build da SPA isolado não substitui essa regressão.
 
 Em Production, a autoridade pública é aceita somente quando `Host` e
 `X-Forwarded-Host` concordam exatamente com o hostname final e
-`X-Forwarded-Proto` é exatamente `https`. O `request.url` interno da Function
-é usado apenas para reconstruir o path e a query do rewrite explícito. Assim,
-o endereço interno do deployment não bloqueia a chamada legítima, enquanto
-Preview, acesso por host gerado, headers ausentes, duplicados ou divergentes e
-protocolo diferente de HTTPS continuam fail-closed antes do upstream.
+`X-Forwarded-Proto` é exatamente `https`. No roteador Vercel observado, a
+Function recebe o pathname público `/api/v1/...`; o destino do rewrite combina
+na query exatamente um `__genesis_proxy_path`, com barras percent-encoded. A
+Function exige que o capture decodificado corresponda byte a byte ao sufixo do
+pathname público, remove somente esse parâmetro reservado e preserva a query
+pública. Capture ausente, duplicado, malformado ou divergente falha fechado.
+Preview, acesso por host gerado, headers ausentes ou divergentes e protocolo
+diferente de HTTPS continuam fail-closed antes do upstream.
 
 ## Contrato do proxy
 
