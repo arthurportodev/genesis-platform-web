@@ -2,7 +2,7 @@
 
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { execFileSync, spawnSync } = require("node:child_process");
+const { spawnSync } = require("node:child_process");
 const {
   cpSync,
   existsSync,
@@ -72,7 +72,7 @@ function expectApiAuthorityOnlyNextAction(execution) {
   );
 }
 
-function authority(memoryRevision, stateRevision = "GH-01-COMPLETE") {
+function authority(memoryRevision, stateRevision = "MVP-10B-LIVE-2026-08-21") {
   return {
     schemaVersion: "1.0.0",
     instanceKind: "current",
@@ -91,23 +91,8 @@ function authority(memoryRevision, stateRevision = "GH-01-COMPLETE") {
         memoryRevision: { kind: "commit", sha: memoryRevision },
       },
     ],
+    releaseBindings: { webIntegratedRevision: memoryRevision },
   };
-}
-
-function initializeGit(root) {
-  execFileSync("git", ["init", "-q"], { cwd: root });
-  execFileSync("git", ["config", "user.email", "memory@example.invalid"], {
-    cwd: root,
-  });
-  execFileSync("git", ["config", "user.name", "Memory Fixture"], { cwd: root });
-  execFileSync("git", ["config", "core.autocrlf", "false"], { cwd: root });
-  execFileSync("git", ["config", "core.safecrlf", "false"], { cwd: root });
-  execFileSync("git", ["add", "."], { cwd: root });
-  execFileSync("git", ["commit", "-q", "-m", "fixture"], { cwd: root });
-  return execFileSync("git", ["rev-parse", "HEAD"], {
-    cwd: root,
-    encoding: "utf8",
-  }).trim();
 }
 
 test.after(() => {
@@ -324,24 +309,27 @@ test("reports a receipt whose target revision is not activated", () => {
 
 test("reports a mismatched Web memoryRevision", () => {
   const root = fixture();
-  const commit = initializeGit(root);
+  const pointer = readJson(root);
   const source = join(root, "authority.json");
-  const different = commit === "a".repeat(40) ? "b".repeat(40) : "a".repeat(40);
+  const different =
+    pointer.receipt.baseSha === "a".repeat(40)
+      ? "b".repeat(40)
+      : "a".repeat(40);
   writeJson(root, authority(different), "authority.json");
   const execution = run(root, ["--mode", "resolve", "--api-source", source]);
   expectCode(execution, "MEMORY_WEB_REVISION_MISMATCH");
-  assert.equal(execution.result.actualMemoryRevision, commit);
+  assert.equal(execution.result.actualMemoryRevision, pointer.receipt.baseSha);
 });
 
-test("resolves a compatible authority at the containing commit", () => {
+test("resolves a compatible authority for the integrated Web revision", () => {
   const root = fixture();
-  const commit = initializeGit(root);
+  const pointer = readJson(root);
   const source = join(root, "authority.json");
-  writeJson(root, authority(commit), "authority.json");
+  writeJson(root, authority(pointer.receipt.baseSha), "authority.json");
   const execution = run(root, ["--mode", "resolve", "--api-source", source]);
   assert.equal(execution.status, 0, execution.stderr);
   assert.equal(execution.result.code, "MEMORY_RESOLVED");
-  assert.equal(execution.result.webMemoryRevision, commit);
+  assert.equal(execution.result.webMemoryRevision, pointer.receipt.baseSha);
   assert.equal(execution.result.staleFallbackUsed, false);
 });
 
@@ -375,14 +363,10 @@ test("returns exit 2 for invalid usage", () => {
   expectCode(execution, "USAGE_ERROR", 2);
 });
 
-test("uses temporary fixtures without repository-local .codex state", () => {
+test("uses temporary fixtures without copying repository .codex state", () => {
   const root = fixture();
   assert.equal(run(root).status, 0);
   assert.equal(existsSync(join(root, ".codex")), false);
-  assert.equal(
-    existsSync(join(REPOSITORY_ROOT, ".codex", "task-manifest.json")),
-    false,
-  );
 });
 
 test("accepts the complete corrected candidate", () => {

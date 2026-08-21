@@ -246,3 +246,17 @@ Ausência, duplicação, má-formação, divergência e acesso ao pathname físi
 continuam fail-closed. A telemetria registra apenas enums e booleanos, sem URL,
 query value, IP, cookie, token, body ou segredo. O Preview diagnóstico foi
 excluído após a captura e não alterou Production, DNS, VPS, API ou banco.
+
+## 0.8-MVP-10B — Correções de usabilidade do frontend
+
+- Estado: incorporada na `main` pelo PR #16, commit
+  `04515f8b17545947129466faab5d8140d1463f4f`, com CI `32521468321`
+  aprovada.
+- Publicação: deployment Vercel aprovado `dpl_3wHMLgJJP6wWAQ3epZzd3GYBLz4Z`;
+  rollback preservado `dpl_AuunpMMmehaXdXFa5wu52DAMF99P`.
+- Entrega: `/` encaminha para `/app`; a etapa do Lead é persistida
+  imediatamente e só aparece como salva após confirmação do servidor; o editor
+  hidrata o e-mail existente e preserva esse valor ao salvar outros campos.
+- Limites: zero alteração no backend, banco ou dados de negócio. A evidência
+  sanitizada tem SHA-256
+  `c758288a3518cdbc369c5eb2a6d53638d8a54872e398bdfd2efeceeb12581859`.

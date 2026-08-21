@@ -19,8 +19,9 @@ fallback da SPA nunca pode capturar paths de API.
 
 Deployments automáticos originados pelo Git permanecem globalmente desativados
 por `git.deploymentEnabled=false`. A proteção não impede um deployment manual
-controlado em fase operacional posterior e não constitui autorização para
-publicar, promover ou alterar Production.
+controlado, mas merge e publicação são operações separadas: incorporar uma
+revisão não a promove. Cada deployment manual e cada promoção exigem sua própria
+autorização e não são autorizados por este documento.
 
 O entrypoint da Function usa import ESM relativo com extensão `.js`. A CI
 compila uma réplica fechada do pacote Node.js, exige todos os módulos internos
@@ -74,6 +75,11 @@ cookies do hostname final ainda exigem verificação pós-deploy.
 - **Production:** Vercel com proxy same-origin para uma origem protegida.
 - **Staging:** somente mediante decisão posterior explícita.
 
+Por essa fronteira, Preview valida a interface e o comportamento fail-closed,
+mas não valida o fluxo autenticado completo contra a API de produção. O smoke
+same-origin ponta a ponta pertence exclusivamente ao domínio aprovado após uma
+promoção autorizada.
+
 ## Gates de publicação e abertura
 
 Publicação técnica exige candidato imutável, CI no head aprovado, proxy, API,
@@ -85,7 +91,9 @@ desses gates; este contrato não declara seu resultado.
 
 ## Rollback
 
-O rollback do frontend promove uma versão Vercel anterior, validada e imutável.
+Toda promoção preserva o deployment anterior e é seguida imediatamente pelos
+smokes de raiz, autenticação e proxy. O rollback do frontend promove essa versão
+Vercel anterior, validada e imutável.
 Mudanças de domínio/DNS têm rollback próprio. Se origem ou proxy não estiverem
 seguros, `/api/v1` falha fechado. A sequência operacional, o candidato anterior
 e a evidência de recuperação devem estar identificados antes da publicação.

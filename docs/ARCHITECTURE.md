@@ -165,12 +165,22 @@ Follow-up. Tabs, filtros e posição do Follow-up sobrevivem à ida ao detalhe
 somente em memória e são descartados em reload, troca de Organization, logout ou
 expiração.
 
+No detalhe, a escolha de etapa dispara persistência imediata e mantém estados
+inequívocos de salvamento, confirmação e falha. Somente a resposta confirmada
+pelo servidor passa a ser apresentada como salva; uma falha restaura a etapa
+confirmada e expõe o erro. O editor é reinicializado pela identidade do Lead e
+seus valores iniciais são derivados do detalhe validado, inclusive o e-mail já
+existente. Cancelar descarta o rascunho, e salvar outro campo preserva o e-mail
+hidratado.
+
 ## Router
 
 `src/app/router/router.tsx` usa context tipado e `beforeLoad`. Rotas
 `/app/**`, inclusive not found aninhado, aguardam a restauração antes do shell.
-Anônimo retorna a `/login` com `returnTo` interno validado; múltiplas
-Organizations exigem `/select-organization`. Redirects usam replace.
+A raiz `/` encaminha para `/app`. Anônimo segue para `/login` com `returnTo`
+interno validado para `/app`; depois da autenticação, o retorno entra no CRM.
+Múltiplas Organizations exigem `/select-organization`. Redirects usam replace e
+as rotas `/app` e `/login` não redirecionam de volta à raiz, evitando ciclos.
 
 ## Limites
 

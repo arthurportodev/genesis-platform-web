@@ -62,7 +62,7 @@
           "type": "string",
           "pattern": "^(?!0{40}$)[a-f0-9]{40}$"
         },
-        "revisionSource": { "const": "containing-commit" },
+        "revisionSource": { "const": "integrated-revision" },
         "generatedAt": { "type": "string", "format": "date-time" }
       }
     }
