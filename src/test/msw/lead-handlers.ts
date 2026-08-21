@@ -161,6 +161,7 @@ export function createLeadHandlers(
     kanbanNextCursor?: string | null;
     onKanban?: (url: URL) => void;
     onDetail?: () => void;
+    detailEmail?: string | null;
     moveDelayMs?: number;
     moveNetworkFailures?: number;
     metricsStatus?: number;
@@ -342,7 +343,15 @@ export function createLeadHandlers(
           { status: options.detailStatus },
         );
       return HttpResponse.json(
-        { ...testLead, stage: currentStage, revision: currentRevision },
+        {
+          ...testLead,
+          email:
+            options.detailEmail === undefined
+              ? testLead.email
+              : options.detailEmail,
+          stage: currentStage,
+          revision: currentRevision,
+        },
         {
           headers: { ETag: `"lead:${testLeadId}:${currentRevision}"` },
         },

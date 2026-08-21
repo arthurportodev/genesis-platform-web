@@ -83,7 +83,7 @@ export function LeadActions({
     intent: LeadIdempotentAction,
     successMessage: string,
     onSuccess?: () => void,
-  ) => {
+  ): Promise<boolean> => {
     setError(null);
     setMessage(null);
     const key = intentKeys.current.keyFor(
@@ -96,11 +96,13 @@ export function LeadActions({
       intentKeys.current.forget(intentName);
       setMessage(successMessage);
       onSuccess?.();
+      return true;
     } catch (cause) {
       const appError = toAppError(cause);
       if (!hasUncertainMutationOutcome(appError.kind))
         intentKeys.current.forget(intentName);
       await reportError(appError);
+      return false;
     }
   };
 
@@ -135,6 +137,7 @@ export function LeadActions({
       <div className="grid gap-4 xl:grid-cols-2">
         {capabilities.canEdit ? (
           <EditLeadCard
+            key={lead.id}
             current={current}
             busy={busy}
             onSave={async (body) => {
@@ -181,6 +184,7 @@ export function LeadActions({
         capabilities.canReactivate ||
         capabilities.canDismissReturn ? (
           <LifecycleCard
+            key={`${lead.id}:${lead.revision}`}
             lead={lead}
             busy={busy}
             capabilities={capabilities}
@@ -380,7 +384,7 @@ function FollowUpCard({
     intent: LeadIdempotentAction,
     message: string,
     onSuccess?: () => void,
-  ) => Promise<void>;
+  ) => Promise<boolean>;
 }) {
   const [note, setNote] = useState("");
   const [activityType, setActivityType] =
@@ -599,9 +603,12 @@ function LifecycleCard({
     name: string,
     intent: LeadIdempotentAction,
     message: string,
-  ) => Promise<void>;
+  ) => Promise<boolean>;
 }) {
   const [stage, setStage] = useState<(typeof leadStages)[number]>(lead.stage);
+  const [stageFeedback, setStageFeedback] = useState<
+    "idle" | "saving" | "saved" | "error"
+  >("idle");
   const [lostReason, setLostReason] =
     useState<(typeof lostReasons)[number]>("not_now");
   const [archiveReason, setArchiveReason] =
@@ -617,21 +624,42 @@ function LifecycleCard({
               value={stage}
               values={leadStages}
               labels={stageLabels}
-              onChange={(value) => setStage(value as typeof stage)}
-            />
-            <Button
-              variant="secondary"
-              disabled={busy || stage === lead.stage}
-              onClick={() =>
+              disabled={busy}
+              onChange={(value) => {
+                const target = value as typeof stage;
+                setStage(target);
+                setStageFeedback("saving");
                 void runAction(
                   "move",
-                  { action: "move", body: { stage } },
+                  { action: "move", body: { stage: target } },
                   "Etapa atualizada.",
-                )
-              }
+                ).then((saved) => {
+                  if (saved) {
+                    setStageFeedback("saved");
+                    return;
+                  }
+                  setStage(lead.stage);
+                  setStageFeedback("error");
+                });
+              }}
+            />
+            <p
+              className={`text-sm ${
+                stageFeedback === "error"
+                  ? "text-destructive"
+                  : "text-muted-foreground"
+              }`}
+              role={stageFeedback === "error" ? "alert" : "status"}
+              aria-live={stageFeedback === "error" ? "assertive" : "polite"}
             >
-              Mover Lead
-            </Button>
+              {stageFeedback === "saving"
+                ? "Salvando etapa..."
+                : stageFeedback === "saved"
+                  ? `Etapa salva: ${stageLabels[stage]}.`
+                  : stageFeedback === "error"
+                    ? `A nova etapa não foi confirmada como salva. Etapa mantida: ${stageLabels[lead.stage]}.`
+                    : "A nova etapa é salva imediatamente após a seleção."}
+            </p>
           </>
         ) : null}
         {capabilities.canClose ? (
@@ -802,12 +830,14 @@ function EnumSelect({
   values,
   labels,
   onChange,
+  disabled = false,
 }: {
   label: string;
   value: string;
   values: readonly string[];
   labels?: Record<string, string>;
   onChange: (value: string) => void;
+  disabled?: boolean;
 }) {
   const id = `lead-enum-${label.toLowerCase().replaceAll(" ", "-")}`;
   return (
@@ -818,6 +848,7 @@ function EnumSelect({
         className="mt-1.5"
         value={value}
         onChange={(event) => onChange(event.target.value)}
+        disabled={disabled}
       >
         {values.map((item) => (
           <option key={item} value={item}>
