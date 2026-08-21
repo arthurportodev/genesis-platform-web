@@ -39,6 +39,14 @@ const rootRoute = createRootRouteWithContext<AppRouterContext>()({
   notFoundComponent: NotFoundPage,
 });
 
+const indexRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/",
+  beforeLoad: () => {
+    throw redirect({ to: "/app", replace: true });
+  },
+});
+
 async function resolvedState(
   session: SessionCoordinator,
 ): Promise<SessionState> {
@@ -183,6 +191,7 @@ const appChildren = [
 ];
 
 const routeTree = rootRoute.addChildren([
+  indexRoute,
   loginRoute,
   selectOrganizationRoute,
   accessDeniedRoute,

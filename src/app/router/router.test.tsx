@@ -12,6 +12,31 @@ import {
 import { createLeadHandlers } from "@/test/msw/lead-handlers";
 
 describe("router e shell protegidos", () => {
+  it("encaminha a raiz autenticada para o CRM sem loop", async () => {
+    const restoreLocks = installWebLocks();
+    server.use(...createAuthHandlers());
+    const { router } = await renderAppAt("/");
+
+    expect(
+      await screen.findByRole("heading", { name: "Visão geral" }),
+    ).toBeVisible();
+    expect(router.state.location.pathname).toBe("/app");
+    restoreLocks();
+  });
+
+  it("encaminha a raiz anônima ao login com retorno para o CRM", async () => {
+    const restoreLocks = installWebLocks();
+    server.use(...createAuthHandlers({ refreshStatus: 401 }));
+    const { router } = await renderAppAt("/");
+
+    expect(
+      await screen.findByRole("heading", { name: "Acesse sua conta" }),
+    ).toBeVisible();
+    expect(router.state.location.pathname).toBe("/login");
+    expect(router.state.location.search).toEqual({ returnTo: "/app" });
+    restoreLocks();
+  });
+
   it("redireciona acesso anônimo e preserva returnTo seguro", async () => {
     const restoreLocks = installWebLocks();
     server.use(...createAuthHandlers({ refreshStatus: 401 }));

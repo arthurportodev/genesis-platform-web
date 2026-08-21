@@ -9,10 +9,13 @@ import {
 } from "@/test/msw/auth-handlers";
 import {
   createLeadHandlers,
+  testLead,
   testLeadId,
   testMemberId,
 } from "@/test/msw/lead-handlers";
 import { server } from "@/test/msw/server";
+import { createLeadSnapshot } from "@/features/leads/api/lead-snapshot";
+import { leadQueryKeys } from "@/features/leads/api/lead-query-keys";
 
 describe("Inbox e detalhe do Lead", () => {
   it("lista, busca com debounce e não consulta termo curto", async () => {
@@ -126,6 +129,149 @@ describe("Inbox e detalhe do Lead", () => {
     restoreLocks();
   });
 
+  it("hidrata o e-mail existente e o preserva ao salvar outro campo", async () => {
+    const restoreLocks = installWebLocks();
+    let updateBody: Promise<unknown> | undefined;
+    server.use(
+      ...createAuthHandlers(),
+      ...createLeadHandlers({
+        onMutation: (request) => {
+          if (new URL(request.url).pathname === `/api/v1/leads/${testLeadId}`)
+            updateBody = request.clone().json();
+        },
+      }),
+    );
+    const user = userEvent.setup();
+    await renderAppAt(`/app/leads/${testLeadId}`);
+
+    const email = await screen.findByLabelText("E-mail");
+    expect(email).toHaveValue("lead@example.test");
+    const city = screen.getByLabelText("Cidade");
+    await user.clear(city);
+    await user.type(city, "Campinas");
+    await user.click(screen.getByRole("button", { name: "Salvar alterações" }));
+
+    expect(await updateBody).toMatchObject({
+      email: "lead@example.test",
+      city: "Campinas",
+    });
+    restoreLocks();
+  });
+
+  it("mantém Lead sem e-mail editável sem inventar valor", async () => {
+    const restoreLocks = installWebLocks();
+    let updateBody: Promise<unknown> | undefined;
+    server.use(
+      ...createAuthHandlers(),
+      ...createLeadHandlers({
+        detailEmail: null,
+        onMutation: (request) => {
+          if (new URL(request.url).pathname === `/api/v1/leads/${testLeadId}`)
+            updateBody = request.clone().json();
+        },
+      }),
+    );
+    const user = userEvent.setup();
+    await renderAppAt(`/app/leads/${testLeadId}`);
+
+    expect(await screen.findByLabelText("E-mail")).toHaveValue("");
+    const city = screen.getByLabelText("Cidade");
+    await user.clear(city);
+    await user.type(city, "Belém");
+    await user.click(screen.getByRole("button", { name: "Salvar alterações" }));
+
+    expect(await updateBody).toMatchObject({ email: null, city: "Belém" });
+    restoreLocks();
+  });
+
+  it("reinicializa a edição com o e-mail do Lead selecionado", async () => {
+    const restoreLocks = installWebLocks();
+    server.use(
+      ...createAuthHandlers(),
+      ...createLeadHandlers({ detailEmail: null }),
+    );
+    const secondLeadId = "00000000-0000-4000-8000-000000000020";
+    const secondLead = {
+      ...testLead,
+      id: secondLeadId,
+      displayName: "Segundo Lead",
+      email: "segundo@example.test",
+    };
+    const { queryClient, router } = await renderAppAt(
+      `/app/leads/${testLeadId}`,
+    );
+    expect(await screen.findByLabelText("E-mail")).toHaveValue("");
+
+    queryClient.setQueryData(
+      leadQueryKeys.detail(testOrganizations[0].id, secondLeadId),
+      {
+        lead: secondLead,
+        snapshot: createLeadSnapshot(
+          `"lead:${secondLeadId}:3"`,
+          secondLeadId,
+          "3",
+        ),
+      },
+    );
+    queryClient.setQueryData(
+      leadQueryKeys.timeline(testOrganizations[0].id, secondLeadId),
+      {
+        pages: [{ items: [], page: { nextCursor: null, limit: 50 } }],
+        pageParams: [undefined],
+      },
+    );
+
+    await act(async () => {
+      await router.navigate({
+        to: "/app/leads/$leadId",
+        params: { leadId: secondLeadId },
+      });
+    });
+
+    expect(
+      await screen.findByRole("heading", { name: "Segundo Lead" }),
+    ).toBeVisible();
+    expect(screen.getByLabelText("E-mail")).toHaveValue("segundo@example.test");
+    restoreLocks();
+  });
+
+  it("salva a etapa imediatamente e mantém o valor após nova leitura", async () => {
+    const restoreLocks = installWebLocks();
+    server.use(
+      ...createAuthHandlers(),
+      ...createLeadHandlers({ moveDelayMs: 100 }),
+    );
+    const user = userEvent.setup();
+    await renderAppAt(`/app/leads/${testLeadId}`);
+
+    const stage = await screen.findByLabelText("Etapa");
+    await user.selectOptions(stage, "proposal");
+    expect(screen.getByText("Salvando etapa...")).toBeVisible();
+    expect(await screen.findByText("Etapa atualizada.")).toBeVisible();
+    expect(screen.getByLabelText("Etapa")).toHaveValue("proposal");
+    expect(screen.queryByRole("button", { name: "Mover Lead" })).toBeNull();
+    restoreLocks();
+  });
+
+  it("reverte a etapa selecionada quando a persistência falha", async () => {
+    const restoreLocks = installWebLocks();
+    server.use(
+      ...createAuthHandlers(),
+      ...createLeadHandlers({ mutationStatus: 500 }),
+    );
+    const user = userEvent.setup();
+    await renderAppAt(`/app/leads/${testLeadId}`);
+
+    const stage = await screen.findByLabelText("Etapa");
+    await user.selectOptions(stage, "proposal");
+    expect(
+      await screen.findByText(/não foi confirmada como salva/iu),
+    ).toBeVisible();
+    expect(stage).toHaveValue("qualification");
+    expect(screen.queryByText(/Etapa salva:/iu)).toBeNull();
+    restoreLocks();
+  });
+
   it.each([
     [403, "Seu papel não permite consultar esta seleção de Leads."],
     [
@@ -222,7 +368,6 @@ describe("Inbox e detalhe do Lead", () => {
     expect(await screen.findByText("Próxima ação criada.")).toBeVisible();
 
     await user.selectOptions(screen.getByLabelText("Etapa"), "proposal");
-    await user.click(screen.getByRole("button", { name: "Mover Lead" }));
     expect(await screen.findByText("Etapa atualizada.")).toBeVisible();
 
     await user.click(screen.getByRole("button", { name: "Marcar como ganho" }));
