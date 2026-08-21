@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 'use strict';
 
-const { execFileSync } = require('node:child_process');
 const { existsSync, lstatSync, readFileSync, statSync } = require('node:fs');
 const { join, resolve } = require('node:path');
 const { TextDecoder } = require('node:util');
@@ -13,7 +12,7 @@ const BRIDGE_PATH = 'docs/CURRENT_STATE.md';
 const BRIDGE_MARKER = '<!-- genesis-memory-bridge:v1 -->';
 const HISTORY_MARKER = '<!-- genesis-memory-history:v1 -->';
 const HISTORY_MARKER_ALLOWLIST = new Set(['docs/ROADMAP.md']);
-const BASE_SHA = '1c2ba2af9306f13b9995b48619f4aafb682385cf';
+const BASE_SHA = '04515f8b17545947129466faab5d8140d1463f4f';
 const AUTHORITY = Object.freeze({
   repository: 'arthurportodev/genesis-platform-api',
   branch: 'main',
@@ -329,12 +328,12 @@ function validatePointer(pointer) {
       `Use the approved Web base ${BASE_SHA}.`,
     );
   }
-  if (pointer.receipt.revisionSource !== 'containing-commit') {
+  if (pointer.receipt.revisionSource !== 'integrated-revision') {
     fail(
       'MEMORY_SCHEMA_INVALID',
-      'Receipt provenance must be containing-commit.',
+      'Receipt provenance must identify the integrated Web revision.',
       '$.receipt.revisionSource',
-      'Do not predict or embed a future commit SHA.',
+      'Use the Web revision bound by the canonical API authority.',
     );
   }
   validateTimestamp(pointer.receipt.generatedAt, '$.receipt.generatedAt');
@@ -505,16 +504,31 @@ function validateAuthority(authority, acceptedMajor) {
   if (
     !web ||
     web.memoryRevision?.kind !== 'commit' ||
-    !FULL_SHA.test(web.memoryRevision?.sha)
+    !FULL_SHA.test(web.memoryRevision?.sha) ||
+    !FULL_SHA.test(authority.releaseBindings?.webIntegratedRevision)
   ) {
     fail(
       'MEMORY_AUTHORITY_INVALID',
       'Web memoryRevision is missing or invalid.',
       '$authority.repositories[web].memoryRevision',
-      'Candidate B must record the exact Web containing commit as memoryRevision.',
+      'The API authority must record the integrated Web revision consistently.',
     );
   }
-  return { authority, webMemoryRevision: web.memoryRevision.sha };
+  if (
+    web.memoryRevision.sha !== authority.releaseBindings.webIntegratedRevision
+  ) {
+    fail(
+      'MEMORY_AUTHORITY_INVALID',
+      'Web memoryRevision and release binding differ.',
+      '$authority.releaseBindings.webIntegratedRevision',
+      'Use one integrated Web revision in the canonical API authority.',
+    );
+  }
+  return {
+    authority,
+    webMemoryRevision: web.memoryRevision.sha,
+    webIntegratedRevision: authority.releaseBindings.webIntegratedRevision,
+  };
 }
 
 async function readRemoteAuthority(url) {
@@ -596,19 +610,6 @@ async function loadAuthorityText(source) {
       );
     }
     throw error;
-  }
-}
-
-function containingCommit(root) {
-  try {
-    const value = execFileSync(
-      'git',
-      ['log', '-1', '--format=%H', '--', POINTER_PATH],
-      { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] },
-    ).trim();
-    return FULL_SHA.test(value) ? value : null;
-  } catch {
-    return null;
   }
 }
 
@@ -761,27 +762,10 @@ async function main() {
     return;
   }
 
-  const actualMemoryRevision = containingCommit(process.cwd());
-  if (actualMemoryRevision === null) {
-    writeResult(
-      {
-        ok: false,
-        code: 'MEMORY_TRANSITION_PENDING',
-        codes: ['MEMORY_TRANSITION_PENDING'],
-        authorityResolved: true,
-        transitionPending: true,
-        staleFallbackUsed: false,
-        targetStateRevision: pointer.receipt.targetStateRevision,
-        nextAction:
-          'Validate again from the commit containing the Web pointer.',
-      },
-      ['The pointer does not yet have a containing commit.'],
-    );
-    process.exitCode = 1;
-    return;
-  }
-
-  if (authority.webMemoryRevision !== actualMemoryRevision) {
+  if (
+    authority.webMemoryRevision !== pointer.receipt.baseSha ||
+    authority.webIntegratedRevision !== pointer.receipt.baseSha
+  ) {
     writeResult(
       {
         ok: false,
@@ -791,10 +775,11 @@ async function main() {
         transitionPending: false,
         staleFallbackUsed: false,
         expectedMemoryRevision: authority.webMemoryRevision,
-        actualMemoryRevision,
-        nextAction: 'Use the exact Web memoryRevision recorded by Candidate B.',
+        actualMemoryRevision: pointer.receipt.baseSha,
+        nextAction:
+          'Use the exact integrated Web revision recorded by the API.',
       },
-      ['The authority and Web pointer containing commit differ.'],
+      ['The authority and Web integrated-revision receipt differ.'],
     );
     process.exitCode = 1;
     return;
@@ -811,7 +796,7 @@ async function main() {
     transitionPending: false,
     staleFallbackUsed: false,
     stateRevision: authority.authority.stateRevision,
-    webMemoryRevision: actualMemoryRevision,
+    webMemoryRevision: pointer.receipt.baseSha,
   });
 }
 

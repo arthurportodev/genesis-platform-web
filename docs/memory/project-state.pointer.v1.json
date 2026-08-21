@@ -15,10 +15,10 @@
     ]
   },
   "receipt": {
-    "transitionId": "GH-01-CROSS-REPO",
-    "targetStateRevision": "GH-01-COMPLETE",
-    "baseSha": "1c2ba2af9306f13b9995b48619f4aafb682385cf",
-    "revisionSource": "containing-commit",
-    "generatedAt": "2026-08-10T12:28:06.317Z"
+    "transitionId": "MVP-10C-CROSS-REPO",
+    "targetStateRevision": "MVP-10B-LIVE-2026-08-21",
+    "baseSha": "04515f8b17545947129466faab5d8140d1463f4f",
+    "revisionSource": "integrated-revision",
+    "generatedAt": "2026-08-21T20:32:57.3293060Z"
   }
 }
