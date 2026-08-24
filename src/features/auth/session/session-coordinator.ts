@@ -269,24 +269,9 @@ export function createSessionCoordinator(
     const previousAuthenticatedState = isAuthenticatedState(state)
       ? state
       : null;
-    dispatch({ type: "REFRESH" });
+    if (!previousAuthenticatedState) dispatch({ type: "REFRESH" });
     try {
       acceptTokenResponse(await dependencies.authApi.refresh());
-      if (previousAuthenticatedState) {
-        dispatch({
-          type: "AUTHENTICATED",
-          data: {
-            user: previousAuthenticatedState.user,
-            organizations: previousAuthenticatedState.organizations,
-            activeOrganization: previousAuthenticatedState.activeOrganization,
-          },
-          reason:
-            previousAuthenticatedState.status ===
-            "authenticated-without-organization"
-              ? previousAuthenticatedState.reason
-              : undefined,
-        });
-      }
       return true;
     } catch (error) {
       const normalized = toAppError(error);

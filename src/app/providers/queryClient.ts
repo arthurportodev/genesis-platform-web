@@ -26,8 +26,8 @@ export function createAppQueryClient() {
 
 export function createSessionCache(queryClient: QueryClient): SessionCache {
   return {
-    async cancelAndClearAuthenticated() {
-      await queryClient.cancelQueries({
+    cancelAndClearAuthenticated() {
+      void queryClient.cancelQueries({
         predicate: ({ queryKey }) => isAuthenticatedQueryKey(queryKey),
       });
       queryClient.removeQueries({
@@ -38,6 +38,7 @@ export function createSessionCache(queryClient: QueryClient): SessionCache {
         if (isAuthenticatedQueryKey(mutation.options.mutationKey ?? []))
           mutationCache.remove(mutation);
       }
+      return Promise.resolve();
     },
     hasPendingMutations() {
       return queryClient.isMutating() > 0;

@@ -56,6 +56,32 @@ describe("createAppQueryClient", () => {
     expect(client.getMutationCache().getAll()).toHaveLength(0);
   });
 
+  it("não aguarda a própria query ao limpar uma sessão expirada", async () => {
+    const client = createAppQueryClient();
+    const cache = createSessionCache(client);
+    const queryKey = queryKeys.account("self-expiring-query");
+    let cleanupFinished = false;
+    let requestWasAborted = false;
+
+    const queryResult = client
+      .fetchQuery({
+        queryKey,
+        queryFn: async ({ signal }) => {
+          await cache.cancelAndClearAuthenticated();
+          cleanupFinished = true;
+          requestWasAborted = signal.aborted;
+          return "authenticated-data";
+        },
+      })
+      .catch(() => undefined);
+
+    await vi.waitFor(() => expect(cleanupFinished).toBe(true));
+    await queryResult;
+
+    expect(requestWasAborted).toBe(true);
+    expect(client.getQueryData(queryKey)).toBeUndefined();
+  });
+
   it("removes only mutations owned by the closed Organization", async () => {
     const client = createAppQueryClient();
     const cache = createSessionCache(client);
