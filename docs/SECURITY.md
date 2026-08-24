@@ -52,25 +52,30 @@
   expiração. A busca pode existir na chave em memória, sem persistência.
 - Somente owner/admin consulta memberships ativas. Member não recebe diretório
   nem controle de atribuição; nomes indisponíveis usam rótulos mínimos.
-- ETags são vinculados ao id e à revisão do snapshot sem parsing ou reconstrução.
-  Conflitos preservam o rascunho, relêem a fonte e não reenviam mutações.
+- ETags de Lead são vinculados ao id e à revisão do snapshot. A fronteira do
+  detalhe aceita apenas o formato forte canônico ou o mesmo token com prefixo
+  weak; id e revisão precisam coincidir exatamente com o body validado antes de
+  armazenar o formato forte. Outro Lead, outra revisão, curinga e formatos
+  arbitrários falham fechado. Conflitos preservam o rascunho, relêem a fonte e
+  não reenviam mutações.
 - Cards do Pipeline não renderizam telefone, e-mail, UUID, cidade, Instagram ou
   descrição livre. A resposta completa permanece apenas no Query Cache em
   memória.
 - Cursores do Kanban são opacos, restritos à coluna, Organization e filtros da
   query; não são decodificados, fabricados, registrados ou persistidos.
-- O move usa somente ETag opaco do detalhe compatível. A chave idempotente não
-  contém PII e muda com Organization, Lead, revisão de origem ou destino; um
-  resultado remoto incerto exige retry ou abandono explícito.
+- O move usa somente o validador canônico comprovado pelo detalhe compatível. A
+  chave idempotente não contém PII e muda com Organization, Lead, revisão de
+  origem ou destino; um resultado remoto incerto exige retry ou abandono
+  explícito.
 - Fixtures usam exclusivamente identidades e domínios `.test`.
 - Filas de Follow-up convertem a resposta recebida em modelos sem telefone ou
   e-mail antes do Query Cache especializado. Nenhuma PII ou UUID é renderizada
   como conteúdo operacional; dados completos exigem abertura do detalhe.
 - Tabs administrativas e diretório não são montados para member. Capabilities
   são apenas UX e o backend revalida papel, assignment, estado e tenant.
-- Ações rápidas usam ETag apenas de detalhe compatível ou novo GET. Complete,
-  reschedule, cancel e dismiss vinculam a chave a Organization, ator, Lead,
-  revisões, recurso e payload; nenhuma chave contém PII.
+- Ações rápidas usam o validador comprovado apenas de detalhe compatível ou novo
+  GET. Complete, reschedule, cancel e dismiss vinculam a chave a Organization,
+  ator, Lead, revisões, recurso e payload; nenhuma chave contém PII.
 - Resultado incerto preserva intenção exata para retry, verificação ou abandono.
   Assignment não possui chave e só permite verificar o estado, nunca replay
   cego. `409/412` descartam a intenção antiga.

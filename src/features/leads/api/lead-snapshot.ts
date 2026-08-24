@@ -17,10 +17,12 @@ export function createLeadSnapshot(
   z.string()
     .regex(/^(0|[1-9]\d*)$/u)
     .parse(revision);
-  const opaque = asEntityTag(etag);
-  if (!opaque || opaque === "*")
+  const canonical = `"lead:${leadId}:${revision}"`;
+  if (etag !== canonical && etag !== `W/${canonical}`)
     throw new Error("Resposta de Lead sem ETag específico.");
-  return { etag: opaque, leadId, revision };
+  const trusted = asEntityTag(canonical);
+  if (!trusted) throw new Error("Resposta de Lead sem ETag específico.");
+  return { etag: trusted, leadId, revision };
 }
 
 export function assertCurrentLeadSnapshot(

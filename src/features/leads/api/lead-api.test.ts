@@ -12,6 +12,7 @@ import { testLeadListItem } from "@/test/msw/lead-handlers";
 import { testMetricsSummary } from "@/test/msw/lead-handlers";
 
 const createdId = "00000000-0000-4000-8000-000000000099";
+const currentStrongEtag = `"lead:${testLead.id}:${testLead.revision}"`;
 
 function setup() {
   const request = vi.fn((_path: string, options: { method?: string }) => {
@@ -34,7 +35,7 @@ function setup() {
   const current = {
     lead,
     snapshot: createLeadSnapshot(
-      '"opaque-lead-etag-3"',
+      `W/${currentStrongEtag}`,
       lead.id,
       lead.revision,
     ),
@@ -121,13 +122,13 @@ describe("createLeadApi mutations", () => {
     ).rejects.toMatchObject({ kind: "protocol" });
   });
 
-  it("maps PATCH updates and assignment with the exact opaque ETag", async () => {
+  it("envia PATCH com ETag forte após receber o weak equivalente", async () => {
     const { api, current, request } = setup();
     await api.update(current, { displayName: "Nome atualizado" });
     expect(request).toHaveBeenLastCalledWith(`/api/v1/leads/${testLead.id}`, {
       kind: "conditional-mutation",
       method: "PATCH",
-      ifMatch: '"opaque-lead-etag-3"',
+      ifMatch: currentStrongEtag,
       body: { displayName: "Nome atualizado" },
     });
 
@@ -137,7 +138,7 @@ describe("createLeadApi mutations", () => {
       {
         kind: "conditional-mutation",
         method: "PATCH",
-        ifMatch: '"opaque-lead-etag-3"',
+        ifMatch: currentStrongEtag,
         body: { responsibleMembershipId: testMemberId },
       },
     );
@@ -216,7 +217,7 @@ describe("createLeadApi mutations", () => {
         {
           kind: "conditional-idempotent-mutation",
           method: "POST",
-          ifMatch: '"opaque-lead-etag-3"',
+          ifMatch: currentStrongEtag,
           idempotencyKey,
           body: intent.body,
         },
