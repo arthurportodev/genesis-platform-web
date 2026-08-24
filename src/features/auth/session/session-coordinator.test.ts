@@ -143,6 +143,23 @@ describe("SessionCoordinator", () => {
     );
   });
 
+  it("mantém a sessão montada durante refresh de request autenticado", async () => {
+    const harness = createHarness();
+    await harness.coordinator.initialize();
+    const observedStatuses: string[] = [];
+    const unsubscribe = harness.coordinator.subscribe(() => {
+      observedStatuses.push(harness.coordinator.getSnapshot().status);
+    });
+
+    await expect(harness.coordinator.refreshForRequest()).resolves.toBe(true);
+
+    unsubscribe();
+    expect(observedStatuses).not.toContain("refreshing");
+    expect(harness.coordinator.getSnapshot().status).toBe(
+      "authenticated-with-organization",
+    );
+  });
+
   it("não faz refresh automático quando Web Locks está indisponível", async () => {
     const harness = createHarness({ locks: false });
     await harness.coordinator.initialize();

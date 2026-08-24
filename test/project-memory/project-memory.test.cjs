@@ -2,7 +2,7 @@
 
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { spawnSync } = require("node:child_process");
+const { execFileSync, spawnSync } = require("node:child_process");
 const {
   cpSync,
   existsSync,
@@ -72,7 +72,10 @@ function expectApiAuthorityOnlyNextAction(execution) {
   );
 }
 
-function authority(memoryRevision, stateRevision = "MVP-10B-LIVE-2026-08-21") {
+function authority(
+  memoryRevision,
+  stateRevision = "MVP-10D-WEB-INTEGRATED-2026-08-24",
+) {
   return {
     schemaVersion: "1.0.0",
     instanceKind: "current",
@@ -93,6 +96,24 @@ function authority(memoryRevision, stateRevision = "MVP-10B-LIVE-2026-08-21") {
     ],
     releaseBindings: { webIntegratedRevision: memoryRevision },
   };
+}
+
+function initializeGit(root) {
+  execFileSync("git", ["init", "-q"], { cwd: root });
+  execFileSync("git", ["config", "user.email", "memory@example.invalid"], {
+    cwd: root,
+  });
+  execFileSync("git", ["config", "user.name", "Memory Fixture"], {
+    cwd: root,
+  });
+  execFileSync("git", ["config", "core.autocrlf", "false"], { cwd: root });
+  execFileSync("git", ["config", "core.safecrlf", "false"], { cwd: root });
+  execFileSync("git", ["add", "."], { cwd: root });
+  execFileSync("git", ["commit", "-q", "-m", "fixture"], { cwd: root });
+  return execFileSync("git", ["rev-parse", "HEAD"], {
+    cwd: root,
+    encoding: "utf8",
+  }).trim();
 }
 
 test.after(() => {
@@ -132,6 +153,32 @@ test("rejects an unsupported schema major", () => {
   pointer.schemaVersion = "2.0.0";
   writeJson(root, pointer);
   expectCode(run(root), "MEMORY_SCHEMA_UNSUPPORTED");
+});
+
+test("rejects divergent nested pointer schema contracts", () => {
+  for (const mutate of [
+    (schema) => {
+      schema.properties.receipt.properties.revisionSource.const =
+        "integrated-revision";
+    },
+    (schema) => {
+      schema.properties.authority.properties.repository.const =
+        "example.invalid/wrong-authority";
+    },
+    (schema) => {
+      schema.properties.receipt.required =
+        schema.properties.receipt.required.filter((key) => key !== "baseSha");
+    },
+    (schema) => {
+      schema.properties.receipt.properties.baseSha.pattern = "^[a-f0-9]+$";
+    },
+  ]) {
+    const root = fixture();
+    const schema = readJson(root, SCHEMA);
+    mutate(schema);
+    writeJson(root, schema, SCHEMA);
+    expectCode(run(root), "MEMORY_SCHEMA_INVALID");
+  }
 });
 
 test("rejects an unknown pointer property", () => {
@@ -184,6 +231,31 @@ test("rejects a malformed or wrong base SHA", () => {
   const root = fixture();
   const pointer = readJson(root);
   pointer.receipt.baseSha = "a".repeat(40);
+  writeJson(root, pointer);
+  expectCode(run(root), "MEMORY_SCHEMA_INVALID");
+});
+
+test("rejects a wrong transition identity or target state revision", () => {
+  for (const mutate of [
+    (pointer) => {
+      pointer.receipt.transitionId = "MVP-10F-CROSS-REPO";
+    },
+    (pointer) => {
+      pointer.receipt.targetStateRevision = "MVP-10B-LIVE-2026-08-21";
+    },
+  ]) {
+    const root = fixture();
+    const pointer = readJson(root);
+    mutate(pointer);
+    writeJson(root, pointer);
+    expectCode(run(root), "MEMORY_SCHEMA_INVALID");
+  }
+});
+
+test("rejects invalid receipt provenance", () => {
+  const root = fixture();
+  const pointer = readJson(root);
+  pointer.receipt.revisionSource = "integrated-revision";
   writeJson(root, pointer);
   expectCode(run(root), "MEMORY_SCHEMA_INVALID");
 });
@@ -299,7 +371,7 @@ test("reports a receipt whose target revision is not activated", () => {
   const source = join(root, "authority.json");
   writeJson(
     root,
-    authority("a".repeat(40), "PREVIOUS-STATE"),
+    authority("a".repeat(40), "MVP-10B-LIVE-2026-08-21"),
     "authority.json",
   );
   const execution = run(root, ["--mode", "resolve", "--api-source", source]);
@@ -309,28 +381,49 @@ test("reports a receipt whose target revision is not activated", () => {
 
 test("reports a mismatched Web memoryRevision", () => {
   const root = fixture();
-  const pointer = readJson(root);
+  const commit = initializeGit(root);
   const source = join(root, "authority.json");
-  const different =
-    pointer.receipt.baseSha === "a".repeat(40)
-      ? "b".repeat(40)
-      : "a".repeat(40);
+  const different = commit === "a".repeat(40) ? "b".repeat(40) : "a".repeat(40);
   writeJson(root, authority(different), "authority.json");
   const execution = run(root, ["--mode", "resolve", "--api-source", source]);
   expectCode(execution, "MEMORY_WEB_REVISION_MISMATCH");
-  assert.equal(execution.result.actualMemoryRevision, pointer.receipt.baseSha);
+  assert.equal(execution.result.actualMemoryRevision, commit);
 });
 
-test("resolves a compatible authority for the integrated Web revision", () => {
+test("resolves a compatible authority at the clean containing commit", () => {
   const root = fixture();
-  const pointer = readJson(root);
+  const commit = initializeGit(root);
   const source = join(root, "authority.json");
-  writeJson(root, authority(pointer.receipt.baseSha), "authority.json");
+  writeJson(root, authority(commit), "authority.json");
   const execution = run(root, ["--mode", "resolve", "--api-source", source]);
   assert.equal(execution.status, 0, execution.stderr);
   assert.equal(execution.result.code, "MEMORY_RESOLVED");
-  assert.equal(execution.result.webMemoryRevision, pointer.receipt.baseSha);
+  assert.equal(execution.result.webMemoryRevision, commit);
   assert.equal(execution.result.staleFallbackUsed, false);
+});
+
+test("does not resolve an uncommitted pointer", () => {
+  const root = fixture();
+  const commit = initializeGit(root);
+  const pointer = readJson(root);
+  pointer.receipt.generatedAt = "2026-08-24T14:19:54.2261794Z";
+  writeJson(root, pointer);
+  const source = join(root, "authority.json");
+  writeJson(root, authority(commit), "authority.json");
+  const execution = run(root, ["--mode", "resolve", "--api-source", source]);
+  expectCode(execution, "MEMORY_TRANSITION_PENDING");
+  assert.equal(execution.result.transitionPending, true);
+});
+
+test("rejects divergent API Web bindings", () => {
+  const root = fixture();
+  const commit = initializeGit(root);
+  const source = join(root, "authority.json");
+  const candidate = authority(commit);
+  candidate.releaseBindings.webIntegratedRevision = "a".repeat(40);
+  writeJson(root, candidate, "authority.json");
+  const execution = run(root, ["--mode", "resolve", "--api-source", source]);
+  expectCode(execution, "MEMORY_AUTHORITY_INVALID");
 });
 
 test("never treats CURRENT_STATE content as authority fallback", () => {

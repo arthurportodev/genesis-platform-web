@@ -264,8 +264,9 @@ excluído após a captura e não alterou Production, DNS, VPS, API ou banco.
 ## 0.8-MVP-10D — Correção do ETag de Lead enfraquecido pelo hosting
 
 - Classe/perfil: Critical / critical.
-- Estado: candidato local iniciado em 2026-08-24; sem commit, PR, deploy ou
-  mudança remota.
+- Estado: incorporada na `main` pelo PR #18, commit
+  `ac87eb78640e641c67bf6e354ad497b421d487f8`, com CI pós-merge
+  `32735246934` aprovada.
 - Base Web: `d32c480090befca251e5e8b050907412eb6b3066`.
 - API canônica read-only: `61a63d245ee4b0182dfb3d3b7f13bfc72309c7e9`.
 - Defeito observado: a API e o proxy local produzem/preservam o token forte de
@@ -281,5 +282,30 @@ If-Match.` antes da regra de negócio.
 - Limites: sem alteração na API, proxy, shared HTTP, dependências, lockfile,
   Vercel, infraestrutura, dados ou produção.
 - Memória: a autoridade API ainda registra `MVP-10B-LIVE-2026-08-21` e não
-  conhece este bug; a transição temporal cross-repo permanece pendente até
-  existir revisão Web integrada, sem editar o pointer manualmente.
+  conhece esta integração. Nenhum deploy, smoke pós-deploy ou comportamento
+  corrigido em produção foi comprovado; a transição temporal cross-repo
+  permanece pendente.
+
+## 0.8-MVP-10E — Candidate A da transição de memória Web-first
+
+- Classe/perfil: Critical / critical.
+- Estado: Candidate A local para Gate 2; sem stage, commit, push, PR, merge ou
+  deploy.
+- Base Web: `ac87eb78640e641c67bf6e354ad497b421d487f8`, revisão integrada da correção
+  10D e ainda não comprovadamente implantada.
+- API canônica read-only: `61a63d245ee4b0182dfb3d3b7f13bfc72309c7e9`,
+  ainda em `MVP-10B-LIVE-2026-08-21` e vinculada à revisão Web anterior.
+- Receipt: `MVP-10E-CROSS-REPO`, alvo
+  `MVP-10D-WEB-INTEGRATED-2026-08-24`, base `ac87eb78640e…` e proveniência
+  `containing-commit`; nenhum SHA futuro é previsto ou gravado no conteúdo.
+- Janela: Candidate A com a autoridade antiga produz
+  `MEMORY_TRANSITION_PENDING`, sem fallback temporal Web. Depois do merge Web,
+  Candidate B API deverá registrar o squash SHA definitivo em `memoryRevision`
+  e `releaseBindings.webIntegratedRevision` e ativar exatamente a revisão-alvo.
+- Correção de baseline autorizada: a limpeza de sessão não aguarda o
+  cancelamento da própria query autenticada que recebeu o segundo 401, evitando
+  auto-deadlock; refreshes de request preservam o snapshot autenticado para que
+  o replay seja inspecionado sem desmontar e reiniciar a query. O segundo 401
+  agora encerra a sessão e remove o cache antes do estado anônimo.
+- Limites: API, `CURRENT_STATE` Web, features, transporte, proxy, dependências,
+  CI, infraestrutura e produção permanecem inalterados.

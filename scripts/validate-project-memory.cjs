@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 'use strict';
 
+const { execFileSync } = require('node:child_process');
 const { existsSync, lstatSync, readFileSync, statSync } = require('node:fs');
 const { join, resolve } = require('node:path');
 const { TextDecoder } = require('node:util');
@@ -12,7 +13,12 @@ const BRIDGE_PATH = 'docs/CURRENT_STATE.md';
 const BRIDGE_MARKER = '<!-- genesis-memory-bridge:v1 -->';
 const HISTORY_MARKER = '<!-- genesis-memory-history:v1 -->';
 const HISTORY_MARKER_ALLOWLIST = new Set(['docs/ROADMAP.md']);
-const BASE_SHA = '04515f8b17545947129466faab5d8140d1463f4f';
+const RECEIPT = Object.freeze({
+  transitionId: 'MVP-10E-CROSS-REPO',
+  targetStateRevision: 'MVP-10D-WEB-INTEGRATED-2026-08-24',
+  baseSha: 'ac87eb78640e641c67bf6e354ad497b421d487f8',
+  revisionSource: 'containing-commit',
+});
 const AUTHORITY = Object.freeze({
   repository: 'arthurportodev/genesis-platform-api',
   branch: 'main',
@@ -318,22 +324,33 @@ function validatePointer(pointer) {
     );
   }
   if (
+    pointer.receipt.transitionId !== RECEIPT.transitionId ||
+    pointer.receipt.targetStateRevision !== RECEIPT.targetStateRevision
+  ) {
+    fail(
+      'MEMORY_SCHEMA_INVALID',
+      'Receipt transition identity or target state revision is invalid.',
+      '$.receipt',
+      `Use transition ${RECEIPT.transitionId} targeting ${RECEIPT.targetStateRevision}.`,
+    );
+  }
+  if (
     !FULL_SHA.test(pointer.receipt.baseSha) ||
-    pointer.receipt.baseSha !== BASE_SHA
+    pointer.receipt.baseSha !== RECEIPT.baseSha
   ) {
     fail(
       'MEMORY_SCHEMA_INVALID',
       'Receipt baseSha is invalid for this transition.',
       '$.receipt.baseSha',
-      `Use the approved Web base ${BASE_SHA}.`,
+      `Use the approved Web base ${RECEIPT.baseSha}.`,
     );
   }
-  if (pointer.receipt.revisionSource !== 'integrated-revision') {
+  if (pointer.receipt.revisionSource !== RECEIPT.revisionSource) {
     fail(
       'MEMORY_SCHEMA_INVALID',
-      'Receipt provenance must identify the integrated Web revision.',
+      'Receipt provenance must identify its containing commit.',
       '$.receipt.revisionSource',
-      'Use the Web revision bound by the canonical API authority.',
+      'Do not predict or embed the future integrated commit SHA.',
     );
   }
   validateTimestamp(pointer.receipt.generatedAt, '$.receipt.generatedAt');
@@ -350,15 +367,58 @@ function validateSchemaPrototype(schema) {
     'authority',
     'receipt',
   ];
+  const expectedAuthorityRequired = [
+    'repository',
+    'branch',
+    'path',
+    'acceptedSchemaMajor',
+    'resolutionOrder',
+  ];
+  const expectedReceiptRequired = [
+    'transitionId',
+    'targetStateRevision',
+    'baseSha',
+    'revisionSource',
+    'generatedAt',
+  ];
+  const authority = schema.properties?.authority;
+  const receipt = schema.properties?.receipt;
   if (
+    schema.$schema !== 'https://json-schema.org/draft/2020-12/schema' ||
+    schema.$id !==
+      'https://github.com/arthurportodev/genesis-platform-web/schemas/genesis-harness/project-state.pointer.v1.schema.json' ||
     schema.type !== 'object' ||
     schema.additionalProperties !== false ||
     JSON.stringify(schema.required) !== JSON.stringify(expectedRequired) ||
     schema.properties?.schemaVersion?.const !== '1.0.0' ||
     schema.properties?.instanceKind?.const !== 'current' ||
+    schema.properties?.project?.const !== 'genesis-platform' ||
     schema.properties?.mode?.const !== 'pointer-only' ||
-    schema.properties?.authority?.additionalProperties !== false ||
-    schema.properties?.receipt?.additionalProperties !== false
+    authority?.type !== 'object' ||
+    authority?.additionalProperties !== false ||
+    JSON.stringify(authority.required) !==
+      JSON.stringify(expectedAuthorityRequired) ||
+    authority.properties?.repository?.const !== AUTHORITY.repository ||
+    authority.properties?.branch?.const !== AUTHORITY.branch ||
+    authority.properties?.path?.const !== AUTHORITY.path ||
+    authority.properties?.acceptedSchemaMajor?.const !== 1 ||
+    JSON.stringify(authority.properties?.resolutionOrder?.const) !==
+      JSON.stringify(RESOLUTION_ORDER) ||
+    receipt?.type !== 'object' ||
+    receipt?.additionalProperties !== false ||
+    JSON.stringify(receipt.required) !==
+      JSON.stringify(expectedReceiptRequired) ||
+    receipt.properties?.transitionId?.type !== 'string' ||
+    receipt.properties?.transitionId?.pattern !==
+      '^[A-Za-z0-9][A-Za-z0-9._-]{1,79}$' ||
+    receipt.properties?.targetStateRevision?.type !== 'string' ||
+    receipt.properties?.targetStateRevision?.pattern !==
+      '^[A-Za-z0-9][A-Za-z0-9._-]{2,79}$' ||
+    receipt.properties?.baseSha?.type !== 'string' ||
+    receipt.properties?.baseSha?.pattern !== '^(?!0{40}$)[a-f0-9]{40}$' ||
+    receipt.properties?.revisionSource?.const !== RECEIPT.revisionSource ||
+    receipt.properties?.generatedAt?.type !== 'string' ||
+    receipt.properties?.generatedAt?.format !== 'date-time'
   ) {
     fail(
       'MEMORY_SCHEMA_INVALID',
@@ -613,6 +673,30 @@ async function loadAuthorityText(source) {
   }
 }
 
+function containingCommit(root) {
+  try {
+    const status = execFileSync(
+      'git',
+      ['status', '--porcelain=v1', '--untracked-files=all', '--', POINTER_PATH],
+      {
+        cwd: root,
+        encoding: 'utf8',
+        stdio: ['ignore', 'pipe', 'ignore'],
+      },
+    ).trim();
+    if (status !== '') return null;
+
+    const value = execFileSync(
+      'git',
+      ['log', '-1', '--format=%H', '--', POINTER_PATH],
+      { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] },
+    ).trim();
+    return FULL_SHA.test(value) ? value : null;
+  } catch {
+    return null;
+  }
+}
+
 function writeResult(result, diagnostics = []) {
   process.stdout.write(`${JSON.stringify(result)}\n`);
   for (const diagnostic of diagnostics) process.stderr.write(`${diagnostic}\n`);
@@ -762,9 +846,29 @@ async function main() {
     return;
   }
 
+  const actualMemoryRevision = containingCommit(process.cwd());
+  if (actualMemoryRevision === null) {
+    writeResult(
+      {
+        ok: false,
+        code: 'MEMORY_TRANSITION_PENDING',
+        codes: ['MEMORY_TRANSITION_PENDING'],
+        authorityResolved: true,
+        transitionPending: true,
+        staleFallbackUsed: false,
+        targetStateRevision: pointer.receipt.targetStateRevision,
+        nextAction:
+          'Validate again from a clean commit containing the Web pointer.',
+      },
+      ['The pointer is not available from a clean containing commit.'],
+    );
+    process.exitCode = 1;
+    return;
+  }
+
   if (
-    authority.webMemoryRevision !== pointer.receipt.baseSha ||
-    authority.webIntegratedRevision !== pointer.receipt.baseSha
+    authority.webMemoryRevision !== actualMemoryRevision ||
+    authority.webIntegratedRevision !== actualMemoryRevision
   ) {
     writeResult(
       {
@@ -775,11 +879,11 @@ async function main() {
         transitionPending: false,
         staleFallbackUsed: false,
         expectedMemoryRevision: authority.webMemoryRevision,
-        actualMemoryRevision: pointer.receipt.baseSha,
+        actualMemoryRevision,
         nextAction:
-          'Use the exact integrated Web revision recorded by the API.',
+          'Candidate B must record the exact clean commit containing the Web pointer in both API bindings.',
       },
-      ['The authority and Web integrated-revision receipt differ.'],
+      ['The authority and Web pointer containing commit differ.'],
     );
     process.exitCode = 1;
     return;
@@ -796,7 +900,7 @@ async function main() {
     transitionPending: false,
     staleFallbackUsed: false,
     stateRevision: authority.authority.stateRevision,
-    webMemoryRevision: pointer.receipt.baseSha,
+    webMemoryRevision: actualMemoryRevision,
   });
 }
 
