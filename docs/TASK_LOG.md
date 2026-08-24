@@ -260,3 +260,26 @@ excluído após a captura e não alterou Production, DNS, VPS, API ou banco.
 - Limites: zero alteração no backend, banco ou dados de negócio. A evidência
   sanitizada tem SHA-256
   `c758288a3518cdbc369c5eb2a6d53638d8a54872e398bdfd2efeceeb12581859`.
+
+## 0.8-MVP-10D — Correção do ETag de Lead enfraquecido pelo hosting
+
+- Classe/perfil: Critical / critical.
+- Estado: candidato local iniciado em 2026-08-24; sem commit, PR, deploy ou
+  mudança remota.
+- Base Web: `d32c480090befca251e5e8b050907412eb6b3066`.
+- API canônica read-only: `61a63d245ee4b0182dfb3d3b7f13bfc72309c7e9`.
+- Defeito observado: a API e o proxy local produzem/preservam o token forte de
+  Lead, mas o browser em produção recebeu o mesmo token como weak e o reenviou
+  em `If-Match`; edição, nota, próxima ação e movimento receberam `400 Invalid
+If-Match.` antes da regra de negócio.
+- Correção candidata: a fronteira única do snapshot aceita strong ou weak
+  somente quando o token corresponde exatamente ao id e à revisão do body,
+  armazena o formato forte e rejeita qualquer entrada não comprovada.
+- Evidência focal: a regressão falhou antes da implementação e passou depois;
+  inclui strong, weak equivalente, outro Lead, outra revisão, wildcard,
+  malformação, PATCH, ações condicionais e fluxo de Follow-up via HTTP client.
+- Limites: sem alteração na API, proxy, shared HTTP, dependências, lockfile,
+  Vercel, infraestrutura, dados ou produção.
+- Memória: a autoridade API ainda registra `MVP-10B-LIVE-2026-08-21` e não
+  conhece este bug; a transição temporal cross-repo permanece pendente até
+  existir revisão Web integrada, sem editar o pointer manualmente.

@@ -24,6 +24,9 @@
 - `ADR-010-vercel-proxy-http-contract.md`: especializa o ADR-008 com Function
   Node.js, proveniência do IP, preservação HTTP, `Location`, cookies e cache;
   Accepted provisionally, sem ativar produção.
+- `ADR-011-lead-etag-canonicalization.md`: validação fail-closed e
+  canonicalização do token de concorrência de Lead quando a camada de hosting
+  enfraquece o ETag forte; Proposed para o candidato local de 2026-08-24.
 
 ADRs são imutáveis depois de substituídas. Uma mudança relevante deve criar uma
 nova decisão e apontar qual documento anterior foi superado.

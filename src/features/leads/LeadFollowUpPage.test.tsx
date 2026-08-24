@@ -21,6 +21,10 @@ const unassignedId = "00000000-0000-4000-8000-000000000021";
 const returnId = "00000000-0000-4000-8000-000000000022";
 const reviewId = "00000000-0000-4000-8000-000000000023";
 
+function leadEtag(id: string, revision: string): string {
+  return `"lead:${id}:${revision}"`;
+}
+
 const nextAction = {
   id: actionId,
   type: "call" as const,
@@ -235,7 +239,7 @@ function workHandlers(
         return HttpResponse.json(
           detail(id, kind as "action" | "unassigned" | "return"),
           {
-            headers: { ETag: `"opaque:${id}:3"` },
+            headers: { ETag: `W/${leadEtag(id, "3")}` },
           },
         );
       }),
@@ -248,9 +252,7 @@ function workHandlers(
           failures -= 1;
           return HttpResponse.error();
         }
-        expect(request.headers.get("if-match")).toBe(
-          `"opaque:${testLeadId}:3"`,
-        );
+        expect(request.headers.get("if-match")).toBe(leadEtag(testLeadId, "3"));
         if (options.completeStatus === 429) {
           return HttpResponse.json(
             { statusCode: 429, message: "Rate limit", error: "Too Many" },
@@ -269,7 +271,7 @@ function workHandlers(
         complete = true;
         return new HttpResponse(null, {
           status: 204,
-          headers: { ETag: `"opaque:${testLeadId}:4"` },
+          headers: { ETag: leadEtag(testLeadId, "4") },
         });
       },
     ),
@@ -283,38 +285,36 @@ function workHandlers(
             body: await request.json(),
           });
           expect(request.headers.get("if-match")).toBe(
-            `"opaque:${testLeadId}:3"`,
+            leadEtag(testLeadId, "3"),
           );
           return new HttpResponse(null, {
             status: 204,
-            headers: { ETag: `"opaque:${testLeadId}:4"` },
+            headers: { ETag: leadEtag(testLeadId, "4") },
           });
         },
       ),
     ),
     http.patch(`/api/v1/leads/${unassignedId}/assignment`, ({ request }) => {
       expect(request.headers.get("idempotency-key")).toBeNull();
-      expect(request.headers.get("if-match")).toBe(
-        `"opaque:${unassignedId}:3"`,
-      );
+      expect(request.headers.get("if-match")).toBe(leadEtag(unassignedId, "3"));
       if (assignmentFailures > 0) {
         assignmentFailures -= 1;
         return HttpResponse.error();
       }
       assigned = true;
       return HttpResponse.json(detail(unassignedId, "unassigned"), {
-        headers: { ETag: `"opaque:${unassignedId}:4"` },
+        headers: { ETag: leadEtag(unassignedId, "4") },
       });
     }),
     http.post(
       `/api/v1/leads/${returnId}/return-review/dismiss`,
       ({ request }) => {
         expect(request.headers.has("idempotency-key")).toBe(true);
-        expect(request.headers.get("if-match")).toBe(`"opaque:${returnId}:3"`);
+        expect(request.headers.get("if-match")).toBe(leadEtag(returnId, "3"));
         dismissed = true;
         return new HttpResponse(null, {
           status: 204,
-          headers: { ETag: `"opaque:${returnId}:4"` },
+          headers: { ETag: leadEtag(returnId, "4") },
         });
       },
     ),

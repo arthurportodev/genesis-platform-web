@@ -103,8 +103,13 @@ A Inbox mantém busca e filtros somente em memória, pagina por cursor com pilha
 local e converte datas finais inclusivas em limites exclusivos por aritmética de
 calendário. O histórico preserva a ordem ASC do backend e acrescenta páginas sem
 reordenar. Um snapshot `{ etag, leadId, revision }` impede usar uma versão em
-outro Lead; o ETag continua opaco. Em `409/412`, o rascunho é preservado, os
-dados são relidos e não existe reenvio automático.
+outro Lead. O transporte compartilhado continua tratando ETag como opaco; na
+fronteira do snapshot de Lead, a única exceção aceita é o formato forte
+`"lead:<leadId>:<revision>"` ou seu equivalente weak observado após hosting.
+Somente quando id e revisão coincidem exatamente com o body validado o snapshot
+armazena o formato forte canônico; qualquer outro valor falha fechado. Em
+`409/412`, o rascunho é preservado, os dados são relidos e não existe reenvio
+automático.
 
 O Pipeline usa uma query agregada para as cinco colunas e uma infinite query
 independente por estágio para continuações. Filtros e cursores ficam somente em
@@ -122,11 +127,12 @@ recalcular totais. Os adapters projetam modelos especializados sem telefone ou
 e-mail antes do Query Cache da fila.
 
 Ações rápidas fazem preflight com detalhe em cache exatamente compatível ou novo
-GET e usam somente o ETag opaco retornado pelo backend. Complete, reschedule,
-cancel e dismiss preservam intenção e chave contextual em resultado incerto;
-assignment não usa chave nem admite replay cego. Sucesso é server-confirmed e
-invalida apenas filas, Inbox, Pipeline e recursos do Lead realmente afetados.
-`409/412` atualizam o estado e exigem nova confirmação.
+GET e usam somente o validador de Lead comprovado pelo ETag e pelo body do mesmo
+detalhe. Complete, reschedule, cancel e dismiss preservam intenção e chave
+contextual em resultado incerto; assignment não usa chave nem admite replay
+cego. Sucesso é server-confirmed e invalida apenas filas, Inbox, Pipeline e
+recursos do Lead realmente afetados. `409/412` atualizam o estado e exigem nova
+confirmação.
 
 Metrics permanece no domínio `features/leads` e consome somente
 `GET /api/v1/leads/metrics/summary`. A query usa a sub-raiz tenant-scoped

@@ -129,7 +129,11 @@ function detailFor(item: LeadWorkItem, closed = false) {
   } as LeadDetail;
   return {
     lead,
-    snapshot: createLeadSnapshot('"opaque-etag"', lead.id, lead.revision),
+    snapshot: createLeadSnapshot(
+      `"lead:${lead.id}:${lead.revision}"`,
+      lead.id,
+      lead.revision,
+    ),
   };
 }
 
