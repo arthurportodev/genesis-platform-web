@@ -27,6 +27,9 @@
 - `ADR-011-lead-etag-canonicalization.md`: validação fail-closed e
   canonicalização do token de concorrência de Lead quando a camada de hosting
   enfraquece o ETag forte; Proposed para o candidato local de 2026-08-24.
+- `ADR-012-vercel-if-match-transport-shim.md`: transporta a precondition do
+  browser em header privado estrito e materializa `If-Match` somente no hop
+  server-side proxy→API; Proposed para o candidato local de 2026-08-25.
 
 ADRs são imutáveis depois de substituídas. Uma mudança relevante deve criar uma
 nova decisão e apontar qual documento anterior foi superado.

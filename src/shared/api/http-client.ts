@@ -6,11 +6,13 @@ import type {
   HttpResponse,
 } from "@/shared/api/contracts";
 import { AppError, createHttpError, toAppError } from "@/shared/api/errors";
+import { GENESIS_IF_MATCH_HEADER } from "@/shared/api/if-match-transport";
 import { environment } from "@/shared/config/environment";
 
 const MAX_ERROR_BODY_BYTES = 16_384;
 const MAX_SUCCESS_BODY_BYTES = 1_048_576;
 const VALIDATION_ORIGIN = "https://genesis.invalid";
+export { GENESIS_IF_MATCH_HEADER } from "@/shared/api/if-match-transport";
 
 interface BaseHttpClientDependencies {
   fetch?: typeof globalThis.fetch;
@@ -209,7 +211,8 @@ export function createBaseHttpClient(
       if (options.organizationId)
         headers.set("X-Organization-Id", options.organizationId);
       if (options.csrfToken) headers.set("X-CSRF-Token", options.csrfToken);
-      if (options.ifMatch) headers.set("If-Match", options.ifMatch);
+      if (options.ifMatch)
+        headers.set(GENESIS_IF_MATCH_HEADER, options.ifMatch);
       if (options.idempotencyKey)
         headers.set("Idempotency-Key", options.idempotencyKey);
 

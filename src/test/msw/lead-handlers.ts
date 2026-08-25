@@ -225,7 +225,7 @@ export function createLeadHandlers(
       if (
         !requireTenant(request, options.organizationId) ||
         !request.headers.has("idempotency-key") ||
-        request.headers.has("if-match")
+        request.headers.has("x-genesis-if-match")
       )
         return HttpResponse.json(
           { statusCode: 400, message: "Invalid create headers" },
@@ -416,7 +416,9 @@ export function createLeadHandlers(
             { statusCode: options.mutationStatus, message: "Mutation failed" },
             { status: options.mutationStatus },
           );
-        if (request.headers.get("if-match") !== `"lead:${testLeadId}:3"`)
+        if (
+          request.headers.get("x-genesis-if-match") !== `"lead:${testLeadId}:3"`
+        )
           return HttpResponse.json(
             { statusCode: 428, message: "If-Match required" },
             { status: 428 },
@@ -453,7 +455,7 @@ export function createLeadHandlers(
             { status: options.mutationStatus },
           );
         if (
-          request.headers.get("if-match") !==
+          request.headers.get("x-genesis-if-match") !==
             `"lead:${testLeadId}:${currentRevision}"` ||
           !request.headers.has("idempotency-key")
         )

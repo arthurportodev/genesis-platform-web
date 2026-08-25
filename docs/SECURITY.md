@@ -35,8 +35,9 @@
   presumir `Retry-After`.
 - Nenhum componente/página executa fetch diretamente.
 - Nenhum token, senha, cookie, bootstrap completo ou PII é registrado.
-- ETag permanece opaco; If-Match e Idempotency-Key são enviados somente quando
-  solicitados pela feature.
+- ETag permanece opaco para o transporte compartilhado; o browser envia o valor
+  condicional somente como `X-Genesis-If-Match`, e Idempotency-Key somente quando
+  solicitado pela feature. `If-Match` padrão nunca sai do browser.
 - Comandos de Lead que combinam concorrência e idempotência exigem ambos os
   headers e nunca aceitam `If-Match: *`. A mesma chave é reutilizada somente
   para uma nova tentativa manual do mesmo payload após resultado remoto incerto,
@@ -109,12 +110,25 @@ públicas e não podem conter segredos. Previews permanecem sem acesso à API e
 nunca apontam para produção. A memória canônica registra disponibilidade de
 proxy, domínio e deploy sem alterar estas invariantes.
 
+O proxy Vite configurado reutiliza o mesmo parser e allowlist condicional da
+Function de produção. Ele rejeita `If-Match` direto, ambiguidade, valor privado
+inválido e smuggling antes de contato upstream; remove toda entrada
+`X-Genesis-*` e cria `If-Match` somente após validação. Sem target, o middleware
+de transporte não é ativado e o `503` local fail-closed permanece autoridade.
+
 Na Vercel, o target é aceito somente quando corresponde exatamente à origem
 canônica. A chave de origem é server-only e jamais é encaminhada à aplicação.
 A Function remove headers forwarded, `X-Vercel-*`, `X-Genesis-*`, hop-by-hop e
 tokens de `Connection`, valida o IP de plataforma canônico e sobrescreve a
-proveniência enviada a Traefik. Responses removem headers internos/cache,
-validam cookies host-only e impedem `Location` de criar bypass direto da API.
+proveniência enviada a Traefik. A única exceção de entrada é o nome exato
+`X-Genesis-If-Match`, aceito apenas em operações condicionais de Lead: valor,
+path, Lead e método são validados fail-closed antes de o proxy remover o header
+privado e criar exatamente um `If-Match` upstream. `If-Match` externo, ambos os
+nomes, duplicata/lista, weak, wildcard, whitespace, controles, revisão fora de
+`bigint` e valor excessivo são rejeitados sem fetch, eco ou telemetria do valor.
+Headers `X-Genesis-*` arbitrários e `X-Genesis-Origin-Key` do cliente continuam
+bloqueados. Responses removem headers internos/cache, validam cookies host-only
+e impedem `Location` de criar bypass direto da API.
 
 ## Controles aprovados para a primeira produção
 

@@ -54,6 +54,7 @@ describe("criação manual de Leads", () => {
       /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u,
     );
     expect(requests[0]?.request.headers.has("if-match")).toBe(false);
+    expect(requests[0]?.request.headers.has("x-genesis-if-match")).toBe(false);
     expect(requests[0]?.body).toEqual({
       displayName: "Lead Manual",
       primaryPhone: "(62) 99999-9999",

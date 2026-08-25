@@ -107,7 +107,7 @@ describe("Pipeline Kanban de Leads", () => {
         onDetail: () => (details += 1),
         onMutation: (request) =>
           calls.push({
-            ifMatch: request.headers.get("if-match"),
+            ifMatch: request.headers.get("x-genesis-if-match"),
             key: request.headers.get("idempotency-key"),
           }),
       }),

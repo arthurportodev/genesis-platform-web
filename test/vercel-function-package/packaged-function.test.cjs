@@ -89,12 +89,21 @@ test("the packaged Vercel Function is a closed, resolvable Node ESM bundle", asy
     );
     const entrypoint = join(bundle, "api", "proxy.js");
     const proxyModule = join(bundle, "src", "server", "api-proxy.js");
+    const transportModule = join(
+      bundle,
+      "src",
+      "shared",
+      "api",
+      "if-match-transport.js",
+    );
     assert.equal(existsSync(entrypoint), true);
     assert.equal(existsSync(proxyModule), true);
+    assert.equal(existsSync(transportModule), true);
     assert.deepEqual(filesBelow(bundle).sort(), [
       "api/proxy.js",
       "package.json",
       "src/server/api-proxy.js",
+      "src/shared/api/if-match-transport.js",
     ]);
 
     const entrypointSource = readFileSync(entrypoint, "utf8");

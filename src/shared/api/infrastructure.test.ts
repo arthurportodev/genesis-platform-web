@@ -1,4 +1,4 @@
-import { asEntityTag, ifMatchHeader } from "@/shared/api/etag";
+import { asEntityTag } from "@/shared/api/etag";
 import { createIdempotencyKey } from "@/shared/api/idempotency";
 import {
   isAuthenticatedQueryKey,
@@ -9,9 +9,7 @@ import {
 describe("infraestrutura HTTP futura", () => {
   it("preserva ETag opaco sem interpretar seu formato", () => {
     const etag = asEntityTag('W/"opaque-revision"');
-    expect(etag && ifMatchHeader(etag)).toEqual({
-      "If-Match": 'W/"opaque-revision"',
-    });
+    expect(etag).toBe('W/"opaque-revision"');
   });
 
   it("gera uma chave por intenção e permite reuso explícito", () => {

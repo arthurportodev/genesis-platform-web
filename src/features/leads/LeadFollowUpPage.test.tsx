@@ -252,7 +252,9 @@ function workHandlers(
           failures -= 1;
           return HttpResponse.error();
         }
-        expect(request.headers.get("if-match")).toBe(leadEtag(testLeadId, "3"));
+        expect(request.headers.get("x-genesis-if-match")).toBe(
+          leadEtag(testLeadId, "3"),
+        );
         if (options.completeStatus === 429) {
           return HttpResponse.json(
             { statusCode: 429, message: "Rate limit", error: "Too Many" },
@@ -284,7 +286,7 @@ function workHandlers(
             key: request.headers.get("idempotency-key"),
             body: await request.json(),
           });
-          expect(request.headers.get("if-match")).toBe(
+          expect(request.headers.get("x-genesis-if-match")).toBe(
             leadEtag(testLeadId, "3"),
           );
           return new HttpResponse(null, {
@@ -296,7 +298,9 @@ function workHandlers(
     ),
     http.patch(`/api/v1/leads/${unassignedId}/assignment`, ({ request }) => {
       expect(request.headers.get("idempotency-key")).toBeNull();
-      expect(request.headers.get("if-match")).toBe(leadEtag(unassignedId, "3"));
+      expect(request.headers.get("x-genesis-if-match")).toBe(
+        leadEtag(unassignedId, "3"),
+      );
       if (assignmentFailures > 0) {
         assignmentFailures -= 1;
         return HttpResponse.error();
@@ -310,7 +314,9 @@ function workHandlers(
       `/api/v1/leads/${returnId}/return-review/dismiss`,
       ({ request }) => {
         expect(request.headers.has("idempotency-key")).toBe(true);
-        expect(request.headers.get("if-match")).toBe(leadEtag(returnId, "3"));
+        expect(request.headers.get("x-genesis-if-match")).toBe(
+          leadEtag(returnId, "3"),
+        );
         dismissed = true;
         return new HttpResponse(null, {
           status: 204,
