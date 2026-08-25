@@ -53,6 +53,11 @@ diferente de HTTPS continuam fail-closed antes do upstream.
 - Headers hop-by-hop fixos e indicados por `Connection` são removidos nos dois
   sentidos. Headers forwarded/internos do cliente são removidos e substituídos
   pela proveniência server-side descrita no ADR-010.
+- O browser nunca envia `If-Match` à Vercel. Operações condicionais de Lead usam
+  `X-Genesis-If-Match`; a Function aceita somente o token forte canônico
+  compatível com método/path, rejeita ambiguidade antes do upstream, remove o
+  header privado e sintetiza exatamente um `If-Match` para a API. A API e sua
+  semântica `200`/ETag ou `412` permanecem inalteradas.
 - `Location` só sobrevive como path relativo em `/api/v1`; cookies exigem
   `Secure`, `Path=/` e ausência de `Domain`.
 - `Cache-Control`, `CDN-Cache-Control` e `Vercel-CDN-Cache-Control` são sempre
@@ -67,10 +72,15 @@ redirects, `Set-Cookie`, ETag, `Location`, rate-limit e os demais headers do
 contrato precisam de verificação ponta a ponta no candidato de publicação.
 O candidato local cobre esses casos adversarialmente; a borda Vercel e os
 cookies do hostname final ainda exigem verificação pós-deploy.
+O comportamento de precondition da Vercel permanece reproduzível no probe
+isolado e elegível para suporte do provedor; o shim local não declara correção
+da plataforma nem observação desta mitigação em produção.
 
 ## Ambientes
 
-- **Local:** proxy Vite para backend local por `GENESIS_API_PROXY_TARGET`.
+- **Local:** proxy Vite para backend local por `GENESIS_API_PROXY_TARGET`, com a
+  mesma política compartilhada que traduz `X-Genesis-If-Match` validado em um
+  único `If-Match` upstream; sem target, permanece `503` fail-closed.
 - **Preview:** interface isolada, `/api/v1` fail-closed e sem acesso à produção.
 - **Production:** Vercel com proxy same-origin para uma origem protegida.
 - **Staging:** somente mediante decisão posterior explícita.

@@ -4,6 +4,26 @@ import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
 import { defineConfig, loadEnv, type Plugin } from "vite";
 
+import { applyLocalIfMatchTransport } from "./src/server/local-if-match-transport.ts";
+
+function ifMatchTransportPlugin(enabled: boolean): Plugin {
+  return {
+    name: "genesis-if-match-transport",
+    configureServer(server) {
+      if (!enabled) return;
+      server.middlewares.use((request, response, next) => {
+        const pathname = new URL(request.url ?? "/", "http://genesis.invalid")
+          .pathname;
+        if (pathname !== "/api/v1" && !pathname.startsWith("/api/v1/")) {
+          next();
+          return;
+        }
+        if (applyLocalIfMatchTransport(request, response, pathname)) next();
+      });
+    },
+  };
+}
+
 function failClosedApiPlugin(enabled: boolean): Plugin {
   return {
     name: "genesis-api-fail-closed",
@@ -58,7 +78,12 @@ export default defineConfig(({ mode }) => {
   );
 
   return {
-    plugins: [react(), tailwindcss(), failClosedApiPlugin(!proxyTarget)],
+    plugins: [
+      react(),
+      tailwindcss(),
+      ifMatchTransportPlugin(Boolean(proxyTarget)),
+      failClosedApiPlugin(!proxyTarget),
+    ],
     resolve: {
       alias: {
         "@": path.resolve(__dirname, "./src"),

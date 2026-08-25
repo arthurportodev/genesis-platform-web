@@ -34,16 +34,22 @@ estrito, timeout combinado com o AbortSignal do caller e taxonomia segura de
 erros. Paths são canonicalizados dentro de `/api/v1`, bodies são limitados e
 HTML em path de API é erro de protocolo. `429` ativa cooldown local. Bearer é lido imediatamente
 antes do dispatch; `X-Organization-Id` aparece somente em requests
-tenant-scoped. ETag, If-Match e Idempotency-Key são opt-in. O descritor
-`conditional-idempotent-mutation` exige os dois headers, rejeita `If-Match: *` e
-mantém a mesma chave em um único replay após refresh.
+tenant-scoped. ETag, concorrência condicional e Idempotency-Key são opt-in. O
+descritor `conditional-idempotent-mutation` exige os dois valores, rejeita
+curinga e mantém a mesma chave em um único replay após refresh. No hop
+browser→Vercel, o valor condicional usa exclusivamente
+`X-Genesis-If-Match`; a Function valida o token forte de Lead e materializa
+exatamente um `If-Match` somente no request upstream para a API.
 
 No desenvolvimento, o Vite lê `GENESIS_API_PROXY_TARGET` sem prefixo
 `VITE_` e aceita somente origem HTTP(S) sem credenciais ou path. Ausência do
-target responde fail-closed. Em produção, uma entrypoint Node.js 24 executa a
-Function apenas no hostname final e em `VERCEL_ENV=production`; rotas explícitas
-encaminham `/api/v1`, bloqueiam o nome físico da Function e só então permitem o
-fallback da SPA.
+target responde fail-closed. Quando o target existe, um middleware server-side
+do Vite aplica a mesma política compartilhada de transporte condicional da
+Function: rejeita entrada inválida/ambígua, remove `X-Genesis-*` e materializa
+`If-Match` antes do proxy local. Em produção, uma entrypoint Node.js 24 executa
+a Function apenas no hostname final e em `VERCEL_ENV=production`; rotas
+explícitas encaminham `/api/v1`, bloqueiam o nome físico da Function e só então
+permitem o fallback da SPA.
 
 ## Arquitetura alvo de produção
 
@@ -68,6 +74,13 @@ Preview falha fechado. Cookies permanecem host-only; método, query, body,
 status, cookies e headers contratuais são preservados sob limites explícitos.
 Redirects só retornam paths relativos de API e todas as responses são
 `no-store` para browser e CDN.
+
+`X-Genesis-If-Match` é uma exceção nominada e restrita à remoção genérica da
+família `X-Genesis-*`: somente métodos e paths condicionais de Lead aceitam o
+header. A Function rejeita `If-Match` externo, presença simultânea, duplicatas,
+listas, weak/wildcard, valores fora do contrato e token cujo Lead diverge do
+path; o header privado nunca alcança a API. Status `200`/ETag nova e `412`
+legítimo da API atravessam a resposta sem reinterpretação pela aplicação.
 
 A ordem de implementação, os nomes finais e a satisfação dos gates pertencem à
 memória canônica da API. Este documento preserva somente a fronteira técnica:
@@ -116,8 +129,9 @@ independente por estágio para continuações. Filtros e cursores ficam somente 
 memória; todo fetch recebe AbortSignal. Páginas são deduplicadas por `id`, maior
 `revision` e `asOf`, sem recalcular totais do backend. O movimento é
 server-confirmed: usa ETag de detalhe exatamente compatível ou faz novo GET,
-envia If-Match e Idempotency-Key vinculada à revisão de origem e relê o Kanban
-completo após sucesso. Não há drag-and-drop, polling ou atualização otimista.
+envia o valor condicional e Idempotency-Key vinculada à revisão de origem e relê
+o Kanban completo após sucesso. O proxy materializa `If-Match` apenas no hop
+server-side para a API. Não há drag-and-drop, polling ou atualização otimista.
 
 O Follow-up usa a sub-raiz tenant-scoped `leads/work` e infinite queries
 independentes para Minhas ações, Sem responsável e Retornos para revisão.

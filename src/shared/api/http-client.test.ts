@@ -1,6 +1,7 @@
 import {
   createAuthenticatedHttpClient,
   createBaseHttpClient,
+  GENESIS_IF_MATCH_HEADER,
 } from "@/shared/api/http-client";
 import { AppError } from "@/shared/api/errors";
 
@@ -53,7 +54,37 @@ describe("cliente HTTP base", () => {
     expect(headers.get("X-Organization-Id")).toBe(
       "00000000-0000-4000-8000-000000000001",
     );
-    expect(headers.get("If-Match")).toBe('"revision-1"');
+    expect(headers.get(GENESIS_IF_MATCH_HEADER)).toBe('"revision-1"');
+    expect(headers.has("If-Match")).toBe(false);
+  });
+
+  it("transporta concorrência e idempotência em headers distintos", async () => {
+    const fetch = vi
+      .fn<typeof globalThis.fetch>()
+      .mockResolvedValue(jsonResponse({ ok: true }));
+    const client = createBaseHttpClient({ fetch });
+
+    await client.request(
+      "/api/v1/leads/00000000-0000-4000-8000-000000000001/move",
+      {
+        kind: "conditional-idempotent-mutation",
+        method: "POST",
+        body: { stage: "QUALIFIED" },
+        accessToken: "synthetic-access-token",
+        organizationId: "00000000-0000-4000-8000-000000000001",
+        ifMatch: '"lead:00000000-0000-4000-8000-000000000001:7"',
+        idempotencyKey: "00000000-0000-4000-8000-000000000002",
+      },
+    );
+
+    const headers = new Headers(fetch.mock.calls[0][1]?.headers);
+    expect(headers.get(GENESIS_IF_MATCH_HEADER)).toBe(
+      '"lead:00000000-0000-4000-8000-000000000001:7"',
+    );
+    expect(headers.has("If-Match")).toBe(false);
+    expect(headers.get("Idempotency-Key")).toBe(
+      "00000000-0000-4000-8000-000000000002",
+    );
   });
 
   it("retorna undefined em 204 e rejeita HTML ou paths absolutos", async () => {

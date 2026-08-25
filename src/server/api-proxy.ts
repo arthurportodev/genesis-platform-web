@@ -1,5 +1,12 @@
 import { isIP } from "node:net";
 
+import {
+  GENESIS_IF_MATCH_HEADER_LOWER,
+  parseConnectionHeaderTokens,
+  resolveGenesisIfMatchTransport,
+  type IfMatchTransportRejection,
+} from "../shared/api/if-match-transport.js";
+
 const PRODUCTION_FRONTEND_HOST = "app.agenciagenesismkt.com.br";
 const PRODUCTION_API_ORIGIN = "https://api.agenciagenesismkt.com.br";
 const API_PREFIX = "/api/v1";
@@ -40,8 +47,6 @@ const CLIENT_IP_ALIAS_HEADERS = new Set([
   "x-proxyuser-ip",
 ]);
 
-const TOKEN = /^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$/u;
-
 class BodyLimitExceeded extends Error {}
 
 function hasUnsafeAscii(value: string, includeSpace: boolean): boolean {
@@ -65,9 +70,9 @@ export interface ProxyDependencies {
 }
 
 export type ProxyRejectionReason =
+  | IfMatchTransportRejection
   | "client_ip_unavailable"
   | "configuration_unavailable"
-  | "connection_header_invalid"
   | "environment_not_production"
   | "forwarded_host_mismatch"
   | "forwarded_proto_mismatch"
@@ -292,21 +297,6 @@ export function canonicalizeVercelClientIp(value: string): string | null {
   return null;
 }
 
-function parseConnectionTokens(headers: Headers): Set<string> | null {
-  const dynamic = new Set<string>();
-  const connection = headers.get("connection");
-  if (!connection) return dynamic;
-  if (connection.length > 1_024 || hasUnsafeAscii(connection, false)) {
-    return null;
-  }
-  for (const rawToken of connection.split(",")) {
-    const token = rawToken.trim().toLowerCase();
-    if (!TOKEN.test(token)) return null;
-    dynamic.add(token);
-  }
-  return dynamic;
-}
-
 function parseContentLength(headers: Headers): number | null | undefined {
   const value = headers.get("content-length");
   if (value === null) return undefined;
@@ -457,6 +447,7 @@ function buildUpstreamHeaders(
   originKey: string,
   clientIp: string,
   dynamic: Set<string>,
+  ifMatch: string | undefined,
 ): Headers {
   const headers = new Headers();
   for (const [name, value] of request.headers) {
@@ -480,6 +471,7 @@ function buildUpstreamHeaders(
     headers.append(name, value);
   }
   headers.set("Accept-Encoding", "identity");
+  if (ifMatch) headers.set("If-Match", ifMatch);
   headers.set("X-Genesis-Origin-Key", originKey);
   headers.set("X-Genesis-Client-IP", clientIp);
   return headers;
@@ -529,7 +521,11 @@ export function rewriteSafeLocation(value: string): string | null {
 }
 
 function buildResponseHeaders(upstream: Response): Headers | null {
-  const dynamic = parseConnectionTokens(upstream.headers);
+  const dynamic = parseConnectionHeaderTokens(
+    upstream.headers.has("connection")
+      ? upstream.headers.get("connection")
+      : null,
+  );
   if (dynamic === null) return null;
   if (dynamic.has("set-cookie")) return null;
   const contentEncoding = upstream.headers.get("content-encoding");
@@ -621,6 +617,30 @@ export async function handleApiProxy(
     );
   }
 
+  const ifMatchTransport = resolveGenesisIfMatchTransport({
+    method: request.method,
+    pathname: publicApiUrl.pathname,
+    directIfMatch: request.headers.has("if-match")
+      ? request.headers.get("if-match")
+      : null,
+    genesisIfMatch: request.headers.has(GENESIS_IF_MATCH_HEADER_LOWER)
+      ? request.headers.get(GENESIS_IF_MATCH_HEADER_LOWER)
+      : null,
+    connection: request.headers.has("connection")
+      ? request.headers.get("connection")
+      : null,
+  });
+  if (ifMatchTransport.rejection) {
+    return rejectProxyRequest(
+      request,
+      environment,
+      dependencies,
+      requestUrl,
+      ifMatchTransport.rejection,
+      400,
+    );
+  }
+
   const configuration = resolveConfiguration(environment);
   if (!configuration) {
     return rejectProxyRequest(
@@ -632,17 +652,7 @@ export async function handleApiProxy(
       503,
     );
   }
-  const dynamic = parseConnectionTokens(request.headers);
-  if (dynamic === null) {
-    return rejectProxyRequest(
-      request,
-      environment,
-      dependencies,
-      requestUrl,
-      "connection_header_invalid",
-      400,
-    );
-  }
+  const dynamic = new Set(ifMatchTransport.connectionTokens);
   const forwardedFor = request.headers.get("x-vercel-forwarded-for");
   const clientIp = forwardedFor
     ? canonicalizeVercelClientIp(forwardedFor)
@@ -716,6 +726,7 @@ export async function handleApiProxy(
         configuration.originKey,
         clientIp,
         dynamic,
+        ifMatchTransport.ifMatch,
       ),
       body,
       redirect: "manual",

@@ -7,6 +7,8 @@ import { randomBytes, randomUUID } from "node:crypto";
 import { readFile, stat } from "node:fs/promises";
 import path from "node:path";
 
+import { applyLocalIfMatchTransport } from "../../src/server/local-if-match-transport.js";
+
 const host = "127.0.0.1";
 const port = 4173;
 const dist = path.resolve(process.cwd(), "dist");
@@ -1051,6 +1053,9 @@ export async function startWebSessionServer() {
         return;
       }
       if (url.pathname.startsWith("/api/v1/")) {
+        if (!applyLocalIfMatchTransport(request, response, url.pathname)) {
+          return;
+        }
         await handleApi(request, response, url.pathname);
         return;
       }

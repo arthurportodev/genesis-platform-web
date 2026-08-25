@@ -6,6 +6,7 @@ import {
   rewriteSafeLocation,
   type ProxyEnvironment,
 } from "./api-proxy";
+import { validateGenesisIfMatch } from "@/shared/api/if-match-transport";
 
 const environment: ProxyEnvironment = {
   VERCEL_ENV: "production",
@@ -354,6 +355,7 @@ describe("Vercel same-origin API proxy", () => {
       expect(headers.get("x-client-ip")).toBeNull();
       expect(headers.get("x-envoy-external-address")).toBeNull();
       expect(headers.get("x-client-internal")).toBeNull();
+      expect(headers.get("x-genesis-unrelated")).toBeNull();
       expect(headers.get("x-genesis-origin-key")).toBe("A".repeat(43));
       expect(headers.get("x-genesis-client-ip")).toBe("203.0.113.9");
       expect(headers.get("accept-encoding")).toBe("identity");
@@ -376,6 +378,7 @@ describe("Vercel same-origin API proxy", () => {
           "X-Envoy-External-Address": "198.51.100.85",
           "X-Genesis-Origin-Key": "client-forgery",
           "X-Genesis-Client-IP": "198.51.100.79",
+          "X-Genesis-Unrelated": "must-be-removed",
           Connection: "X-Client-Internal, keep-alive",
           "X-Client-Internal": "must-be-removed",
         },
@@ -386,6 +389,202 @@ describe("Vercel same-origin API proxy", () => {
     );
     expect(response.status).toBe(201);
     await expect(response.json()).resolves.toEqual({ ok: true });
+  });
+
+  it("translates the private concurrency header exactly once and preserves idempotency", async () => {
+    const leadId = "00000000-0000-4000-8000-000000000001";
+    const etag = `"lead:${leadId}:7"`;
+    const idempotencyKey = "00000000-0000-4000-8000-000000000002";
+    const fetch = vi.fn((_input: URL | RequestInfo, init?: RequestInit) => {
+      const headers = new Headers(init?.headers);
+      expect(headers.get("if-match")).toBe(etag);
+      expect(headers.get("x-genesis-if-match")).toBeNull();
+      expect(headers.get("idempotency-key")).toBe(idempotencyKey);
+      return Promise.resolve(
+        Response.json(
+          { ok: true },
+          { status: 200, headers: { ETag: `"lead:${leadId}:8"` } },
+        ),
+      );
+    });
+
+    const response = await handleApiProxy(
+      productionRequest(`/api/v1/leads/${leadId}/move`, {
+        method: "POST",
+        headers: {
+          "X-Genesis-If-Match": etag,
+          "Idempotency-Key": idempotencyKey,
+        },
+        body: JSON.stringify({ stage: "QUALIFIED" }),
+      }),
+      environment,
+      { fetch },
+    );
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("etag")).toBe(`"lead:${leadId}:8"`);
+    expect(response.headers.get("cache-control")).toBe("no-store");
+    expect(fetch).toHaveBeenCalledOnce();
+  });
+
+  it("preserves a 412 response and its ETag through the transport shim", async () => {
+    const leadId = "00000000-0000-4000-8000-000000000001";
+    const response = await handleApiProxy(
+      productionRequest(`/api/v1/leads/${leadId}`, {
+        method: "PATCH",
+        headers: {
+          "X-Genesis-If-Match": `"lead:${leadId}:6"`,
+        },
+        body: JSON.stringify({ name: "stale" }),
+      }),
+      environment,
+      {
+        fetch: vi.fn(() =>
+          Promise.resolve(
+            Response.json(
+              { statusCode: 412, message: "Precondition failed" },
+              { status: 412, headers: { ETag: `"lead:${leadId}:7"` } },
+            ),
+          ),
+        ),
+      },
+    );
+
+    expect(response.status).toBe(412);
+    expect(response.headers.get("etag")).toBe(`"lead:${leadId}:7"`);
+    expect(response.headers.get("cache-control")).toBe("no-store");
+  });
+
+  it.each([
+    ["direct", { "If-Match": '"synthetic"' }],
+    [
+      "ambiguous",
+      {
+        "If-Match": '"synthetic"',
+        "X-Genesis-If-Match": '"lead:00000000-0000-4000-8000-000000000001:1"',
+      },
+    ],
+    [
+      "wrong route",
+      {
+        "X-Genesis-If-Match": '"lead:00000000-0000-4000-8000-000000000001:1"',
+      },
+    ],
+  ])("rejects %s If-Match transport before upstream", async (kind, headers) => {
+    const fetch = vi.fn();
+    const path =
+      kind === "wrong route"
+        ? "/api/v1/auth/logout"
+        : "/api/v1/leads/00000000-0000-4000-8000-000000000001";
+    const response = await handleApiProxy(
+      productionRequest(path, { method: "POST", headers, body: "{}" }),
+      environment,
+      { fetch, log: vi.fn() },
+    );
+
+    expect(response.status).toBe(400);
+    expect(response.headers.get("cache-control")).toBe("no-store");
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it("rejects duplicate private values and a private header on the wrong method", async () => {
+    const leadId = "00000000-0000-4000-8000-000000000001";
+    const headers = new Headers();
+    headers.append("X-Genesis-If-Match", `"lead:${leadId}:1"`);
+    headers.append("X-Genesis-If-Match", `"lead:${leadId}:2"`);
+    const fetch = vi.fn();
+    const duplicate = await handleApiProxy(
+      productionRequest(`/api/v1/leads/${leadId}`, {
+        method: "PATCH",
+        headers,
+        body: "{}",
+      }),
+      environment,
+      { fetch, log: vi.fn() },
+    );
+    const wrongMethod = await handleApiProxy(
+      productionRequest(`/api/v1/leads/${leadId}`, {
+        method: "DELETE",
+        headers: {
+          "X-Genesis-If-Match": `"lead:${leadId}:1"`,
+        },
+      }),
+      environment,
+      { fetch, log: vi.fn() },
+    );
+
+    expect(duplicate.status).toBe(400);
+    expect(wrongMethod.status).toBe(400);
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it("rejects Connection-nominated transport headers as smuggling ambiguity", async () => {
+    const leadId = "00000000-0000-4000-8000-000000000001";
+    const fetch = vi.fn();
+    const response = await handleApiProxy(
+      productionRequest(`/api/v1/leads/${leadId}`, {
+        method: "PATCH",
+        headers: {
+          Connection: "X-Genesis-If-Match",
+          "X-Genesis-If-Match": `"lead:${leadId}:1"`,
+        },
+        body: "{}",
+      }),
+      environment,
+      { fetch, log: vi.fn() },
+    );
+
+    expect(response.status).toBe(400);
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it("does not echo or log an invalid private transport value", async () => {
+    const marker = "private-if-match-marker-never-log";
+    const fetch = vi.fn();
+    const log = vi.fn();
+    const response = await handleApiProxy(
+      productionRequest("/api/v1/leads/00000000-0000-4000-8000-000000000001", {
+        method: "PATCH",
+        headers: { "X-Genesis-If-Match": marker },
+        body: "{}",
+      }),
+      environment,
+      { fetch, log },
+    );
+
+    expect(response.status).toBe(400);
+    expect(await response.text()).not.toContain(marker);
+    expect(JSON.stringify(log.mock.calls)).not.toContain(marker);
+    expect(log).toHaveBeenCalledOnce();
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    'W/"lead:00000000-0000-4000-8000-000000000001:1"',
+    "*",
+    '"lead:00000000-0000-4000-8000-000000000001:1", "other"',
+    ' "lead:00000000-0000-4000-8000-000000000001:1"',
+    '"lead:00000000-0000-4000-8000-000000000001:01"',
+    '"lead:00000000-0000-4000-8000-000000000001:-1"',
+    '"lead:00000000-0000-4000-8000-000000000001:9223372036854775808"',
+    '"lead:00000000-0000-4000-8000-000000000002:1"',
+    '"LEAD:00000000-0000-4000-8000-000000000001:1"',
+    '"lead:not-a-uuid:1"',
+    '"lead:00000000-0000-4000-8000-000000000001:1"\r\nInjected: yes',
+    `"lead:00000000-0000-4000-8000-000000000001:${"9".repeat(64)}"`,
+  ])("rejects invalid private If-Match value %s", (value) => {
+    expect(
+      validateGenesisIfMatch(value, "00000000-0000-4000-8000-000000000001"),
+    ).toBe(false);
+  });
+
+  it("allows the full PostgreSQL bigint boundary", () => {
+    expect(
+      validateGenesisIfMatch(
+        '"lead:00000000-0000-4000-8000-000000000001:9223372036854775807"',
+        "00000000-0000-4000-8000-000000000001",
+      ),
+    ).toBe(true);
   });
 
   it("preserves separate secure host-only cookies and contractual headers", async () => {
