@@ -30,6 +30,10 @@
 - `ADR-012-vercel-if-match-transport-shim.md`: transporta a precondition do
   browser em header privado estrito e materializa `If-Match` somente no hop
   server-side proxy→API; Proposed para o candidato local de 2026-08-25.
+- `ADR-013-pipeline-experience-v2.md`: define a arquitetura de experiência do
+  Pipeline V2, movimento DnD pela intenção existente, fallback acessível,
+  quick create, detalhe URL-backed e fronteira para estágios futuros; Proposed
+  para Gate 1, sem implementação.
 
 ADRs são imutáveis depois de substituídas. Uma mudança relevante deve criar uma
 nova decisão e apontar qual documento anterior foi superado.

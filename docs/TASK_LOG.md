@@ -309,3 +309,20 @@ If-Match.` antes da regra de negócio.
   agora encerra a sessão e remove o cache antes do estado anônimo.
 - Limites: API, `CURRENT_STATE` Web, features, transporte, proxy, dependências,
   CI, infraestrutura e produção permanecem inalterados.
+
+## Pipeline Experience V2 — Fase 0 Web
+
+- Classe/perfil: Critical / critical.
+- Base Web: `017ef0056d97147a5e5337494fa339a3f65986ac`.
+- API autoritativa read-only:
+  `4dfa0dc4ade7ba7c8b81156dcb373b81a51b3698`.
+- Estado: candidato documental local para Gate 1; nenhuma feature, dependência,
+  alteração de contrato runtime ou publicação.
+- Decisão candidata: DnD desktop reutiliza a intenção server-confirmed atual,
+  fallback acessível e mobile permanecem, quick create usa sheet e o detalhe
+  posterior é URL-backed; cinco estágios continuam canônicos por uma fronteira
+  ordenada sem migração dinâmica nesta fase.
+- Limites: sorting, sidebar global, PipelineStage, produto, Vercel e estado
+  remoto permanecem inalterados.
+- Operação: manifesto e Task Packet V2 ignorados; fallback documental aplicado
+  porque as Skills Genesis não estavam expostas pelo runtime.
