@@ -3,7 +3,7 @@
   "authorityRepository": "arthurportodev/genesis-platform-api",
   "upstream": {
     "repository": "arthurportodev/genesis-platform-api",
-    "commitSha": "ad8e36772bed7910c2d484255ce2c806024ce04d"
+    "commitSha": "43d45d68ccf6f6663334c18a660a4608ac304507"
   },
   "files": [
     {
@@ -13,6 +13,14 @@
     {
       "path": ".agents/skills/genesis-task-orchestrator/agents/openai.yaml",
       "sha256": "50fc2078dcaf27c721f962b1df323a49b3bc02104136499ef7e11b75d11db97f"
+    },
+    {
+      "path": ".agents/skills/genesis-frontend-product-engineer/SKILL.md",
+      "sha256": "d5a79c0eadd9debc4600ac4fca120d7851725695f31e28ab740c8d658797bc6f"
+    },
+    {
+      "path": ".agents/skills/genesis-frontend-product-engineer/agents/openai.yaml",
+      "sha256": "505c0b5da0bcec3a6c53d934334da94b4ed8a9c37c5546de240a229441def75d"
     },
     {
       "path": ".agents/skills/genesis-independent-verifier/SKILL.md",

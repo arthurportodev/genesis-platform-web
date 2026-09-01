@@ -42,6 +42,11 @@ humanas.
    runtime não suportar Skills, aplique os mesmos documentos, schemas e scripts
    como fallback obrigatório.
 
+Quando o delta envolver frontend, produto ou experiência, aplique
+`$genesis-frontend-product-engineer` como lente especializada do Builder. Sua
+projeção local é derivada da autoridade API declarada no contract set; ela não é
+memória, papel operacional nem fonte editável de produto.
+
 ## Gates e Git
 
 - Gate 1 aprova arquitetura e contrato antes da implementação quando a tarefa
@@ -57,8 +62,9 @@ humanas.
 - Operações Git remotas são serializadas por um único operador. Correções
   descobertas durante a entrega retornam ao builder, à validação e ao verifier;
   não são aplicadas diretamente no fluxo remoto.
-- A invocação das duas Skills é explícita em tarefas Critical; presença dos
-  arquivos repo-local não conta como execução.
+- Orchestrator e Verifier são explicitamente invocados em tarefas Critical; a
+  lente de frontend é aplicada quando o delta exigir. Presença dos arquivos
+  repo-local não conta como execução de nenhuma Skill.
 - Um finding Critical sempre interrompe. Um finding High só pode ser corrigido
   autonomamente quando todo o predicado de autonomia estruturado estiver
   satisfeito, com teste de regressão, validação final Critical, novo candidato e

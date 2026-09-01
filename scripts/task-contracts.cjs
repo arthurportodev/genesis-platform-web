@@ -16,8 +16,12 @@ const CONTRACT_SCHEMAS = [
   'handoff.v1.schema.json',
   'evidence-manifest.v1.schema.json',
 ];
-const SKILLS = ['genesis-task-orchestrator', 'genesis-independent-verifier'];
-const UPSTREAM_COMMIT_SHA = 'ad8e36772bed7910c2d484255ce2c806024ce04d';
+const SKILLS = [
+  'genesis-task-orchestrator',
+  'genesis-frontend-product-engineer',
+  'genesis-independent-verifier',
+];
+const UPSTREAM_COMMIT_SHA = '43d45d68ccf6f6663334c18a660a4608ac304507';
 const SHARED_CONTRACT_FILES = [
   ...SKILLS.flatMap((name) => [
     `.agents/skills/${name}/SKILL.md`,

@@ -4,6 +4,9 @@ Em tarefa Critical, comece com `$genesis-task-orchestrator`. Depois que o
 candidato estiver estável e validado, use `$genesis-independent-verifier` em
 execução independente e estritamente read-only. Sem suporte a Skills, declare o
 fallback e aplique os mesmos schemas, scripts, Gates e evidências.
+Quando o delta envolver frontend, produto ou experiência, aplique
+`$genesis-frontend-product-engineer` como lente do Builder, sem promovê-la a
+papel ou autoridade e sem ampliar as fontes além do delta.
 
 ## Implementação
 
