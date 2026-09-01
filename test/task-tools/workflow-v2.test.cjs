@@ -35,6 +35,7 @@ test('documents explicit Critical Skill invocation and fallback', () => {
   const workflow = read('docs/DEVELOPMENT_WORKFLOW.md');
   for (const name of [
     '$genesis-task-orchestrator',
+    '$genesis-frontend-product-engineer',
     '$genesis-independent-verifier',
   ]) {
     assert.match(agents, new RegExp(`\\${name}`, 'u'));
@@ -42,8 +43,11 @@ test('documents explicit Critical Skill invocation and fallback', () => {
   }
   assert.match(
     agents,
-    /invocação das duas\s+Skills é explícita em tarefas Critical/u,
+    /Orchestrator e Verifier são explicitamente\s+invocados em tarefas Critical/u,
   );
+  assert.match(agents, /lente de frontend é aplicada quando o delta exigir/u);
+  assert.match(workflow, /três Skills/u);
+  assert.match(workflow, /projeção tracked derivada do upstream API/u);
   assert.match(workflow, /dual-read/u);
 });
 

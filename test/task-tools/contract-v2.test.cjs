@@ -1,8 +1,21 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { readFileSync } = require('node:fs');
+const {
+  cpSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  unlinkSync,
+  writeFileSync,
+} = require('node:fs');
+const { tmpdir } = require('node:os');
+const { dirname, join } = require('node:path');
 const {
   ContractValidationError,
+  SHARED_CONTRACT_FILES,
+  SKILLS,
+  UPSTREAM_COMMIT_SHA,
   candidateIdFor,
   validateEvidenceManifest,
   validateFinding,
@@ -14,6 +27,21 @@ const {
 
 const HASH = 'a'.repeat(64);
 const SHA = 'b'.repeat(40);
+
+function contractFixture(t) {
+  const root = mkdtempSync(join(tmpdir(), 'genesis-web-contract-'));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  for (const path of [
+    ...SHARED_CONTRACT_FILES,
+    '.codex/task-manifest.example.json',
+    'schemas/development-operations/contract-set.json',
+  ]) {
+    const target = join(root, ...path.split('/'));
+    mkdirSync(dirname(target), { recursive: true });
+    cpSync(join(process.cwd(), ...path.split('/')), target);
+  }
+  return root;
+}
 
 function finding(overrides = {}) {
   return {
@@ -437,5 +465,87 @@ test('validates the canonical repository contract set', () => {
   const result = validateRepositoryContracts({ cwd: process.cwd() });
   assert.equal(result.status, 'passed');
   assert.equal(result.schemas, 5);
-  assert.equal(result.skills, 2);
+  assert.equal(result.skills, 3);
+  assert.equal(result.upstreamCommitSha, UPSTREAM_COMMIT_SHA);
+  assert.deepEqual(SKILLS, [
+    'genesis-task-orchestrator',
+    'genesis-frontend-product-engineer',
+    'genesis-independent-verifier',
+  ]);
+});
+
+test('binds the frontend Skill projection to the exact API authority', () => {
+  const contract = JSON.parse(
+    readFileSync('schemas/development-operations/contract-set.json', 'utf8'),
+  );
+  assert.equal(
+    contract.authorityRepository,
+    'arthurportodev/genesis-platform-api',
+  );
+  assert.equal(contract.upstream.repository, contract.authorityRepository);
+  assert.equal(contract.upstream.commitSha, UPSTREAM_COMMIT_SHA);
+  assert.deepEqual(
+    contract.files
+      .filter((entry) =>
+        entry.path.startsWith(
+          '.agents/skills/genesis-frontend-product-engineer/',
+        ),
+      )
+      .map((entry) => entry.path),
+    [
+      '.agents/skills/genesis-frontend-product-engineer/SKILL.md',
+      '.agents/skills/genesis-frontend-product-engineer/agents/openai.yaml',
+    ],
+  );
+});
+
+test('rejects a missing or divergent frontend Skill projection', (t) => {
+  const missing = contractFixture(t);
+  unlinkSync(
+    join(
+      missing,
+      '.agents',
+      'skills',
+      'genesis-frontend-product-engineer',
+      'SKILL.md',
+    ),
+  );
+  assert.throws(
+    () => validateRepositoryContracts({ cwd: missing }),
+    /could not be read|could not be validated/u,
+  );
+
+  const divergent = contractFixture(t);
+  writeFileSync(
+    join(
+      divergent,
+      '.agents',
+      'skills',
+      'genesis-frontend-product-engineer',
+      'agents',
+      'openai.yaml',
+    ),
+    'drift\n',
+  );
+  assert.throws(
+    () => validateRepositoryContracts({ cwd: divergent }),
+    /contract hash mismatch/u,
+  );
+});
+
+test('rejects a contract set bound to another API upstream', (t) => {
+  const root = contractFixture(t);
+  const path = join(
+    root,
+    'schemas',
+    'development-operations',
+    'contract-set.json',
+  );
+  const contract = JSON.parse(readFileSync(path, 'utf8'));
+  contract.upstream.commitSha = '0'.repeat(40);
+  writeFileSync(path, `${JSON.stringify(contract, null, 2)}\n`);
+  assert.throws(
+    () => validateRepositoryContracts({ cwd: root }),
+    /upstream identity mismatch/u,
+  );
 });

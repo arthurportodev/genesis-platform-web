@@ -75,9 +75,10 @@ O Task Manifest usa `contractVersion: 2.0.0`, mas o parser mantém dual-read de
 V1/V2. O V2 declara níveis de validação, fontes de reidratação, gatilhos de
 expansão, envelope de autonomia, artefatos estruturados e o conjunto canônico.
 
-`npm run task:contracts` valida os cinco schemas, as duas Skills, o
-manifesto-exemplo, o commit upstream e os hashes de paridade. O fingerprint V2
-separa:
+`npm run task:contracts` valida os cinco schemas, as três Skills, o
+manifesto-exemplo, o commit upstream e os hashes de paridade. No Web, a Skill de
+frontend permanece projeção tracked derivada do upstream API declarado; somente
+a API é autoridade editável. O fingerprint V2 separa:
 
 - `contentFingerprint`: path, tipo Git, modo efetivo e conteúdo após o clean
   filter;

@@ -28,6 +28,20 @@ qualquer finding Critical. Em tarefas Critical, invoque
 `$genesis-independent-verifier`. O fallback sem Skills preserva exatamente os
 mesmos contratos em `AGENTS.md`, schemas e scripts.
 
+Para um delta frontend, não pré-carregue todo o programa. Resolva na ordem:
+
+1. Task Packet e Manifest;
+2. ADR diretamente relacionado;
+3. [PIPELINE_EXPERIENCE_V2.md](PIPELINE_EXPERIENCE_V2.md), somente para
+   `PIPE-V2`;
+4. [FRONTEND_EXPERIENCE_DIRECTION.md](FRONTEND_EXPERIENCE_DIRECTION.md), quando
+   houver decisão de UX;
+5. Product Direction canônica da API, somente quando houver decisão de produto
+   ou escopo.
+
+`$genesis-frontend-product-engineer` aplica uma lente especializada sobre essas
+fontes; não substitui nenhuma delas nem amplia o delta autorizado.
+
 ## Regra de honestidade operacional
 
 Código e testes sustentam capacidades implementadas; ADRs sustentam decisões;
