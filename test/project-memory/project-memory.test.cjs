@@ -20,6 +20,8 @@ const SCRIPT = join(REPOSITORY_ROOT, "scripts", "validate-project-memory.cjs");
 const POINTER = "docs/memory/project-state.pointer.v1.json";
 const SCHEMA = "schemas/genesis-harness/project-state.pointer.v1.schema.json";
 const BRIDGE = "docs/CURRENT_STATE.md";
+const RECEIPT_TARGET_STATE_REVISION = "MVP-10D-WEB-INTEGRATED-2026-08-24";
+const WEB_RELEASE_REVISION = "017ef0056d97147a5e5337494fa339a3f65986ac";
 const FIXTURES = [];
 
 function fixture() {
@@ -74,7 +76,11 @@ function expectApiAuthorityOnlyNextAction(execution) {
 
 function authority(
   memoryRevision,
-  stateRevision = "MVP-10D-WEB-INTEGRATED-2026-08-24",
+  {
+    stateRevision = "LATER-TEMPORAL-REVISION-2026-08-26",
+    releaseBinding = WEB_RELEASE_REVISION,
+    pointerTargetStateRevision = RECEIPT_TARGET_STATE_REVISION,
+  } = {},
 ) {
   return {
     schemaVersion: "1.0.0",
@@ -94,7 +100,15 @@ function authority(
         memoryRevision: { kind: "commit", sha: memoryRevision },
       },
     ],
-    releaseBindings: { webIntegratedRevision: memoryRevision },
+    releaseBindings: { webIntegratedRevision: releaseBinding },
+    pointerMetadata: {
+      repository: "arthurportodev/genesis-platform-web",
+      path: POINTER,
+      schemaVersion: "1.0.0",
+      mode: "pointer-only",
+      transitionId: "MVP-10E-CROSS-REPO",
+      targetStateRevision: pointerTargetStateRevision,
+    },
   };
 }
 
@@ -366,17 +380,18 @@ test("reports authority unavailable and transition pending together", () => {
   assert.equal(execution.result.staleFallbackUsed, false);
 });
 
-test("reports a receipt whose target revision is not activated", () => {
+test("rejects authority metadata that does not acknowledge the historical receipt", () => {
   const root = fixture();
   const source = join(root, "authority.json");
   writeJson(
     root,
-    authority("a".repeat(40), "MVP-10B-LIVE-2026-08-21"),
+    authority("a".repeat(40), {
+      pointerTargetStateRevision: "MVP-10B-LIVE-2026-08-21",
+    }),
     "authority.json",
   );
   const execution = run(root, ["--mode", "resolve", "--api-source", source]);
-  expectCode(execution, "MEMORY_TRANSITION_PENDING");
-  assert.equal(execution.result.authorityResolved, true);
+  expectCode(execution, "MEMORY_POINTER_MISMATCH");
 });
 
 test("reports a mismatched Web memoryRevision", () => {
@@ -390,7 +405,7 @@ test("reports a mismatched Web memoryRevision", () => {
   assert.equal(execution.result.actualMemoryRevision, commit);
 });
 
-test("resolves a compatible authority at the clean containing commit", () => {
+test("resolves distinct pointer, release and later temporal revisions", () => {
   const root = fixture();
   const commit = initializeGit(root);
   const source = join(root, "authority.json");
@@ -399,7 +414,35 @@ test("resolves a compatible authority at the clean containing commit", () => {
   assert.equal(execution.status, 0, execution.stderr);
   assert.equal(execution.result.code, "MEMORY_RESOLVED");
   assert.equal(execution.result.webMemoryRevision, commit);
+  assert.equal(execution.result.webIntegratedRevision, WEB_RELEASE_REVISION);
+  assert.equal(
+    execution.result.receiptTargetStateRevision,
+    RECEIPT_TARGET_STATE_REVISION,
+  );
+  assert.equal(
+    execution.result.stateRevision,
+    "LATER-TEMPORAL-REVISION-2026-08-26",
+  );
+  assert.notEqual(commit, WEB_RELEASE_REVISION);
+  assert.notEqual(
+    execution.result.stateRevision,
+    RECEIPT_TARGET_STATE_REVISION,
+  );
   assert.equal(execution.result.staleFallbackUsed, false);
+});
+
+test("keeps authority at the historical receipt target backward compatible", () => {
+  const root = fixture();
+  const commit = initializeGit(root);
+  const source = join(root, "authority.json");
+  writeJson(
+    root,
+    authority(commit, { stateRevision: RECEIPT_TARGET_STATE_REVISION }),
+    "authority.json",
+  );
+  const execution = run(root, ["--mode", "resolve", "--api-source", source]);
+  assert.equal(execution.status, 0, execution.stderr);
+  assert.equal(execution.result.code, "MEMORY_RESOLVED");
 });
 
 test("does not resolve an uncommitted pointer", () => {
@@ -415,15 +458,17 @@ test("does not resolve an uncommitted pointer", () => {
   assert.equal(execution.result.transitionPending, true);
 });
 
-test("rejects divergent API Web bindings", () => {
+test("rejects an unauthorized Web application/release binding", () => {
   const root = fixture();
   const commit = initializeGit(root);
   const source = join(root, "authority.json");
-  const candidate = authority(commit);
-  candidate.releaseBindings.webIntegratedRevision = "a".repeat(40);
-  writeJson(root, candidate, "authority.json");
+  writeJson(
+    root,
+    authority(commit, { releaseBinding: "a".repeat(40) }),
+    "authority.json",
+  );
   const execution = run(root, ["--mode", "resolve", "--api-source", source]);
-  expectCode(execution, "MEMORY_AUTHORITY_INVALID");
+  expectCode(execution, "MEMORY_RELEASE_BINDING_MISMATCH");
 });
 
 test("never treats CURRENT_STATE content as authority fallback", () => {
