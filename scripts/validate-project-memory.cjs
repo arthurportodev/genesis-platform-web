@@ -24,6 +24,13 @@ const AUTHORITY = Object.freeze({
   branch: 'main',
   path: 'docs/memory/project-state.v1.json',
 });
+const WEB_POINTER = Object.freeze({
+  repository: 'arthurportodev/genesis-platform-web',
+  path: POINTER_PATH,
+  schemaVersion: '1.0.0',
+  mode: 'pointer-only',
+});
+const WEB_RELEASE_REVISION = '017ef0056d97147a5e5337494fa339a3f65986ac';
 const RESOLUTION_ORDER = Object.freeze([
   'explicit-checkout',
   'sibling-checkout',
@@ -564,30 +571,48 @@ function validateAuthority(authority, acceptedMajor) {
   if (
     !web ||
     web.memoryRevision?.kind !== 'commit' ||
-    !FULL_SHA.test(web.memoryRevision?.sha) ||
-    !FULL_SHA.test(authority.releaseBindings?.webIntegratedRevision)
+    !FULL_SHA.test(web.memoryRevision?.sha)
   ) {
     fail(
       'MEMORY_AUTHORITY_INVALID',
       'Web memoryRevision is missing or invalid.',
       '$authority.repositories[web].memoryRevision',
-      'The API authority must record the integrated Web revision consistently.',
+      'The API authority must record the exact Web pointer provenance commit.',
     );
   }
+  const webIntegratedRevision =
+    authority.releaseBindings?.webIntegratedRevision;
   if (
-    web.memoryRevision.sha !== authority.releaseBindings.webIntegratedRevision
+    !FULL_SHA.test(webIntegratedRevision) ||
+    webIntegratedRevision !== WEB_RELEASE_REVISION
   ) {
     fail(
-      'MEMORY_AUTHORITY_INVALID',
-      'Web memoryRevision and release binding differ.',
+      'MEMORY_RELEASE_BINDING_MISMATCH',
+      'The Web application/release binding is invalid.',
       '$authority.releaseBindings.webIntegratedRevision',
-      'Use one integrated Web revision in the canonical API authority.',
+      `Use the approved historical Web release binding ${WEB_RELEASE_REVISION}.`,
+    );
+  }
+  const pointerMetadata = authority.pointerMetadata;
+  if (
+    pointerMetadata?.repository !== WEB_POINTER.repository ||
+    pointerMetadata?.path !== WEB_POINTER.path ||
+    pointerMetadata?.schemaVersion !== WEB_POINTER.schemaVersion ||
+    pointerMetadata?.mode !== WEB_POINTER.mode ||
+    pointerMetadata?.transitionId !== RECEIPT.transitionId ||
+    pointerMetadata?.targetStateRevision !== RECEIPT.targetStateRevision
+  ) {
+    fail(
+      'MEMORY_POINTER_MISMATCH',
+      'The API authority does not acknowledge the historical Web receipt.',
+      '$authority.pointerMetadata',
+      'Restore the exact pointer metadata for the approved Web receipt.',
     );
   }
   return {
     authority,
     webMemoryRevision: web.memoryRevision.sha,
-    webIntegratedRevision: authority.releaseBindings.webIntegratedRevision,
+    webIntegratedRevision,
   };
 }
 
@@ -824,28 +849,6 @@ async function main() {
     return;
   }
 
-  if (
-    authority.authority.stateRevision !== pointer.receipt.targetStateRevision
-  ) {
-    writeResult(
-      {
-        ok: false,
-        code: 'MEMORY_TRANSITION_PENDING',
-        codes: ['MEMORY_TRANSITION_PENDING'],
-        authorityResolved: true,
-        transitionPending: true,
-        staleFallbackUsed: false,
-        targetStateRevision: pointer.receipt.targetStateRevision,
-        authorityStateRevision: authority.authority.stateRevision,
-        nextAction:
-          'Wait for Candidate B to activate the target state revision.',
-      },
-      ['The authority has not activated the Web receipt target revision.'],
-    );
-    process.exitCode = 1;
-    return;
-  }
-
   const actualMemoryRevision = containingCommit(process.cwd());
   if (actualMemoryRevision === null) {
     writeResult(
@@ -866,10 +869,7 @@ async function main() {
     return;
   }
 
-  if (
-    authority.webMemoryRevision !== actualMemoryRevision ||
-    authority.webIntegratedRevision !== actualMemoryRevision
-  ) {
+  if (authority.webMemoryRevision !== actualMemoryRevision) {
     writeResult(
       {
         ok: false,
@@ -881,7 +881,7 @@ async function main() {
         expectedMemoryRevision: authority.webMemoryRevision,
         actualMemoryRevision,
         nextAction:
-          'Candidate B must record the exact clean commit containing the Web pointer in both API bindings.',
+          'The API authority must record the exact clean commit containing the Web pointer as Web memoryRevision.',
       },
       ['The authority and Web pointer containing commit differ.'],
     );
@@ -901,6 +901,8 @@ async function main() {
     staleFallbackUsed: false,
     stateRevision: authority.authority.stateRevision,
     webMemoryRevision: actualMemoryRevision,
+    webIntegratedRevision: authority.webIntegratedRevision,
+    receiptTargetStateRevision: pointer.receipt.targetStateRevision,
   });
 }
 
