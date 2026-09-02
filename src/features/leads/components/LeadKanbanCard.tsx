@@ -13,6 +13,7 @@ import {
   temporalLabels,
 } from "@/features/leads/api/lead-labels";
 import { LeadMoveControl } from "@/features/leads/components/LeadMoveControl";
+import { formatBrlMinorUnits } from "@/features/leads/model/lead-money";
 import { useLeadNavigationState } from "@/features/leads/model/lead-navigation-state";
 import { cn } from "@/shared/lib/cn";
 import type { ActiveOrganization } from "@/shared/organization/active-organization";
@@ -54,13 +55,16 @@ export function LeadKanbanCard({
   const titleId = `pipeline-lead-${instance}-${lead.id}`;
   return (
     <Card
-      className={cn("p-4", processing && "border-primary/40 bg-muted/35")}
+      className={cn(
+        "border-border bg-surface p-4 shadow-sm",
+        processing && "border-primary/40 bg-muted/35",
+      )}
       role="article"
       aria-labelledby={titleId}
       aria-busy={processing || undefined}
     >
       <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1">
           <h3 id={titleId} className="truncate font-semibold">
             {lead.displayName}
           </h3>
@@ -70,33 +74,34 @@ export function LeadKanbanCard({
             </p>
           ) : null}
         </div>
-        {processing ? <Badge variant="info">Processando</Badge> : null}
+        <div className="shrink-0 text-right">
+          {lead.expectedValueMinor === null ? (
+            <p className="max-w-24 text-xs font-medium text-muted-foreground">
+              Valor não informado
+            </p>
+          ) : (
+            <p className="font-semibold tabular-nums">
+              {formatBrlMinorUnits(lead.expectedValueMinor)}
+            </p>
+          )}
+          {processing ? (
+            <Badge className="mt-2" variant="info">
+              Processando
+            </Badge>
+          ) : null}
+        </div>
       </div>
 
-      <dl className="mt-4 space-y-3 text-sm">
-        <div className="flex items-start gap-2">
-          <UserRound
-            className="mt-0.5 size-4 shrink-0 text-muted-foreground"
-            aria-hidden="true"
-          />
-          <div>
-            <dt className="sr-only">Responsável</dt>
-            <dd>
-              {responsibleLabel(
-                lead.responsibleMembershipId,
-                organization.membershipId,
-                members,
-              )}
-            </dd>
-          </div>
-        </div>
-        <div className="flex items-start gap-2">
+      <dl className="mt-4 space-y-3">
+        <div className="flex items-start gap-2 rounded-lg bg-muted/35 p-3 text-sm">
           <CalendarClock
             className="mt-0.5 size-4 shrink-0 text-muted-foreground"
             aria-hidden="true"
           />
           <div>
-            <dt className="sr-only">Próxima ação</dt>
+            <dt className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Próxima ação
+            </dt>
             <dd>
               {lead.nextAction ? (
                 <>
@@ -109,21 +114,31 @@ export function LeadKanbanCard({
                   </span>
                 </>
               ) : (
-                temporalLabels.none
+                "Sem próxima ação"
               )}
             </dd>
           </div>
         </div>
-        <div className="flex items-start gap-2">
-          <Clock3
-            className="mt-0.5 size-4 shrink-0 text-muted-foreground"
-            aria-hidden="true"
-          />
-          <div>
-            <dt className="sr-only">Última atualização</dt>
-            <dd className="text-muted-foreground">
-              Atualizado em {formatDateTime(lead.updatedAt)}
-            </dd>
+        <div className="grid gap-2 text-xs text-muted-foreground">
+          <div className="flex items-start gap-2">
+            <UserRound className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+            <div>
+              <dt className="sr-only">Responsável</dt>
+              <dd>
+                {responsibleLabel(
+                  lead.responsibleMembershipId,
+                  organization.membershipId,
+                  members,
+                )}
+              </dd>
+            </div>
+          </div>
+          <div className="flex items-start gap-2">
+            <Clock3 className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+            <div>
+              <dt className="sr-only">Última atualização</dt>
+              <dd>Atualizado em {formatDateTime(lead.updatedAt)}</dd>
+            </div>
           </div>
         </div>
       </dl>
@@ -134,7 +149,7 @@ export function LeadKanbanCard({
         </Badge>
       ) : null}
 
-      <div className="mt-4 flex flex-wrap gap-2 border-t border-border pt-4">
+      <div className="mt-4 flex flex-wrap gap-2 border-t border-border/70 pt-4">
         <Link
           to="/app/leads/$leadId"
           params={{ leadId: lead.id }}

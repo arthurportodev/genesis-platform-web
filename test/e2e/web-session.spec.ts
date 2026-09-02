@@ -696,6 +696,25 @@ test("Pipeline desktop busca, pagina uma coluna e volta do detalhe", async ({
   ]) {
     await expect(page.getByRole("heading", { name: stage })).toBeVisible();
   }
+  const summary = page.getByRole("region", { name: "Resumo do Pipeline" });
+  await expect(summary).toContainText(/Oportunidades\s*4/u);
+  await expect(summary).toContainText(/Valor esperado\s*R\$ 40\.000,00/u);
+  await expect(summary).toContainText("1 sem valor informado");
+  await expect(
+    page
+      .getByRole("article", { name: "Lead Exemplo", exact: true })
+      .getByText("R$ 25.000,00"),
+  ).toBeVisible();
+  await expect(
+    page
+      .getByRole("article", { name: "Oportunidade Valor Zero" })
+      .getByText("R$ 0,00"),
+  ).toBeVisible();
+  await expect(
+    page
+      .getByRole("article", { name: "Oportunidade Sem Valor" })
+      .getByText("Valor não informado"),
+  ).toBeVisible();
   await expect(page.getByText("1 de 2 carregados")).toBeVisible();
   await page.getByRole("button", { name: "Carregar mais" }).click();
   await expect(page.getByText("Lead Continuação")).toBeVisible();
@@ -730,7 +749,35 @@ test("Pipeline mobile mostra uma coluna, filtros em Sheet e touch targets", asyn
   const stage = page.getByLabel("Etapa exibida");
   await expectTouchTarget(stage);
   await stage.selectOption("qualification");
-  await expect(page.getByText("Lead Exemplo").first()).toBeVisible();
+  let mobileColumn = page.locator(
+    '[aria-labelledby="pipeline-column-mobile-qualification"]',
+  );
+  await expect(mobileColumn.getByText("Lead Exemplo")).toBeVisible();
+  await expect(mobileColumn.getByText("R$ 40.000,00")).toBeVisible();
+  await expect(
+    mobileColumn
+      .getByRole("article", { name: "Lead Exemplo", exact: true })
+      .getByText("R$ 25.000,00"),
+  ).toBeVisible();
+  await stage.selectOption("proposal");
+  mobileColumn = page.locator(
+    '[aria-labelledby="pipeline-column-mobile-proposal"]',
+  );
+  await expect(
+    mobileColumn
+      .getByRole("article", { name: "Oportunidade Valor Zero" })
+      .getByText("R$ 0,00"),
+  ).toBeVisible();
+  await stage.selectOption("negotiation");
+  mobileColumn = page.locator(
+    '[aria-labelledby="pipeline-column-mobile-negotiation"]',
+  );
+  await expect(
+    mobileColumn
+      .getByRole("article", { name: "Oportunidade Sem Valor" })
+      .getByText("Valor não informado"),
+  ).toBeVisible();
+  await stage.selectOption("qualification");
   const filters = page.getByRole("button", { name: "Filtros" });
   await expectTouchTarget(filters);
   await expectTouchTarget(page.getByRole("button", { name: "Atualizar" }));

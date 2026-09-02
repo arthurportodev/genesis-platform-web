@@ -19,6 +19,7 @@ import { leadQueryKeys } from "@/features/leads/api/lead-query-keys";
 import { useLeadApi } from "@/features/leads/hooks/use-lead-queries";
 import {
   composeLeadKanbanColumns,
+  composeLeadKanbanSummary,
   type LeadKanbanViewColumn,
 } from "@/features/leads/model/lead-kanban";
 import { useActiveOrganization } from "@/shared/organization/active-organization";
@@ -37,7 +38,13 @@ function initialColumnResponse(
 ): LeadKanbanResponse | undefined {
   const column = response?.columns.find((item) => item.stage === stage);
   return column && response
-    ? { asOf: response.asOf, columns: [column] }
+    ? {
+        asOf: response.asOf,
+        currency: response.currency,
+        expectedValueTotalMinor: response.expectedValueTotalMinor,
+        withoutExpectedValue: response.withoutExpectedValue,
+        columns: [column],
+      }
     : undefined;
 }
 
@@ -155,6 +162,10 @@ export function useLeadKanbanBoard(filters: LeadKanbanFilters, enabled = true) {
     };
     return composeLeadKanbanColumns(pagesByStage);
   }, [queries]);
+  const summary = useMemo(
+    () => (initial.data ? composeLeadKanbanSummary(initial.data) : null),
+    [initial.data],
+  );
 
   const columnStates = useMemo(
     () =>
@@ -182,6 +193,7 @@ export function useLeadKanbanBoard(filters: LeadKanbanFilters, enabled = true) {
 
   return {
     initial,
+    summary,
     columns: columnStates,
     isFetching: initial.isFetching,
     refresh: async () => {
