@@ -8,8 +8,8 @@ import type {
 import { stageLabels } from "@/features/leads/api/lead-labels";
 import { LeadKanbanCard } from "@/features/leads/components/LeadKanbanCard";
 import type { LeadKanbanViewColumn } from "@/features/leads/model/lead-kanban";
+import { formatBrlMinorUnits } from "@/features/leads/model/lead-money";
 import type { ActiveOrganization } from "@/shared/organization/active-organization";
-import { Badge } from "@/shared/ui/Badge";
 import { Button } from "@/shared/ui/Button";
 
 export function LeadKanbanColumn({
@@ -44,11 +44,11 @@ export function LeadKanbanColumn({
   const headingId = `pipeline-column-${instance}-${column.stage}`;
   return (
     <section
-      className="flex min-h-[24rem] w-full flex-col rounded-xl border border-border bg-muted/25 md:w-[19rem] md:min-w-[19rem]"
+      className="flex min-h-[24rem] w-full flex-col rounded-xl border border-border/60 bg-muted/15 md:w-[19rem] md:min-w-[19rem]"
       aria-labelledby={headingId}
     >
-      <header className="sticky top-0 z-10 rounded-t-xl border-b border-border bg-surface p-4">
-        <div className="flex items-center justify-between gap-2">
+      <header className="sticky top-0 z-10 rounded-t-xl border-b border-border/60 bg-background/95 p-4">
+        <div className="flex items-baseline justify-between gap-2">
           <h2
             id={headingId}
             data-pipeline-column-heading={column.stage}
@@ -57,16 +57,23 @@ export function LeadKanbanColumn({
           >
             {stageLabels[column.stage]}
           </h2>
-          <Badge>{column.total}</Badge>
+          <span className="text-sm font-medium tabular-nums text-muted-foreground">
+            {column.total}
+          </span>
         </div>
-        <p className="mt-1 text-xs text-muted-foreground">
-          {column.items.length} de {column.total} carregados
+        <p className="mt-1 text-sm font-semibold tabular-nums">
+          {formatBrlMinorUnits(column.expectedValueTotalMinor)}
         </p>
+        {column.withoutExpectedValue > 0 ? (
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            {column.withoutExpectedValue} sem valor informado
+          </p>
+        ) : null}
       </header>
       <div className="flex-1 space-y-3 overflow-y-auto p-3 md:max-h-[calc(100vh-22rem)]">
         {column.items.length === 0 ? (
           <p className="rounded-lg border border-dashed border-border bg-surface p-5 text-center text-sm text-muted-foreground">
-            Nenhum Lead nesta etapa.
+            Nenhuma oportunidade nesta etapa
           </p>
         ) : (
           column.items.map((lead) => (
@@ -100,7 +107,10 @@ export function LeadKanbanColumn({
         ) : null}
       </div>
       {column.nextCursor ? (
-        <footer className="border-t border-border bg-surface p-3">
+        <footer className="border-t border-border/60 bg-background/80 p-3">
+          <p className="mb-2 text-center text-xs text-muted-foreground">
+            {column.items.length} de {column.total} carregados
+          </p>
           <Button
             className="min-h-11 w-full"
             variant="secondary"

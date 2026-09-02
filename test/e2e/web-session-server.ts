@@ -405,34 +405,72 @@ async function handleApi(
     const q = requestUrl.searchParams.get("q")?.toLocaleLowerCase("pt-BR");
     const visible =
       !q || currentLead.displayName.toLocaleLowerCase("pt-BR").includes(q);
+    const includeSupportingOpportunities = visible && !q;
     const stages = stage
       ? [stage]
       : ["new", "qualification", "diagnosis", "proposal", "negotiation"];
     json(response, 200, {
       asOf: new Date().toISOString(),
-      columns: stages.map((candidate) => ({
-        stage: candidate,
-        total: visible && candidate === leadStage ? 2 : 0,
-        items:
-          visible && candidate === leadStage
-            ? cursor
-              ? [
-                  leadListItem({
+      currency: "BRL",
+      expectedValueTotalMinor: visible ? "4000000" : "0",
+      withoutExpectedValue: includeSupportingOpportunities ? 1 : 0,
+      columns: stages.map((candidate) => {
+        const currentStage = visible && candidate === leadStage;
+        const zeroStage =
+          includeSupportingOpportunities && candidate === "proposal";
+        const missingStage =
+          includeSupportingOpportunities && candidate === "negotiation";
+        const items = currentStage
+          ? cursor
+            ? [
+                leadListItem(
+                  {
                     ...currentLead,
                     id: "00000000-0000-4000-8000-000000000030",
                     displayName: "Lead Continuação",
-                  }),
-                ]
-              : [leadListItem(currentLead)]
-            : [],
-        page: {
-          limit: 20,
-          nextCursor:
-            visible && candidate === leadStage && !cursor
-              ? "opaque-kanban-cursor"
-              : null,
-        },
-      })),
+                  },
+                  "1500000",
+                ),
+              ]
+            : [leadListItem(currentLead, "2500000")]
+          : [];
+        if (!cursor && zeroStage) {
+          items.push(
+            leadListItem(
+              leadDetail(
+                "00000000-0000-4000-8000-000000000031",
+                "Oportunidade Valor Zero",
+              ),
+              "0",
+            ),
+          );
+        }
+        if (!cursor && missingStage) {
+          items.push(
+            leadListItem(
+              leadDetail(
+                "00000000-0000-4000-8000-000000000032",
+                "Oportunidade Sem Valor",
+              ),
+              null,
+            ),
+          );
+        }
+        return {
+          stage: candidate,
+          total:
+            (currentStage ? 2 : 0) +
+            (zeroStage ? 1 : 0) +
+            (missingStage ? 1 : 0),
+          expectedValueTotalMinor: currentStage ? "4000000" : "0",
+          withoutExpectedValue: missingStage ? 1 : 0,
+          items: items.map((item) => ({ ...item, stage: candidate })),
+          page: {
+            limit: 20,
+            nextCursor: currentStage && !cursor ? "opaque-kanban-cursor" : null,
+          },
+        };
+      }),
     });
     return;
   }
@@ -784,6 +822,7 @@ function leadListItem(
     | "createdAt"
     | "updatedAt"
   >,
+  expectedValueMinor: string | null = "2500000",
 ) {
   return {
     id: lead.id,
@@ -794,6 +833,7 @@ function leadListItem(
     responsibleMembershipId: lead.responsibleMembershipId,
     status: lead.status,
     stage: lead.stage,
+    expectedValueMinor,
     source: "manual",
     lastEntryAt: lead.latestEntry.receivedAt,
     nextAction: null,

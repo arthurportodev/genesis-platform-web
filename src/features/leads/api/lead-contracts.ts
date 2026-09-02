@@ -70,6 +70,7 @@ export const archiveReasons = [
 const uuid = z.uuid();
 const timestamp = z.iso.datetime({ offset: true });
 const revision = z.string().regex(/^(0|[1-9]\d*)$/u);
+const minorUnits = z.string().regex(/^(0|[1-9]\d*)$/u);
 const safeCount = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER);
 const civilDate = z
   .string()
@@ -95,6 +96,7 @@ export const leadListItemSchema = z.object({
   responsibleMembershipId: uuid.nullable(),
   status: z.enum(leadStatuses),
   stage: z.enum(leadStages),
+  expectedValueMinor: minorUnits.nullable(),
   source: z.string(),
   lastEntryAt: timestamp,
   nextAction: nextActionSummarySchema.nullable(),
@@ -341,7 +343,9 @@ export const leadReturnReviewQueueResponseSchema = z.object({
 export const leadKanbanColumnSchema = z
   .object({
     stage: z.enum(leadStages),
-    total: z.number().int().nonnegative(),
+    total: safeCount,
+    expectedValueTotalMinor: minorUnits,
+    withoutExpectedValue: safeCount,
     items: z.array(leadListItemSchema),
     page: z.object({
       nextCursor: z.string().min(1).max(512).nullable(),
@@ -371,6 +375,9 @@ export const leadKanbanResponseSchema = z
   .object({
     columns: z.array(leadKanbanColumnSchema).min(1).max(5),
     asOf: timestamp,
+    currency: z.literal("BRL"),
+    expectedValueTotalMinor: minorUnits,
+    withoutExpectedValue: safeCount,
   })
   .superRefine((response, context) => {
     const stages = response.columns.map(({ stage }) => stage);

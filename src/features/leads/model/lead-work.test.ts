@@ -32,6 +32,7 @@ function rawItem(revision = "3") {
     responsibleMembershipId: membershipId,
     status: "active",
     stage: "qualification",
+    expectedValueMinor: "2500000",
     source: "manual",
     lastEntryAt: "2026-07-29T10:00:00.000Z",
     nextAction: {

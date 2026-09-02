@@ -9,9 +9,18 @@ import {
 export interface LeadKanbanViewColumn {
   stage: LeadStage;
   total: number;
+  expectedValueTotalMinor: string;
+  withoutExpectedValue: number;
   items: LeadListItem[];
   nextCursor: string | null;
   limit: number;
+}
+
+export interface LeadKanbanSummary {
+  opportunityCount: number;
+  expectedValueTotalMinor: string;
+  withoutExpectedValue: number;
+  currency: "BRL";
 }
 
 interface Candidate {
@@ -76,11 +85,27 @@ export function composeLeadKanbanColumns(
     return {
       stage,
       total: latestColumn?.total ?? 0,
+      expectedValueTotalMinor: latestColumn?.expectedValueTotalMinor ?? "0",
+      withoutExpectedValue: latestColumn?.withoutExpectedValue ?? 0,
       items,
       nextCursor: finalColumn?.page.nextCursor ?? null,
       limit: finalColumn?.page.limit ?? 20,
     };
   });
+}
+
+export function composeLeadKanbanSummary(
+  response: LeadKanbanResponse,
+): LeadKanbanSummary {
+  return {
+    opportunityCount: response.columns.reduce(
+      (total, column) => total + column.total,
+      0,
+    ),
+    expectedValueTotalMinor: response.expectedValueTotalMinor,
+    withoutExpectedValue: response.withoutExpectedValue,
+    currency: response.currency,
+  };
 }
 
 export function leadMoveDestinations(stage: LeadStage): LeadStage[] {

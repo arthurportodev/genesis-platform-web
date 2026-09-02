@@ -38,6 +38,71 @@ describe("Pipeline Kanban de Leads", () => {
     expect(
       screen.getByRole("region", { name: "Pipeline de Leads" }),
     ).toBeInTheDocument();
+    expect(
+      screen.getByRole("region", { name: "Resumo do Pipeline" }),
+    ).toHaveTextContent(/Oportunidades\s*1/u);
+    expect(
+      screen.getByRole("region", { name: "Resumo do Pipeline" }),
+    ).toHaveTextContent(/Valor esperado\s*R\$ 25\.000,00/u);
+    expect(screen.getAllByText("R$ 25.000,00")).not.toHaveLength(0);
+    expect(
+      screen.getAllByText("Nenhuma oportunidade nesta etapa"),
+    ).not.toHaveLength(0);
+    expect(screen.queryByText(/carregados/iu)).not.toBeInTheDocument();
+    restoreLocks();
+  });
+
+  it.each([
+    [null, "Valor não informado"],
+    ["0", "R$ 0,00"],
+  ] as const)("preserva expected value %s no DOM", async (value, label) => {
+    const restoreLocks = installWebLocks();
+    server.use(
+      ...createAuthHandlers(),
+      ...createLeadHandlers({
+        kanbanItemOverrides: { expectedValueMinor: value },
+      }),
+    );
+    await renderAppAt("/app/pipeline");
+
+    expect((await screen.findAllByText(label)).length).toBeGreaterThan(0);
+    if (value === null) {
+      expect(
+        within(
+          screen.getAllByRole("article", { name: "Lead Exemplo" })[0],
+        ).queryByText("R$ 0,00"),
+      ).not.toBeInTheDocument();
+    }
+    restoreLocks();
+  });
+
+  it("destaca a próxima ação e nomeia sua ausência honestamente", async () => {
+    const restoreLocks = installWebLocks();
+    server.use(
+      ...createAuthHandlers(),
+      ...createLeadHandlers({
+        kanbanItemOverrides: {
+          temporalState: "today",
+          nextAction: {
+            id: "00000000-0000-4000-8000-000000000099",
+            type: "call",
+            description: "Confirmar proposta",
+            dueAt: "2026-07-28T18:00:00.000Z",
+            responsibleMembershipId: null,
+            status: "pending",
+            revision: "1",
+          },
+        },
+      }),
+    );
+    await renderAppAt("/app/pipeline");
+
+    expect((await screen.findAllByText("Próxima ação")).length).toBeGreaterThan(
+      0,
+    );
+    expect(
+      (await screen.findAllByText(/call · Hoje/iu)).length,
+    ).toBeGreaterThan(0);
     restoreLocks();
   });
 
@@ -80,6 +145,7 @@ describe("Pipeline Kanban de Leads", () => {
     const user = userEvent.setup();
     await renderAppAt("/app/pipeline");
     await screen.findAllByText("Lead Exemplo");
+    expect(screen.getAllByText("1 de 1 carregados")).not.toHaveLength(0);
     await user.click(
       screen.getAllByRole("button", {
         name: "Carregar mais",

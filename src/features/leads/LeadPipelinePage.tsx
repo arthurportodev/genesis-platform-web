@@ -13,6 +13,7 @@ import { LeadMoveFeedback } from "@/features/leads/components/LeadMoveFeedback";
 import { useLeadKanbanBoard } from "@/features/leads/hooks/use-lead-kanban";
 import { useLeadAssigneesQuery } from "@/features/leads/hooks/use-lead-queries";
 import { useLeadPipelineState } from "@/features/leads/model/lead-pipeline-state";
+import { formatBrlMinorUnits } from "@/features/leads/model/lead-money";
 import { toAppError } from "@/shared/api/errors";
 import { OperationalState } from "@/shared/components/OperationalState";
 import { PageHeader } from "@/shared/components/PageHeader";
@@ -145,18 +146,53 @@ export function LeadPipelinePage() {
           </Button>
         </section>
       ) : (
-        <LeadKanban
-          columns={board.columns}
-          members={members}
-          organization={organization}
-          busyLeadId={move.busyLeadId}
-          movesDisabled={move.phase !== "idle"}
-          mobileStage={state.mobileStage}
-          onMobileStageChange={(stage) => state.setMobileStage(stage)}
-          onMove={(lead, targetStage, focusTarget) =>
-            move.confirmMove(lead, targetStage, focusTarget)
-          }
-        />
+        <div className="space-y-5">
+          {board.summary ? (
+            <section
+              aria-label="Resumo do Pipeline"
+              className="rounded-xl border border-border/70 bg-muted/20 px-4 py-3"
+            >
+              <dl className="flex flex-wrap items-baseline gap-x-6 gap-y-2">
+                <div className="flex items-baseline gap-2">
+                  <dt className="text-sm text-muted-foreground">
+                    Oportunidades
+                  </dt>
+                  <dd className="text-lg font-semibold tabular-nums">
+                    {board.summary.opportunityCount}
+                  </dd>
+                </div>
+                <div className="flex items-baseline gap-2">
+                  <dt className="text-sm text-muted-foreground">
+                    Valor esperado
+                  </dt>
+                  <dd className="text-lg font-semibold tabular-nums">
+                    {formatBrlMinorUnits(board.summary.expectedValueTotalMinor)}
+                  </dd>
+                </div>
+                {board.summary.withoutExpectedValue > 0 ? (
+                  <div className="text-sm text-muted-foreground">
+                    <dt className="sr-only">Sem valor informado</dt>
+                    <dd>
+                      {board.summary.withoutExpectedValue} sem valor informado
+                    </dd>
+                  </div>
+                ) : null}
+              </dl>
+            </section>
+          ) : null}
+          <LeadKanban
+            columns={board.columns}
+            members={members}
+            organization={organization}
+            busyLeadId={move.busyLeadId}
+            movesDisabled={move.phase !== "idle"}
+            mobileStage={state.mobileStage}
+            onMobileStageChange={(stage) => state.setMobileStage(stage)}
+            onMove={(lead, targetStage, focusTarget) =>
+              move.confirmMove(lead, targetStage, focusTarget)
+            }
+          />
+        </div>
       )}
     </div>
   );

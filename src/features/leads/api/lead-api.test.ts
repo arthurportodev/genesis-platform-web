@@ -276,9 +276,14 @@ describe("createLeadApi Kanban", () => {
   ] as const;
   const board = {
     asOf: "2026-07-28T16:00:00.000Z",
+    currency: "BRL" as const,
+    expectedValueTotalMinor: "2500000",
+    withoutExpectedValue: 0,
     columns: stages.map((stage) => ({
       stage,
       total: stage === "qualification" ? 1 : 0,
+      expectedValueTotalMinor: stage === "qualification" ? "2500000" : "0",
+      withoutExpectedValue: 0,
       items: stage === "qualification" ? [testLeadListItem({ stage })] : [],
       page: { limit: 20, nextCursor: null },
     })),

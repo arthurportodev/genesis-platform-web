@@ -126,6 +126,7 @@ function listItem() {
     responsibleMembershipId: testLead.responsibleMembershipId,
     status: testLead.status,
     stage: testLead.stage,
+    expectedValueMinor: "2500000",
     source: "manual",
     lastEntryAt: testLead.latestEntry.receivedAt,
     nextAction: null,
@@ -175,6 +176,7 @@ export function createLeadHandlers(
     createDelayMs?: number;
     onCreate?: (request: Request, body: unknown) => void;
     onMembers?: () => void;
+    kanbanItemOverrides?: Partial<LeadListItem>;
   } = {},
 ) {
   let currentStage: LeadStage = testLead.stage;
@@ -186,20 +188,27 @@ export function createLeadHandlers(
     const stages = stage
       ? [stage]
       : ["new", "qualification", "diagnosis", "proposal", "negotiation"];
+    const currentItem = testLeadListItem({
+      ...options.kanbanItemOverrides,
+      stage: currentStage,
+      revision: currentRevision,
+    });
+    const expectedValueTotalMinor = currentItem.expectedValueMinor ?? "0";
+    const withoutExpectedValue =
+      currentItem.expectedValueMinor === null ? 1 : 0;
     return {
       asOf: "2026-07-28T16:00:00.000Z",
+      currency: "BRL",
+      expectedValueTotalMinor,
+      withoutExpectedValue,
       columns: stages.map((candidate) => ({
         stage: candidate,
         total: candidate === currentStage ? 1 : 0,
-        items:
-          candidate === currentStage
-            ? [
-                testLeadListItem({
-                  stage: currentStage,
-                  revision: currentRevision,
-                }),
-              ]
-            : [],
+        expectedValueTotalMinor:
+          candidate === currentStage ? expectedValueTotalMinor : "0",
+        withoutExpectedValue:
+          candidate === currentStage ? withoutExpectedValue : 0,
+        items: candidate === currentStage ? [currentItem] : [],
         page: {
           limit: 20,
           nextCursor:

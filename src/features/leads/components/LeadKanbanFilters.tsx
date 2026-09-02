@@ -218,7 +218,7 @@ export function LeadKanbanFilters({
   return (
     <>
       <section
-        className="hidden rounded-xl border border-border bg-surface p-4 shadow-sm md:block"
+        className="hidden rounded-xl border border-border/60 bg-muted/15 p-4 md:block"
         aria-label="Filtros do Pipeline"
       >
         <FilterFields idPrefix="pipeline-desktop" {...common} />
