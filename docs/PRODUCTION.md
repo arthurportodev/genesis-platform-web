@@ -110,3 +110,19 @@ e a evidência de recuperação devem estar identificados antes da publicação.
 
 Este documento não autoriza deploy, mutação de Vercel, DNS, infraestrutura ou
 dados reais.
+
+## Rotina operacional
+
+O procedimento curto para classificar uma release como `API_ONLY`,
+`WEB_ONLY` ou `API_AND_WEB`, executar os gates existentes e separar core
+smoke de feature smoke está no
+[runbook de deployment](DEPLOYMENT_RUNBOOK.md). Próximas tarefas devem preencher
+somente os fatos variáveis no
+[template de deployment](DEPLOYMENT_TASK_TEMPLATE.md).
+
+O core browser smoke Web possui configuração Playwright versionada em
+`playwright.production.config.cjs` e comando estável
+`npm run smoke:production:web`. Ele não substitui a feature smoke declarada
+pela release e não autoriza deployment. O host gerado pela Vercel é verificado
+separadamente, sem credenciais Genesis, por
+`npm run smoke:web:generated-host`.
