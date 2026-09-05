@@ -877,7 +877,9 @@ async function main() {
         nextAction:
           'Merge the Web pointer, then update the canonical API authority with its containing commit.',
       },
-      ['The canonical API authority still acknowledges the predecessor receipt.'],
+      [
+        'The canonical API authority still acknowledges the predecessor receipt.',
+      ],
     );
     process.exitCode = 1;
     return;
