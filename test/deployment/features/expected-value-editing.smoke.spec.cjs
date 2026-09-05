@@ -151,10 +151,17 @@ test("Expected Value Editing validates its controlled critical path", async ({
     await page.getByRole("button", { name: "Salvar alterações" }).click();
     await expect(page.getByText("Dados do Lead atualizados.")).toBeVisible();
     await expect(editValue).toHaveValue("2.000,00");
+    const editedValueTransition = page.getByText("R$ 1.234,50 → R$ 2.000,00", {
+      exact: true,
+    });
+    await expect(editedValueTransition).toBeVisible();
+    const editedValueEvent = editedValueTransition.locator("..");
     await expect(
-      page.getByText("Valor da oportunidade alterado"),
+      editedValueEvent.getByRole("heading", {
+        name: "Valor da oportunidade alterado",
+        exact: true,
+      }),
     ).toBeVisible();
-    await expect(page.getByText("R$ 1.234,50 → R$ 2.000,00")).toBeVisible();
 
     diagnostics.stage = "edited-value-in-pipeline";
     await page.getByRole("link", { name: "Pipeline", exact: true }).click();
