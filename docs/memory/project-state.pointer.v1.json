@@ -15,10 +15,10 @@
     ]
   },
   "receipt": {
-    "transitionId": "MVP-10E-CROSS-REPO",
-    "targetStateRevision": "MVP-10D-WEB-INTEGRATED-2026-08-24",
-    "baseSha": "ac87eb78640e641c67bf6e354ad497b421d487f8",
+    "transitionId": "PIPE-V2-03A-CROSS-REPO",
+    "targetStateRevision": "PIPE-V2-03A-IMPLEMENTED-AND-MERGED-2026-09-05",
+    "baseSha": "90dc36a3e8a53c1e1852b6acfb8b4c05c97e44e6",
     "revisionSource": "containing-commit",
-    "generatedAt": "2026-08-24T14:18:54.2261794Z"
+    "generatedAt": "2026-09-05T12:28:19.7854393Z"
   }
 }
