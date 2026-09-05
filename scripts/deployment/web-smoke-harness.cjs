@@ -50,10 +50,7 @@ function readHarnessContract(environment = process.env) {
       : baseURL === PRODUCTION_BASE_URL
         ? 'production'
         : null;
-  requireCondition(
-    baseUrlClass !== null,
-    'GENESIS_HARNESS_BASE_URL_INVALID',
-  );
+  requireCondition(baseUrlClass !== null, 'GENESIS_HARNESS_BASE_URL_INVALID');
 
   return Object.freeze({
     target,
@@ -226,8 +223,7 @@ function createDiagnostics(page, contract) {
       const url = new URL(response.url());
       if (
         url.origin === approvedOrigin &&
-        (url.pathname === '/api/v1' ||
-          url.pathname.startsWith('/api/v1/')) &&
+        (url.pathname === '/api/v1' || url.pathname.startsWith('/api/v1/')) &&
         status >= 200 &&
         status < 300
       ) {
@@ -238,7 +234,10 @@ function createDiagnostics(page, contract) {
     }
   });
   page.on('requestfailed', (request) => {
-    if (request.resourceType() === 'script' || request.resourceType() === 'stylesheet') {
+    if (
+      request.resourceType() === 'script' ||
+      request.resourceType() === 'stylesheet'
+    ) {
       diagnostics.assetFailures += 1;
     }
   });
@@ -298,10 +297,10 @@ async function reachProtectedRoute(page, contract, diagnostics) {
       if (diagnostics) diagnostics.stage = 'login';
       const credentials = loadCredentials(contract);
       await page.getByLabel('E-mail', { exact: true }).fill(credentials.email);
-      await page.getByLabel('Senha', { exact: true }).fill(credentials.password);
       await page
-        .getByRole('button', { name: 'Entrar', exact: true })
-        .click();
+        .getByLabel('Senha', { exact: true })
+        .fill(credentials.password);
+      await page.getByRole('button', { name: 'Entrar', exact: true }).click();
       if (diagnostics) diagnostics.stage = 'login-navigation';
       await page.waitForFunction(
         () => window.location.pathname !== '/login',
