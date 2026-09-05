@@ -1,7 +1,18 @@
 const { spawnSync } = require('node:child_process');
+const { createHash } = require('node:crypto');
 
 const LOCAL_BASE_URL = 'http://127.0.0.1:4173';
 const PRODUCTION_BASE_URL = 'https://app.agenciagenesismkt.com.br';
+const SMOKE_PROFILES = Object.freeze([
+  'generated-host',
+  'production-core',
+  'production-feature',
+]);
+const SMOKE_PROFILE_SCHEMA_VERSION = 'genesis-smoke-profile.v1';
+const SYNTHETIC_DATA_PREFIX = '[GENESIS-SMOKE]';
+const LOCAL_ORGANIZATION_NAME = 'Genesis Teste';
+const PRODUCTION_PROFILE_PATH =
+  '/opt/genesis/shared/config/smoke-profile.v1.json';
 
 function requireCondition(condition, reasonCode) {
   if (!condition) throw new Error(reasonCode);
@@ -34,7 +45,7 @@ function parseTargetRoute(value = '/app') {
   return value;
 }
 
-function readHarnessContract(environment = process.env) {
+function readHarnessContract(environment = process.env, options = {}) {
   const target = environment.GENESIS_HARNESS_TARGET ?? 'production';
   requireCondition(
     target === 'local' || target === 'production',
@@ -52,8 +63,46 @@ function readHarnessContract(environment = process.env) {
         : null;
   requireCondition(baseUrlClass !== null, 'GENESIS_HARNESS_BASE_URL_INVALID');
 
+  const profileId = options.profileId ?? 'production-core';
+  requireCondition(
+    SMOKE_PROFILES.includes(profileId) && profileId !== 'generated-host',
+    'GENESIS_SMOKE_PROFILE_INVALID',
+  );
+  const featureId = options.featureId ?? null;
+  const requiredMutations = options.requiredMutations ?? [];
+  requireCondition(
+    Array.isArray(requiredMutations) &&
+      requiredMutations.every(
+        (mutation) => typeof mutation === 'string' && mutation.length > 0,
+      ),
+    'GENESIS_SMOKE_REQUIRED_MUTATIONS_INVALID',
+  );
+  if (profileId === 'production-core') {
+    requireCondition(featureId === null, 'CORE_PROFILE_FEATURE_FORBIDDEN');
+    requireCondition(
+      requiredMutations.length === 0,
+      'CORE_PROFILE_MUTATION_FORBIDDEN',
+    );
+  } else {
+    requireCondition(
+      target === 'production',
+      'FEATURE_PROFILE_REQUIRES_PRODUCTION_TARGET',
+    );
+    requireCondition(
+      typeof featureId === 'string' && featureId.length > 0,
+      'FEATURE_PROFILE_FEATURE_REQUIRED',
+    );
+    requireCondition(
+      requiredMutations.length > 0,
+      'FEATURE_PROFILE_MUTATION_REQUIRED',
+    );
+  }
+
   return Object.freeze({
     target,
+    profileId,
+    featureId,
+    requiredMutations: Object.freeze([...requiredMutations]),
     baseURL,
     baseUrlClass,
     usesLocalFixtures: baseUrlClass === 'controlled-local',
@@ -62,6 +111,182 @@ function readHarnessContract(environment = process.env) {
       'GENESIS_REQUIRE_FEATURE_SMOKE',
       environment.GENESIS_REQUIRE_FEATURE_SMOKE,
     ),
+  });
+}
+
+function isPlainObject(value) {
+  return (
+    value !== null &&
+    typeof value === 'object' &&
+    !Array.isArray(value) &&
+    Object.getPrototypeOf(value) === Object.prototype
+  );
+}
+
+function parseSmokeProfileBinding(value) {
+  requireCondition(isPlainObject(value), 'SMOKE_PROFILE_BINDING_INVALID');
+  const keys = [
+    'allowedFeatures',
+    'allowedMutations',
+    'dataPrefix',
+    'organizationId',
+    'organizationName',
+    'principalEmail',
+    'principalUserId',
+    'profileId',
+    'requiredRole',
+    'schemaVersion',
+  ];
+  requireCondition(
+    Object.keys(value).sort().join('\n') === keys.sort().join('\n'),
+    'SMOKE_PROFILE_BINDING_KEYS_INVALID',
+  );
+  const uuid =
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
+  const email = /^[^\s@]+@[^\s@]+\.[^\s@]+$/u;
+  requireCondition(
+    value.schemaVersion === SMOKE_PROFILE_SCHEMA_VERSION,
+    'SMOKE_PROFILE_SCHEMA_VERSION_INVALID',
+  );
+  requireCondition(
+    value.profileId === 'production-feature',
+    'SMOKE_PROFILE_ID_INVALID',
+  );
+  requireCondition(
+    uuid.test(value.principalUserId),
+    'SMOKE_PRINCIPAL_ID_INVALID',
+  );
+  requireCondition(
+    email.test(value.principalEmail),
+    'SMOKE_PRINCIPAL_EMAIL_INVALID',
+  );
+  requireCondition(
+    uuid.test(value.organizationId),
+    'SMOKE_ORGANIZATION_ID_INVALID',
+  );
+  requireCondition(
+    typeof value.organizationName === 'string' &&
+      value.organizationName.trim() === value.organizationName &&
+      value.organizationName.length > 0,
+    'SMOKE_ORGANIZATION_NAME_INVALID',
+  );
+  requireCondition(
+    value.requiredRole === 'owner',
+    'SMOKE_REQUIRED_ROLE_INVALID',
+  );
+  for (const [field, values] of [
+    ['FEATURES', value.allowedFeatures],
+    ['MUTATIONS', value.allowedMutations],
+  ]) {
+    requireCondition(
+      Array.isArray(values) &&
+        values.length > 0 &&
+        values.every(
+          (entry) => typeof entry === 'string' && entry.length > 0,
+        ) &&
+        new Set(values).size === values.length,
+      `SMOKE_ALLOWED_${field}_INVALID`,
+    );
+  }
+  requireCondition(
+    value.dataPrefix === SYNTHETIC_DATA_PREFIX,
+    'SMOKE_DATA_PREFIX_INVALID',
+  );
+  return Object.freeze({
+    ...value,
+    allowedFeatures: Object.freeze([...value.allowedFeatures]),
+    allowedMutations: Object.freeze([...value.allowedMutations]),
+  });
+}
+
+function authorizeSmokeProfile(contract, binding) {
+  requireCondition(
+    contract.profileId === 'production-core' ||
+      contract.profileId === 'production-feature',
+    'GENESIS_SMOKE_PROFILE_INVALID',
+  );
+  if (contract.profileId === 'production-feature') {
+    requireCondition(
+      binding.allowedFeatures.includes(contract.featureId),
+      'SMOKE_FEATURE_NOT_AUTHORIZED',
+    );
+    requireCondition(
+      contract.requiredMutations.every((mutation) =>
+        binding.allowedMutations.includes(mutation),
+      ),
+      'SMOKE_MUTATION_NOT_AUTHORIZED',
+    );
+  }
+  return Object.freeze({
+    profileId: contract.profileId,
+    featureId: contract.featureId,
+    dataPrefix: binding.dataPrefix,
+    businessMutationsAuthorized: contract.profileId === 'production-feature',
+  });
+}
+
+function validateBootstrapBinding(bootstrap, binding) {
+  requireCondition(isPlainObject(bootstrap), 'SMOKE_BOOTSTRAP_INVALID');
+  requireCondition(
+    isPlainObject(bootstrap.user),
+    'SMOKE_BOOTSTRAP_USER_INVALID',
+  );
+  requireCondition(
+    bootstrap.user.status === 'active',
+    'SMOKE_PRINCIPAL_NOT_ACTIVE',
+  );
+  requireCondition(
+    bootstrap.user.id === binding.principalUserId,
+    'SMOKE_PRINCIPAL_ID_MISMATCH',
+  );
+  requireCondition(
+    bootstrap.user.email === binding.principalEmail,
+    'SMOKE_PRINCIPAL_EMAIL_MISMATCH',
+  );
+  requireCondition(
+    Array.isArray(bootstrap.organizations) &&
+      bootstrap.organizations.length === 1,
+    'SMOKE_ORGANIZATION_CARDINALITY_INVALID',
+  );
+  const organization = bootstrap.organizations[0];
+  requireCondition(
+    organization.id === binding.organizationId,
+    'SMOKE_ORGANIZATION_ID_MISMATCH',
+  );
+  requireCondition(
+    organization.name === binding.organizationName,
+    'SMOKE_ORGANIZATION_NAME_MISMATCH',
+  );
+  requireCondition(
+    organization.role === binding.requiredRole,
+    'SMOKE_ORGANIZATION_ROLE_MISMATCH',
+  );
+  return organization;
+}
+
+function deriveSyntheticLeadIdentity({ dataPrefix, featureId, functionalSha }) {
+  requireCondition(
+    dataPrefix === SYNTHETIC_DATA_PREFIX,
+    'SMOKE_DATA_PREFIX_INVALID',
+  );
+  requireCondition(
+    /^[A-Z0-9]+(?:-[A-Z0-9]+)+$/u.test(featureId),
+    'SMOKE_FEATURE_ID_INVALID',
+  );
+  requireCondition(
+    /^[0-9a-f]{40}$/u.test(functionalSha),
+    'SMOKE_FUNCTIONAL_SHA_INVALID',
+  );
+  const digest = createHash('sha256')
+    .update(`${featureId}:${functionalSha}`, 'utf8')
+    .digest('hex');
+  const phoneTail = (BigInt(`0x${digest.slice(0, 12)}`) % 100000000n)
+    .toString()
+    .padStart(8, '0');
+  return Object.freeze({
+    displayName: `${dataPrefix} ${featureId} ${functionalSha}`,
+    phone: `629${phoneTail}`,
+    releaseIdentity: digest,
   });
 }
 
@@ -125,6 +350,40 @@ function loadCredentials(contract, environment = process.env) {
   };
 }
 
+function loadSmokeProfileBinding(contract, environment = process.env) {
+  requireCondition(
+    contract.profileId === 'production-core' ||
+      contract.profileId === 'production-feature',
+    'GENESIS_SMOKE_PROFILE_INVALID',
+  );
+  const injected = environment.GENESIS_SMOKE_PROFILE_JSON;
+  let raw;
+  if (injected !== undefined) {
+    requireCondition(injected.length > 0, 'SMOKE_PROFILE_UNAVAILABLE');
+    raw = injected;
+  } else {
+    const result = spawnSync(
+      'ssh',
+      ['genesis-vps', 'sudo', '-n', 'cat', PRODUCTION_PROFILE_PATH],
+      {
+        encoding: 'utf8',
+        windowsHide: true,
+        maxBuffer: 1024 * 1024,
+      },
+    );
+    requireCondition(result.status === 0, 'SMOKE_PROFILE_UNAVAILABLE');
+    raw = result.stdout;
+  }
+
+  let value;
+  try {
+    value = JSON.parse(raw);
+  } catch {
+    throw new Error('SMOKE_PROFILE_BINDING_INVALID');
+  }
+  return parseSmokeProfileBinding(value);
+}
+
 function currentPath(page) {
   try {
     return new URL(page.url()).pathname;
@@ -154,6 +413,22 @@ async function organizationContractVisible(page) {
   });
   const container = page.locator('[aria-label="Organizações disponíveis"]');
   return (await isVisible(heading)) && (await isVisible(container));
+}
+
+async function selectOrganizationByExactName(page, organizationName) {
+  const container = page.locator('[aria-label="Organizações disponíveis"]');
+  const options = container.getByRole('button');
+  const matches = [];
+  for (let index = 0; index < (await options.count()); index += 1) {
+    const option = options.nth(index);
+    if (
+      (await option.getByText(organizationName, { exact: true }).count()) === 1
+    ) {
+      matches.push(option);
+    }
+  }
+  requireCondition(matches.length === 1, 'BOUND_ORGANIZATION_NAME_NOT_UNIQUE');
+  await matches[0].click();
 }
 
 async function detectSettledSurface(page, timeout = 30_000) {
@@ -276,7 +551,27 @@ function assertCoreDiagnostics(diagnostics) {
   );
 }
 
-async function reachProtectedRoute(page, contract, diagnostics) {
+async function reachProtectedRoute(
+  page,
+  contract,
+  diagnostics,
+  environment = process.env,
+) {
+  let binding = null;
+  let bootstrapBindingVerified = false;
+  let authorization = Object.freeze({
+    profileId: contract.profileId,
+    featureId: contract.featureId,
+    dataPrefix: SYNTHETIC_DATA_PREFIX,
+    businessMutationsAuthorized:
+      contract.usesLocalFixtures && contract.profileId === 'production-feature',
+  });
+  if (!contract.usesLocalFixtures) {
+    if (diagnostics) diagnostics.stage = 'profile-binding';
+    binding = loadSmokeProfileBinding(contract, environment);
+    authorization = authorizeSmokeProfile(contract, binding);
+  }
+
   if (contract.usesLocalFixtures) {
     if (diagnostics) diagnostics.stage = 'fixture-reset';
     await page.request.post('/__test/reset');
@@ -295,12 +590,44 @@ async function reachProtectedRoute(page, contract, diagnostics) {
     transitions.push(state.surface);
     if (state.surface === 'login') {
       if (diagnostics) diagnostics.stage = 'login';
-      const credentials = loadCredentials(contract);
+      const credentials = loadCredentials(contract, environment);
+      if (binding) {
+        requireCondition(
+          credentials.email === binding.principalEmail,
+          'SMOKE_CREDENTIAL_EMAIL_MISMATCH',
+        );
+      }
+      const bootstrapResponse = binding
+        ? page.waitForResponse(
+            (response) => {
+              try {
+                return (
+                  new URL(response.url()).pathname ===
+                    '/api/v1/auth/bootstrap' && response.status() === 200
+                );
+              } catch {
+                return false;
+              }
+            },
+            { timeout: 30_000 },
+          )
+        : null;
       await page.getByLabel('E-mail', { exact: true }).fill(credentials.email);
       await page
         .getByLabel('Senha', { exact: true })
         .fill(credentials.password);
       await page.getByRole('button', { name: 'Entrar', exact: true }).click();
+      if (bootstrapResponse) {
+        if (diagnostics) diagnostics.stage = 'profile-bootstrap';
+        let bootstrap;
+        try {
+          bootstrap = await (await bootstrapResponse).json();
+        } catch {
+          throw new Error('SMOKE_BOOTSTRAP_INVALID');
+        }
+        validateBootstrapBinding(bootstrap, binding);
+        bootstrapBindingVerified = true;
+      }
       if (diagnostics) diagnostics.stage = 'login-navigation';
       await page.waitForFunction(
         () => window.location.pathname !== '/login',
@@ -314,14 +641,10 @@ async function reachProtectedRoute(page, contract, diagnostics) {
 
     if (state.surface === 'organization-selection') {
       if (diagnostics) diagnostics.stage = 'organization-selection';
-      const options = page
-        .locator('[aria-label="Organizações disponíveis"]')
-        .getByRole('button');
-      requireCondition(
-        (await options.count()) > 0,
-        'NO_ORGANIZATION_OPTION_AVAILABLE',
+      await selectOrganizationByExactName(
+        page,
+        binding?.organizationName ?? LOCAL_ORGANIZATION_NAME,
       );
-      await options.first().click();
       if (diagnostics) diagnostics.stage = 'organization-navigation';
       await page.waitForFunction(
         () => window.location.pathname !== '/select-organization',
@@ -337,6 +660,10 @@ async function reachProtectedRoute(page, contract, diagnostics) {
   }
 
   requireCondition(state.surface === 'app', 'AUTH_ORGANIZATION_NOT_RESOLVED');
+  requireCondition(
+    contract.usesLocalFixtures || bootstrapBindingVerified,
+    'SMOKE_AUTHENTICATED_BINDING_NOT_OBSERVED',
+  );
   const navigation = page.getByRole('navigation', {
     name: 'Navegação principal',
     exact: true,
@@ -375,7 +702,12 @@ async function reachProtectedRoute(page, contract, diagnostics) {
     'TARGET_ROUTE_NOT_REACHED',
   );
 
-  return { finalPath: state.pathname, transitions };
+  return {
+    finalPath: state.pathname,
+    transitions,
+    authorization,
+    bindingVerified: bootstrapBindingVerified,
+  };
 }
 
 async function logout(page) {
@@ -484,17 +816,25 @@ function safeReasonCode(error) {
 module.exports = {
   LOCAL_BASE_URL,
   PRODUCTION_BASE_URL,
+  SMOKE_PROFILES,
+  SYNTHETIC_DATA_PREFIX,
   assertCoreDiagnostics,
+  authorizeSmokeProfile,
   classifyGeneratedHostResponse,
   createDiagnostics,
+  deriveSyntheticLeadIdentity,
   detectSettledSurface,
   loginContractVisible,
   logout,
+  loadSmokeProfileBinding,
   organizationContractVisible,
+  parseSmokeProfileBinding,
   parseTargetRoute,
   reachProtectedRoute,
   readHarnessContract,
   requireFeatureSmokeExecution,
   safeReasonCode,
+  selectOrganizationByExactName,
   sanitizedDiagnostics,
+  validateBootstrapBinding,
 };
