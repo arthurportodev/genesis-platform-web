@@ -14,15 +14,15 @@ const BRIDGE_MARKER = '<!-- genesis-memory-bridge:v1 -->';
 const HISTORY_MARKER = '<!-- genesis-memory-history:v1 -->';
 const HISTORY_MARKER_ALLOWLIST = new Set(['docs/ROADMAP.md']);
 const RECEIPT = Object.freeze({
-  transitionId: 'PIPE-V2-03A-CROSS-REPO',
-  targetStateRevision: 'PIPE-V2-03A-IMPLEMENTED-AND-MERGED-2026-09-05',
-  baseSha: '90dc36a3e8a53c1e1852b6acfb8b4c05c97e44e6',
+  transitionId: 'PIPE-V2-03A-PRODUCTION-KEEP-CROSS-REPO',
+  targetStateRevision: 'PIPE-V2-03A-PRODUCTION-KEEP-2026-09-05',
+  baseSha: '9c626245c381c3186011059a8716d5b67b752038',
   revisionSource: 'containing-commit',
 });
 const PREVIOUS_RECEIPT = Object.freeze({
-  transitionId: 'MVP-10E-CROSS-REPO',
-  targetStateRevision: 'MVP-10D-WEB-INTEGRATED-2026-08-24',
-  memoryRevision: 'e1ecc23f7c8fe346c93e0b9fd79bbbeaae46f49e',
+  transitionId: 'PIPE-V2-03A-CROSS-REPO',
+  targetStateRevision: 'PIPE-V2-03A-IMPLEMENTED-AND-MERGED-2026-09-05',
+  memoryRevision: 'd5e0f35e21b9fcf8039b0cae2fcbed85374fb174',
 });
 const AUTHORITY = Object.freeze({
   repository: 'arthurportodev/genesis-platform-api',
@@ -35,7 +35,9 @@ const WEB_POINTER = Object.freeze({
   schemaVersion: '1.0.0',
   mode: 'pointer-only',
 });
-const WEB_RELEASE_REVISION = '6f53180e6c3947bd778e47c8fdb734567802e0d8';
+const WEB_RELEASE_REVISION = '90dc36a3e8a53c1e1852b6acfb8b4c05c97e44e6';
+const PREVIOUS_WEB_RELEASE_REVISION =
+  '6f53180e6c3947bd778e47c8fdb734567802e0d8';
 const RESOLUTION_ORDER = Object.freeze([
   'explicit-checkout',
   'sibling-checkout',
@@ -587,17 +589,6 @@ function validateAuthority(authority, acceptedMajor) {
   }
   const webIntegratedRevision =
     authority.releaseBindings?.webIntegratedRevision;
-  if (
-    !FULL_SHA.test(webIntegratedRevision) ||
-    webIntegratedRevision !== WEB_RELEASE_REVISION
-  ) {
-    fail(
-      'MEMORY_RELEASE_BINDING_MISMATCH',
-      'The Web application/release binding is invalid.',
-      '$authority.releaseBindings.webIntegratedRevision',
-      `Use the approved historical Web release binding ${WEB_RELEASE_REVISION}.`,
-    );
-  }
   const pointerMetadata = authority.pointerMetadata;
   const acknowledgesCurrentReceipt =
     pointerMetadata?.repository === WEB_POINTER.repository &&
@@ -621,6 +612,23 @@ function validateAuthority(authority, acceptedMajor) {
       'The API authority does not acknowledge the historical Web receipt.',
       '$authority.pointerMetadata',
       'Restore the exact pointer metadata for the approved Web receipt.',
+    );
+  }
+  const releaseBindingMatchesCurrent =
+    acknowledgesCurrentReceipt &&
+    webIntegratedRevision === WEB_RELEASE_REVISION;
+  const releaseBindingMatchesPrevious =
+    acknowledgesPreviousReceipt &&
+    webIntegratedRevision === PREVIOUS_WEB_RELEASE_REVISION;
+  if (
+    !FULL_SHA.test(webIntegratedRevision) ||
+    (!releaseBindingMatchesCurrent && !releaseBindingMatchesPrevious)
+  ) {
+    fail(
+      'MEMORY_RELEASE_BINDING_MISMATCH',
+      'The Web application/release binding is invalid for its receipt.',
+      '$authority.releaseBindings.webIntegratedRevision',
+      `Use ${WEB_RELEASE_REVISION} for the current receipt or ${PREVIOUS_WEB_RELEASE_REVISION} for the exact predecessor receipt.`,
     );
   }
   return {
