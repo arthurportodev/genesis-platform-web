@@ -68,6 +68,14 @@ npm run smoke:web:generated-host
 npm run smoke:production:web
 ```
 
+O harness possui exatamente três perfis:
+
+| Perfil               | Alvo e permissão                                                            |
+| -------------------- | --------------------------------------------------------------------------- |
+| `generated-host`     | valida fail-closed do host gerado, sem credenciais                          |
+| `production-core`    | valida autenticação, Organization e shell; não autoriza mutation de negócio |
+| `production-feature` | autoriza somente feature e mutations declaradas no binding                  |
+
 `smoke:web:generated-host` exige
 `GENESIS_VERCEL_GENERATED_URL=https://<candidate>.vercel.app`. Ele nunca
 envia credenciais e aceita somente application 4xx fail-closed ou Vercel
@@ -81,6 +89,22 @@ Credenciais sintéticas entram somente por
 `GENESIS_SMOKE_EMAIL`/`GENESIS_SMOKE_PASSWORD` ou pelo runtime secret já
 existente na VPS; nunca são registradas. Screenshot, trace e video permanecem
 desligados.
+
+Os perfis `production-core` e `production-feature` exigem o binding
+operacional não secreto em
+`/opt/genesis/shared/config/smoke-profile.v1.json`. Para simulação controlada
+em CI, o mesmo JSON pode entrar por `GENESIS_SMOKE_PROFILE_JSON`. O schema é
+estrito e aceita somente `schemaVersion`, `profileId`, `principalUserId`,
+`principalEmail`, `organizationId`, `organizationName`, `requiredRole`,
+`allowedFeatures`, `allowedMutations` e `dataPrefix`. Ele não contém senha,
+token ou cookie; a senha permanece no secret de credenciais existente.
+
+Antes de qualquer mutation, o perfil de feature comprova o e-mail da
+credencial, o ID e e-mail do usuário autenticado, uma única Organization, ID e
+nome exatos, role `owner`, feature e mutations permitidas. Campo ausente,
+campo extra, divergência ou duas Organizations encerram o smoke antes da
+mutation. A seleção visual usa o nome exato do binding e nunca depende da
+primeira opção.
 
 O core prova app, login quando necessário, seleção real de Organization quando
 necessária, shell protegido, API same-origin, ausência de fatal browser error e
@@ -106,6 +130,18 @@ npm run smoke:web:feature:presentation-v2
 
 Futuras features fornecem seu próprio spec/comando no Task Packet. Não edite o
 harness depois da promotion.
+
+O smoke `PIPE-V2-03A` deriva nome e telefone sintéticos de
+`PIPE-V2-03A + Web functional integrated SHA`, usa o prefixo
+`[GENESIS-SMOKE]`, captura o UUID do Lead na URL criada e localiza esse UUID no
+Pipeline. Antes da mutation em Production, uma busca exata deve provar que a
+identidade da release ainda não existe. Um Lead preexistente encerra a
+execução; o harness não apaga dados e não reutiliza fixture ou ordem visual.
+
+O binding precisa ser provisionado e validado antes do Gate de Production. Na
+ausência do arquivo ou de correspondência factual do principal e da
+Organization, registre `PRODUCTION_BINDING_READY=false`; o core e toda
+mutation de feature permanecem bloqueados.
 
 ## Rollback Web
 
