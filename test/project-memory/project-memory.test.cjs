@@ -20,8 +20,14 @@ const SCRIPT = join(REPOSITORY_ROOT, "scripts", "validate-project-memory.cjs");
 const POINTER = "docs/memory/project-state.pointer.v1.json";
 const SCHEMA = "schemas/genesis-harness/project-state.pointer.v1.schema.json";
 const BRIDGE = "docs/CURRENT_STATE.md";
-const RECEIPT_TARGET_STATE_REVISION = "MVP-10D-WEB-INTEGRATED-2026-08-24";
-const WEB_RELEASE_REVISION = "017ef0056d97147a5e5337494fa339a3f65986ac";
+const RECEIPT_TARGET_STATE_REVISION =
+  "PIPE-V2-03A-IMPLEMENTED-AND-MERGED-2026-09-05";
+const PREVIOUS_RECEIPT = {
+  transitionId: "MVP-10E-CROSS-REPO",
+  targetStateRevision: "MVP-10D-WEB-INTEGRATED-2026-08-24",
+  memoryRevision: "e1ecc23f7c8fe346c93e0b9fd79bbbeaae46f49e",
+};
+const WEB_RELEASE_REVISION = "6f53180e6c3947bd778e47c8fdb734567802e0d8";
 const FIXTURES = [];
 
 function fixture() {
@@ -79,6 +85,7 @@ function authority(
   {
     stateRevision = "LATER-TEMPORAL-REVISION-2026-08-26",
     releaseBinding = WEB_RELEASE_REVISION,
+    pointerTransitionId = "PIPE-V2-03A-CROSS-REPO",
     pointerTargetStateRevision = RECEIPT_TARGET_STATE_REVISION,
   } = {},
 ) {
@@ -106,7 +113,7 @@ function authority(
       path: POINTER,
       schemaVersion: "1.0.0",
       mode: "pointer-only",
-      transitionId: "MVP-10E-CROSS-REPO",
+      transitionId: pointerTransitionId,
       targetStateRevision: pointerTargetStateRevision,
     },
   };
@@ -378,6 +385,29 @@ test("reports authority unavailable and transition pending together", () => {
   expectCode(execution, "AUTHORITY_UNAVAILABLE");
   assert.ok(execution.result.codes.includes("MEMORY_TRANSITION_PENDING"));
   assert.equal(execution.result.staleFallbackUsed, false);
+});
+
+test("reports the exact predecessor authority as transition pending", () => {
+  const root = fixture();
+  const source = join(root, "authority.json");
+  writeJson(
+    root,
+    authority(PREVIOUS_RECEIPT.memoryRevision, {
+      stateRevision: "PIPE-V2-03-PRODUCTION-LIVE-2026-09-04",
+      pointerTransitionId: PREVIOUS_RECEIPT.transitionId,
+      pointerTargetStateRevision: PREVIOUS_RECEIPT.targetStateRevision,
+    }),
+    "authority.json",
+  );
+  const execution = run(root, ["--mode", "resolve", "--api-source", source]);
+  expectCode(execution, "MEMORY_TRANSITION_PENDING");
+  assert.equal(execution.result.authorityResolved, true);
+  assert.equal(execution.result.transitionPending, true);
+  assert.equal(execution.result.staleFallbackUsed, false);
+  assert.equal(
+    execution.result.targetStateRevision,
+    RECEIPT_TARGET_STATE_REVISION,
+  );
 });
 
 test("rejects authority metadata that does not acknowledge the historical receipt", () => {

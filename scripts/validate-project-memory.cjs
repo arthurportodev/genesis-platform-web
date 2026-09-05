@@ -14,10 +14,15 @@ const BRIDGE_MARKER = '<!-- genesis-memory-bridge:v1 -->';
 const HISTORY_MARKER = '<!-- genesis-memory-history:v1 -->';
 const HISTORY_MARKER_ALLOWLIST = new Set(['docs/ROADMAP.md']);
 const RECEIPT = Object.freeze({
+  transitionId: 'PIPE-V2-03A-CROSS-REPO',
+  targetStateRevision: 'PIPE-V2-03A-IMPLEMENTED-AND-MERGED-2026-09-05',
+  baseSha: '90dc36a3e8a53c1e1852b6acfb8b4c05c97e44e6',
+  revisionSource: 'containing-commit',
+});
+const PREVIOUS_RECEIPT = Object.freeze({
   transitionId: 'MVP-10E-CROSS-REPO',
   targetStateRevision: 'MVP-10D-WEB-INTEGRATED-2026-08-24',
-  baseSha: 'ac87eb78640e641c67bf6e354ad497b421d487f8',
-  revisionSource: 'containing-commit',
+  memoryRevision: 'e1ecc23f7c8fe346c93e0b9fd79bbbeaae46f49e',
 });
 const AUTHORITY = Object.freeze({
   repository: 'arthurportodev/genesis-platform-api',
@@ -30,7 +35,7 @@ const WEB_POINTER = Object.freeze({
   schemaVersion: '1.0.0',
   mode: 'pointer-only',
 });
-const WEB_RELEASE_REVISION = '017ef0056d97147a5e5337494fa339a3f65986ac';
+const WEB_RELEASE_REVISION = '6f53180e6c3947bd778e47c8fdb734567802e0d8';
 const RESOLUTION_ORDER = Object.freeze([
   'explicit-checkout',
   'sibling-checkout',
@@ -594,14 +599,23 @@ function validateAuthority(authority, acceptedMajor) {
     );
   }
   const pointerMetadata = authority.pointerMetadata;
-  if (
-    pointerMetadata?.repository !== WEB_POINTER.repository ||
-    pointerMetadata?.path !== WEB_POINTER.path ||
-    pointerMetadata?.schemaVersion !== WEB_POINTER.schemaVersion ||
-    pointerMetadata?.mode !== WEB_POINTER.mode ||
-    pointerMetadata?.transitionId !== RECEIPT.transitionId ||
-    pointerMetadata?.targetStateRevision !== RECEIPT.targetStateRevision
-  ) {
+  const acknowledgesCurrentReceipt =
+    pointerMetadata?.repository === WEB_POINTER.repository &&
+    pointerMetadata?.path === WEB_POINTER.path &&
+    pointerMetadata?.schemaVersion === WEB_POINTER.schemaVersion &&
+    pointerMetadata?.mode === WEB_POINTER.mode &&
+    pointerMetadata?.transitionId === RECEIPT.transitionId &&
+    pointerMetadata?.targetStateRevision === RECEIPT.targetStateRevision;
+  const acknowledgesPreviousReceipt =
+    pointerMetadata?.repository === WEB_POINTER.repository &&
+    pointerMetadata?.path === WEB_POINTER.path &&
+    pointerMetadata?.schemaVersion === WEB_POINTER.schemaVersion &&
+    pointerMetadata?.mode === WEB_POINTER.mode &&
+    pointerMetadata?.transitionId === PREVIOUS_RECEIPT.transitionId &&
+    pointerMetadata?.targetStateRevision ===
+      PREVIOUS_RECEIPT.targetStateRevision &&
+    web.memoryRevision.sha === PREVIOUS_RECEIPT.memoryRevision;
+  if (!acknowledgesCurrentReceipt && !acknowledgesPreviousReceipt) {
     fail(
       'MEMORY_POINTER_MISMATCH',
       'The API authority does not acknowledge the historical Web receipt.',
@@ -613,6 +627,7 @@ function validateAuthority(authority, acceptedMajor) {
     authority,
     webMemoryRevision: web.memoryRevision.sha,
     webIntegratedRevision,
+    acknowledgesCurrentReceipt,
   };
 }
 
@@ -845,6 +860,27 @@ async function main() {
     } else {
       writeResult(errorResult(failure), [failure.message]);
     }
+    process.exitCode = 1;
+    return;
+  }
+
+  if (!authority.acknowledgesCurrentReceipt) {
+    writeResult(
+      {
+        ok: false,
+        code: 'MEMORY_TRANSITION_PENDING',
+        codes: ['MEMORY_TRANSITION_PENDING'],
+        authorityResolved: true,
+        transitionPending: true,
+        staleFallbackUsed: false,
+        targetStateRevision: pointer.receipt.targetStateRevision,
+        nextAction:
+          'Merge the Web pointer, then update the canonical API authority with its containing commit.',
+      },
+      [
+        'The canonical API authority still acknowledges the predecessor receipt.',
+      ],
+    );
     process.exitCode = 1;
     return;
   }
