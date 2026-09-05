@@ -69,6 +69,20 @@ describe("Inbox e detalhe do Lead", () => {
     restoreLocks();
   });
 
+  it("mostra a alteração financeira anterior e nova em BRL", async () => {
+    const restoreLocks = installWebLocks();
+    server.use(
+      ...createAuthHandlers(),
+      ...createLeadHandlers({ timelineFinancial: true }),
+    );
+    await renderAppAt(`/app/leads/${testLeadId}`);
+    expect(
+      await screen.findByText("Valor da oportunidade alterado"),
+    ).toBeVisible();
+    expect(screen.getByText("R$ 25.000,00 → R$ 30.000,00")).toBeVisible();
+    restoreLocks();
+  });
+
   it("navega por cursor e retorna pela pilha local", async () => {
     const restoreLocks = installWebLocks();
     const requested: URL[] = [];
@@ -155,6 +169,95 @@ describe("Inbox e detalhe do Lead", () => {
       email: "lead@example.test",
       city: "Campinas",
     });
+    restoreLocks();
+  });
+
+  it("salva dados comuns e valor em uma única operação atômica", async () => {
+    const restoreLocks = installWebLocks();
+    let mutationPath = "";
+    let mutationBody: Promise<unknown> | undefined;
+    server.use(
+      ...createAuthHandlers(),
+      ...createLeadHandlers({
+        onMutation: (request) => {
+          mutationPath = new URL(request.url).pathname;
+          mutationBody = request.clone().json();
+        },
+      }),
+    );
+    const user = userEvent.setup();
+    await renderAppAt(`/app/leads/${testLeadId}`);
+
+    const city = await screen.findByLabelText("Cidade");
+    await user.clear(city);
+    await user.type(city, "Campinas");
+    const expectedValue = screen.getByLabelText("Valor da oportunidade");
+    expect(expectedValue).toHaveValue("25.000,00");
+    await user.clear(expectedValue);
+    await user.type(expectedValue, "30000");
+    await user.click(screen.getByRole("button", { name: "Salvar alterações" }));
+
+    await waitFor(() =>
+      expect(mutationPath).toBe(`/api/v1/leads/${testLeadId}/information`),
+    );
+    expect(await mutationBody).toMatchObject({
+      city: "Campinas",
+      expectedValueMinor: "3000000",
+    });
+    restoreLocks();
+  });
+
+  it("usa somente a operação financeira quando apenas o valor muda", async () => {
+    const restoreLocks = installWebLocks();
+    let mutationPath = "";
+    server.use(
+      ...createAuthHandlers(),
+      ...createLeadHandlers({
+        onMutation: (request) => {
+          mutationPath = new URL(request.url).pathname;
+        },
+      }),
+    );
+    const user = userEvent.setup();
+    await renderAppAt(`/app/leads/${testLeadId}`);
+
+    const expectedValue = await screen.findByLabelText("Valor da oportunidade");
+    await user.clear(expectedValue);
+    await user.type(expectedValue, "0");
+    await user.click(screen.getByRole("button", { name: "Salvar alterações" }));
+
+    await waitFor(() =>
+      expect(mutationPath).toBe(`/api/v1/leads/${testLeadId}/expected-value`),
+    );
+    restoreLocks();
+  });
+
+  it("não envia operação em no-op e preserva valor inválido para correção", async () => {
+    const restoreLocks = installWebLocks();
+    let mutationCount = 0;
+    server.use(
+      ...createAuthHandlers(),
+      ...createLeadHandlers({ onMutation: () => (mutationCount += 1) }),
+    );
+    const user = userEvent.setup();
+    await renderAppAt(`/app/leads/${testLeadId}`);
+    await screen.findByLabelText("Valor da oportunidade");
+
+    await user.click(screen.getByRole("button", { name: "Salvar alterações" }));
+    await waitFor(() => expect(mutationCount).toBe(0));
+
+    const expectedValue = screen.getByLabelText("Valor da oportunidade");
+    await user.clear(expectedValue);
+    await user.type(expectedValue, "12,345");
+    await user.tab();
+    expect(expectedValue).toHaveValue("12,345");
+    expect(
+      screen.getByText(
+        "Informe um valor em reais com até duas casas decimais.",
+      ),
+    ).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "Salvar alterações" }));
+    expect(mutationCount).toBe(0);
     restoreLocks();
   });
 

@@ -10,7 +10,7 @@ const LEAD_ETAG = new RegExp(
   "u",
 );
 const CONDITIONAL_LEAD_PATH = new RegExp(
-  `^/api/v1/leads/(${CANONICAL_UUID})(?:/(assignment|activities|notes|next-action(?:/(?:reschedule|complete|cancel))?|move|win|lose|archive|reactivate|return-review/dismiss))?$`,
+  `^/api/v1/leads/(${CANONICAL_UUID})(?:/(assignment|activities|notes|next-action(?:/(?:reschedule|complete|cancel))?|move|win|lose|archive|reactivate|return-review/dismiss|expected-value|information))?$`,
   "u",
 );
 const HTTP_TOKEN = /^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$/u;

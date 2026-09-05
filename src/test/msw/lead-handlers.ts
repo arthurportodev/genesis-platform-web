@@ -95,6 +95,7 @@ export const testLead = {
     lostReason: null,
     archiveReason: null,
     reasonNote: null,
+    expectedValueMinor: "2500000",
   },
   pendingReturn: null,
   counts: { timeline: 1, cycles: 1, activities: 0, notes: 0 },
@@ -177,6 +178,7 @@ export function createLeadHandlers(
     onCreate?: (request: Request, body: unknown) => void;
     onMembers?: () => void;
     kanbanItemOverrides?: Partial<LeadListItem>;
+    timelineFinancial?: boolean;
   } = {},
 ) {
   let currentStage: LeadStage = testLead.stage;
@@ -372,7 +374,9 @@ export function createLeadHandlers(
           {
             id: eventId,
             sequence: "1",
-            eventType: "lead.created",
+            eventType: options.timelineFinancial
+              ? "lead.expected_value.changed"
+              : "lead.created",
             actorMembershipId: null,
             leadEntryId: entryId,
             previousResponsibleMembershipId: null,
@@ -395,6 +399,10 @@ export function createLeadHandlers(
             newDueAt: null,
             nextActionRevision: null,
             nextActionCancellationReason: null,
+            previousExpectedValueMinor: options.timelineFinancial
+              ? "2500000"
+              : null,
+            newExpectedValueMinor: options.timelineFinancial ? "3000000" : null,
             activity: null,
             note: null,
             nextAction: null,
@@ -450,6 +458,8 @@ export function createLeadHandlers(
       "/archive",
       "/reactivate",
       "/return-review/dismiss",
+      "/expected-value",
+      "/information",
     ].map((suffix) =>
       http.post(`/api/v1/leads/${testLeadId}${suffix}`, async ({ request }) => {
         options.onMutation?.(request);
@@ -457,7 +467,12 @@ export function createLeadHandlers(
           remainingMoveNetworkFailures -= 1;
           return HttpResponse.error();
         }
-        const expectedStatus = suffix === "/move" ? 204 : 201;
+        const expectedStatus =
+          suffix === "/move" || suffix === "/expected-value"
+            ? 204
+            : suffix === "/information"
+              ? 200
+              : 201;
         if (options.mutationStatus && options.mutationStatus !== expectedStatus)
           return HttpResponse.json(
             { statusCode: options.mutationStatus, message: "Mutation failed" },
@@ -484,6 +499,23 @@ export function createLeadHandlers(
             status: 204,
             headers: { ETag: `"lead:${testLeadId}:${currentRevision}"` },
           });
+        }
+        if (suffix === "/expected-value") {
+          currentRevision = String(BigInt(currentRevision) + 1n);
+          return new HttpResponse(null, {
+            status: 204,
+            headers: { ETag: `"lead:${testLeadId}:${currentRevision}"` },
+          });
+        }
+        if (suffix === "/information") {
+          currentRevision = String(BigInt(currentRevision) + 2n);
+          return HttpResponse.json(
+            { ...testLeadView, revision: currentRevision },
+            {
+              status: 200,
+              headers: { ETag: `"lead:${testLeadId}:${currentRevision}"` },
+            },
+          );
         }
         return HttpResponse.json(
           { id: "00000000-0000-4000-8000-000000000015" },

@@ -58,6 +58,22 @@ describe("criação manual de Lead", () => {
     );
   });
 
+  it.each([
+    ["", undefined],
+    ["0", "0"],
+    ["1.234,56", "123456"],
+    ["90.071.992.547.409,93", "9007199254740993"],
+  ])("converte valor da oportunidade %j", (expectedValue, minorUnits) => {
+    const values = leadCreateFormSchema.parse({
+      ...defaultLeadCreateValues,
+      displayName: "Lead",
+      primaryPhone: "11999999999",
+      expectedValue,
+    });
+    const input = buildCreateLeadInput(values, true);
+    expect(input.expectedValueMinor).toBe(minorUnits);
+  });
+
   it("mantém internacional e aplica máscara brasileira não destrutiva", () => {
     expect(formatLeadPhoneOnBlur(" +1 202-555-0123 ")).toBe("+1 202-555-0123");
     expect(formatLeadPhoneOnBlur("62999999999")).toBe("(62) 99999-9999");

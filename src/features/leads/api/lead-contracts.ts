@@ -160,6 +160,7 @@ export const createLeadInputSchema = z
     utmContent: optionalCreateText(255),
     utmTerm: optionalCreateText(255),
     responsibleMembershipId: uuid.optional(),
+    expectedValueMinor: minorUnits.nullable().optional(),
   })
   .strict()
   .superRefine((input, context) => {
@@ -193,6 +194,7 @@ const cycleSchema = z.object({
   lostReason: z.enum(lostReasons).nullable(),
   archiveReason: z.enum(archiveReasons).nullable(),
   reasonNote: z.string().nullable(),
+  expectedValueMinor: minorUnits.nullable(),
 });
 
 export const leadDetailSchema = leadViewSchema.extend({
@@ -267,6 +269,8 @@ export const timelineItemSchema = z.object({
   newDueAt: timestamp.nullable(),
   nextActionRevision: revision.nullable(),
   nextActionCancellationReason: z.enum(["manual", "lead_closed"]).nullable(),
+  previousExpectedValueMinor: minorUnits.nullable(),
+  newExpectedValueMinor: minorUnits.nullable(),
   activity: activitySchema.nullable(),
   note: noteSchema.nullable(),
   nextAction: nextActionSummarySchema
@@ -623,4 +627,15 @@ export interface UpdateLeadInput {
   instagram?: string | null;
   city?: string | null;
   serviceInterest?: string | null;
+}
+
+export interface LeadInformationInput {
+  displayName: string;
+  primaryPhone: string;
+  email: string | null;
+  companyName: string | null;
+  instagram: string | null;
+  city: string | null;
+  serviceInterest: string | null;
+  expectedValueMinor: string | null;
 }

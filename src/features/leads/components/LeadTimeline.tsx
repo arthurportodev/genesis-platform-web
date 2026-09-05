@@ -5,6 +5,7 @@ import {
   timelineEventLabel,
 } from "@/features/leads/api/lead-labels";
 import { useLeadTimelineQuery } from "@/features/leads/hooks/use-lead-queries";
+import { formatBrlMinorUnits } from "@/features/leads/model/lead-money";
 import { OperationalState } from "@/shared/components/OperationalState";
 import { Button } from "@/shared/ui/Button";
 import { Card } from "@/shared/ui/Card";
@@ -79,6 +80,17 @@ export function LeadTimeline({ leadId }: { leadId: string }) {
                 <p className="mt-2 text-sm text-muted-foreground">
                   {item.nextAction.description} ·{" "}
                   {formatDateTime(item.nextAction.dueAt)}
+                </p>
+              ) : null}
+              {item.eventType === "lead.expected_value.changed" ? (
+                <p className="mt-2 text-sm text-muted-foreground">
+                  {item.previousExpectedValueMinor === null
+                    ? "Não informado"
+                    : formatBrlMinorUnits(item.previousExpectedValueMinor)}{" "}
+                  →{" "}
+                  {item.newExpectedValueMinor === null
+                    ? "Não informado"
+                    : formatBrlMinorUnits(item.newExpectedValueMinor)}
                 </p>
               ) : null}
             </Card>

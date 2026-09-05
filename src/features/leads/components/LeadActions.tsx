@@ -7,6 +7,7 @@ import {
   lostReasons,
   nextActionTypes,
   type LeadDetail,
+  type LeadInformationInput,
   type Member,
 } from "@/features/leads/api/lead-contracts";
 import { leadCapabilities } from "@/features/leads/api/lead-capabilities";
@@ -20,6 +21,11 @@ import type {
   LeadIdempotentAction,
 } from "@/features/leads/api/lead-api";
 import { useLeadMutations } from "@/features/leads/hooks/use-lead-mutations";
+import {
+  formatBrlInput,
+  formatBrlInputFromMinorUnits,
+  parseBrlToMinorUnits,
+} from "@/features/leads/model/lead-money";
 import { toAppError } from "@/shared/api/errors";
 import { useActiveOrganization } from "@/shared/organization/active-organization";
 import { Button } from "@/shared/ui/Button";
@@ -59,7 +65,7 @@ export function LeadActions({
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const busy =
-    mutations.update.isPending ||
+    mutations.saveInformation.isPending ||
     mutations.assign.isPending ||
     mutations.act.isPending;
 
@@ -144,7 +150,7 @@ export function LeadActions({
               setError(null);
               setMessage(null);
               try {
-                await mutations.update.mutateAsync({ current, body });
+                await mutations.saveInformation.mutateAsync({ current, body });
                 setMessage("Dados do Lead atualizados.");
               } catch (cause) {
                 await reportError(cause);
@@ -220,15 +226,7 @@ function EditLeadCard({
 }: {
   current: LeadDetailSnapshot;
   busy: boolean;
-  onSave: (body: {
-    displayName: string;
-    primaryPhone: string;
-    email: string | null;
-    companyName: string | null;
-    instagram: string | null;
-    city: string | null;
-    serviceInterest: string | null;
-  }) => Promise<void>;
+  onSave: (body: LeadInformationInput) => Promise<void>;
 }) {
   const lead = current.lead;
   const [displayName, setDisplayName] = useState(lead.displayName);
@@ -240,8 +238,26 @@ function EditLeadCard({
   const [serviceInterest, setServiceInterest] = useState(
     lead.serviceInterest ?? "",
   );
+  const [expectedValue, setExpectedValue] = useState(
+    formatBrlInputFromMinorUnits(lead.latestCycle.expectedValueMinor),
+  );
+  const [expectedValueError, setExpectedValueError] = useState<string | null>(
+    null,
+  );
   const submit = (event: FormEvent) => {
     event.preventDefault();
+    let expectedValueMinor: string | null;
+    try {
+      expectedValueMinor = parseBrlToMinorUnits(expectedValue);
+      setExpectedValueError(null);
+    } catch (cause) {
+      setExpectedValueError(
+        cause instanceof Error
+          ? cause.message
+          : "Informe um valor em reais válido.",
+      );
+      return;
+    }
     void onSave({
       displayName: displayName.normalize("NFC").trim(),
       primaryPhone: primaryPhone.trim(),
@@ -250,6 +266,7 @@ function EditLeadCard({
       instagram: instagram.normalize("NFC").trim() || null,
       city: city.normalize("NFC").trim() || null,
       serviceInterest: serviceInterest.normalize("NFC").trim() || null,
+      expectedValueMinor,
     });
   };
   return (
@@ -294,6 +311,30 @@ function EditLeadCard({
           value={serviceInterest}
           onChange={setServiceInterest}
           maxLength={160}
+        />
+        <Field
+          label="Valor da oportunidade"
+          value={expectedValue}
+          onChange={(value) => {
+            setExpectedValue(value);
+            setExpectedValueError(null);
+          }}
+          prefix="R$"
+          placeholder="0,00"
+          inputMode="decimal"
+          error={expectedValueError}
+          onBlur={() => {
+            try {
+              setExpectedValue(formatBrlInput(expectedValue));
+              setExpectedValueError(null);
+            } catch (cause) {
+              setExpectedValueError(
+                cause instanceof Error
+                  ? cause.message
+                  : "Informe um valor em reais válido.",
+              );
+            }
+          }}
         />
         <Button className="sm:col-span-2" disabled={busy}>
           Salvar alterações
@@ -799,6 +840,11 @@ function Field({
   type = "text",
   required = false,
   maxLength,
+  prefix,
+  placeholder,
+  inputMode,
+  error,
+  onBlur,
 }: {
   label: string;
   value: string;
@@ -806,20 +852,48 @@ function Field({
   type?: string;
   required?: boolean;
   maxLength?: number;
+  prefix?: string;
+  placeholder?: string;
+  inputMode?: React.HTMLAttributes<HTMLInputElement>["inputMode"];
+  error?: string | null;
+  onBlur?: () => void;
 }) {
   const id = `lead-field-${label.toLowerCase().replaceAll(" ", "-")}`;
   return (
     <div>
       <Label htmlFor={id}>{label}</Label>
-      <Input
-        id={id}
-        className="mt-1.5"
-        type={type}
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        required={required}
-        maxLength={maxLength}
-      />
+      <div
+        className={
+          prefix ? "mt-1.5 flex rounded-md border border-input" : undefined
+        }
+      >
+        {prefix ? (
+          <span className="flex items-center border-r border-input px-3 text-sm text-muted-foreground">
+            {prefix}
+          </span>
+        ) : null}
+        <Input
+          id={id}
+          className={
+            prefix ? "border-0 shadow-none focus-visible:ring-0" : "mt-1.5"
+          }
+          type={type}
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          onBlur={onBlur}
+          required={required}
+          maxLength={maxLength}
+          placeholder={placeholder}
+          inputMode={inputMode}
+          aria-invalid={Boolean(error)}
+          aria-describedby={error ? `${id}-error` : undefined}
+        />
+      </div>
+      {error ? (
+        <p id={`${id}-error`} className="mt-1.5 text-sm text-destructive">
+          {error}
+        </p>
+      ) : null}
     </div>
   );
 }

@@ -35,6 +35,8 @@ describe("Genesis If-Match transport policy", () => {
     ["POST", `/api/v1/leads/${leadId}/archive`],
     ["POST", `/api/v1/leads/${leadId}/reactivate`],
     ["POST", `/api/v1/leads/${leadId}/return-review/dismiss`],
+    ["POST", `/api/v1/leads/${leadId}/expected-value`],
+    ["POST", `/api/v1/leads/${leadId}/information`],
   ])("accepts the contracted %s %s route", (method, pathname) => {
     expect(resolve({ method, pathname })).toMatchObject({ ifMatch: token });
   });

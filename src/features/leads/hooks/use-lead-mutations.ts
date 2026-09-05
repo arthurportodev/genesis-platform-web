@@ -5,7 +5,10 @@ import {
   type LeadDetailSnapshot,
   type LeadIdempotentAction,
 } from "@/features/leads/api/lead-api";
-import type { UpdateLeadInput } from "@/features/leads/api/lead-contracts";
+import type {
+  LeadInformationInput,
+  UpdateLeadInput,
+} from "@/features/leads/api/lead-contracts";
 import type {
   LeadListItem,
   LeadStage,
@@ -31,6 +34,7 @@ export function useLeadMutations(leadId: string) {
   const organization = useActiveOrganization();
   const queryClient = useQueryClient();
   const api = useLeadApi();
+  const informationIntentKeys = useRef(new LeadIntentKeyRegistry());
 
   const refreshLead = async (includeMetrics = false) => {
     const refreshes = [
@@ -78,6 +82,72 @@ export function useLeadMutations(leadId: string) {
     onSuccess: () => refreshLead(false),
   });
 
+  const saveInformation = useMutation({
+    mutationKey: [
+      ...leadQueryKeys.root(organization.id),
+      "mutation",
+      leadId,
+      "information",
+    ],
+    mutationFn: async ({
+      current,
+      body,
+    }: {
+      current: LeadDetailSnapshot;
+      body: LeadInformationInput;
+    }) => {
+      const commonChanged =
+        body.displayName !== current.lead.displayName ||
+        body.primaryPhone !== current.lead.primaryPhone ||
+        body.email !== current.lead.email ||
+        body.companyName !== current.lead.companyName ||
+        body.instagram !== current.lead.instagram ||
+        body.city !== current.lead.city ||
+        body.serviceInterest !== current.lead.serviceInterest;
+      const financialChanged =
+        body.expectedValueMinor !== current.lead.latestCycle.expectedValueMinor;
+      if (!commonChanged && !financialChanged) return { changed: false };
+
+      if (!financialChanged) {
+        const commonBody: UpdateLeadInput = {
+          displayName: body.displayName,
+          primaryPhone: body.primaryPhone,
+          email: body.email,
+          companyName: body.companyName,
+          instagram: body.instagram,
+          city: body.city,
+          serviceInterest: body.serviceInterest,
+        };
+        await api.update(current, commonBody);
+        return { changed: true };
+      }
+
+      const intent: LeadIdempotentAction = commonChanged
+        ? { action: "information", body }
+        : {
+            action: "expected-value",
+            body: { expectedValueMinor: body.expectedValueMinor },
+          };
+      const name = `information:${organization.id}:${leadId}`;
+      const idempotencyKey = informationIntentKeys.current.keyFor(
+        name,
+        intent,
+        current.lead.revision,
+      );
+      try {
+        await api.act(current, intent, idempotencyKey);
+        informationIntentKeys.current.forget(name);
+        return { changed: true };
+      } catch (error) {
+        const appError = toAppError(error);
+        if (!hasUncertainMutationOutcome(appError.kind))
+          informationIntentKeys.current.forget(name);
+        throw error;
+      }
+    },
+    onSuccess: (result) => (result.changed ? refreshLead(false) : undefined),
+  });
+
   const assign = useMutation({
     mutationKey: [
       ...leadQueryKeys.root(organization.id),
@@ -115,7 +185,7 @@ export function useLeadMutations(leadId: string) {
       refreshLead(leadActionAffectsMetrics(variables.intent.action)),
   });
 
-  return { update, assign, act, refreshLead };
+  return { update, saveInformation, assign, act, refreshLead };
 }
 
 export type LeadMovePhase =

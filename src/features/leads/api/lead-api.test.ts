@@ -15,12 +15,20 @@ const createdId = "00000000-0000-4000-8000-000000000099";
 const currentStrongEtag = `"lead:${testLead.id}:${testLead.revision}"`;
 
 function setup() {
-  const request = vi.fn((_path: string, options: { method?: string }) => {
+  const request = vi.fn((path: string, options: { method?: string }) => {
     if (options.method === "PATCH") {
       return {
         data: testLead,
         status: 200,
         etag: '"opaque-lead-etag-4"',
+      };
+    }
+    if (path.endsWith("/information")) {
+      return {
+        data: testLeadView,
+        status: 200,
+        etag: '"opaque-lead-etag-5"',
+        idempotencyReplayed: false,
       };
     }
     return {
@@ -63,6 +71,7 @@ describe("createLeadApi mutations", () => {
         displayName: "Lead Manual",
         primaryPhone: "(62) 99999-9999",
         source: "manual" as const,
+        expectedValueMinor: "9007199254740993",
       };
       await expect(api.create(input, idempotencyKey)).resolves.toMatchObject({
         kind: "identified",
@@ -205,6 +214,29 @@ describe("createLeadApi mutations", () => {
     {
       intent: { action: "dismiss-return", body: {} },
       suffix: "/return-review/dismiss",
+    },
+    {
+      intent: {
+        action: "expected-value",
+        body: { expectedValueMinor: "9007199254740993" },
+      },
+      suffix: "/expected-value",
+    },
+    {
+      intent: {
+        action: "information",
+        body: {
+          displayName: "Lead Exemplo",
+          primaryPhone: "+5511999999999",
+          email: "lead@example.test",
+          companyName: "Empresa Exemplo",
+          instagram: null,
+          city: "Campinas",
+          serviceInterest: "Consultoria",
+          expectedValueMinor: "9007199254740993",
+        },
+      },
+      suffix: "/information",
     },
   ])(
     "maps $intent.action with combined concurrency headers",

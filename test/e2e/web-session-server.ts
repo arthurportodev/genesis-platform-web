@@ -27,6 +27,12 @@ let refreshCount = 0;
 let sequence = 0;
 let leadRevision = 3;
 let leadStage = "qualification";
+let leadCity = "São Paulo";
+let leadExpectedValueMinor: string | null = "2500000";
+let latestFinancialChange: {
+  previous: string | null;
+  next: string | null;
+} | null = null;
 let conflictNextLeadMutation = false;
 let pipelineContinuationFails = false;
 let pipelineConflictStatus: 409 | 412 | null = null;
@@ -352,7 +358,11 @@ async function handleApi(
       return;
     }
     createRequestKeys.push(key);
-    await readJson(request);
+    const body = (await readJson(request)) as {
+      expectedValueMinor?: string | null;
+    };
+    if (body.expectedValueMinor !== undefined)
+      leadExpectedValueMinor = body.expectedValueMinor;
     if (createDelayMs > 0)
       await new Promise((resolve) => setTimeout(resolve, createDelayMs));
     if (createMode === "conflict") {
@@ -432,7 +442,7 @@ async function handleApi(
                   "1500000",
                 ),
               ]
-            : [leadListItem(currentLead, "2500000")]
+            : [leadListItem(currentLead, leadExpectedValueMinor)]
           : [];
         if (!cursor && zeroStage) {
           items.push(
@@ -661,6 +671,30 @@ async function handleApi(
     return;
   }
   if (
+    pathname === `/api/v1/leads/${leadId}/information` &&
+    request.method === "POST"
+  ) {
+    if (!validLeadMutationHeaders(request)) {
+      authError(response, 428, "If-Match and Idempotency-Key are required.");
+      return;
+    }
+    const body = (await readJson(request)) as {
+      city?: string | null;
+      expectedValueMinor?: string | null;
+    };
+    latestFinancialChange = {
+      previous: leadExpectedValueMinor,
+      next: body.expectedValueMinor ?? null,
+    };
+    leadExpectedValueMinor = body.expectedValueMinor ?? null;
+    if (typeof body.city === "string") leadCity = body.city;
+    leadRevision += 2;
+    json(response, 200, leadView(leadId, "Lead Exemplo"), {
+      ETag: `"lead:${leadId}:${leadRevision}"`,
+    });
+    return;
+  }
+  if (
     pathname === `/api/v1/leads/${leadId}/timeline` &&
     request.method === "GET"
   ) {
@@ -759,7 +793,7 @@ function leadDetail(id: string, displayName: string) {
     email: "lead@example.test",
     companyName: "Empresa Exemplo",
     instagram: null,
-    city: "São Paulo",
+    city: leadCity,
     serviceInterest: "Consultoria",
     responsibleMembershipId: "00000000-0000-4000-8000-000000000003",
     status: "active",
@@ -793,6 +827,7 @@ function leadDetail(id: string, displayName: string) {
       lostReason: null,
       archiveReason: null,
       reasonNote: null,
+      expectedValueMinor: leadExpectedValueMinor,
     },
     pendingReturn: null,
     counts: { timeline: 1, cycles: 1, activities: 0, notes: 0 },
@@ -875,7 +910,9 @@ function timelineEvent() {
   return {
     id: "00000000-0000-4000-8000-000000000014",
     sequence: "1",
-    eventType: "lead.created",
+    eventType: latestFinancialChange
+      ? "lead.expected_value.changed"
+      : "lead.created",
     actorMembershipId: null,
     leadEntryId: entryId,
     previousResponsibleMembershipId: null,
@@ -898,6 +935,8 @@ function timelineEvent() {
     newDueAt: null,
     nextActionRevision: null,
     nextActionCancellationReason: null,
+    previousExpectedValueMinor: latestFinancialChange?.previous ?? null,
+    newExpectedValueMinor: latestFinancialChange?.next ?? null,
     activity: null,
     note: null,
     nextAction: null,
