@@ -116,6 +116,7 @@ function detailFor(item: LeadWorkItem, closed = false) {
       lostReason: null,
       archiveReason: null,
       reasonNote: null,
+      expectedValueMinor: null,
     },
     pendingReturn: closed
       ? {

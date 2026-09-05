@@ -5,6 +5,7 @@ import {
   leadSources,
   type CreateLeadInput,
 } from "@/features/leads/api/lead-contracts";
+import { parseBrlToMinorUnits } from "@/features/leads/model/lead-money";
 
 const optionalFormText = (maximum: number) =>
   z.string().trim().max(maximum, `Use no máximo ${maximum} caracteres.`);
@@ -29,6 +30,14 @@ export const leadCreateFormSchema = z
     instagram: optionalFormText(64),
     city: optionalFormText(120),
     serviceInterest: optionalFormText(160),
+    expectedValue: z.string().refine((value) => {
+      try {
+        parseBrlToMinorUnits(value);
+        return true;
+      } catch {
+        return false;
+      }
+    }, "Informe um valor em reais com até duas casas decimais."),
     source: z.enum(leadSources),
     sourceDetail: optionalFormText(120),
     utmSource: optionalFormText(255),
@@ -64,6 +73,7 @@ export const defaultLeadCreateValues: LeadCreateFormValues = {
   instagram: "",
   city: "",
   serviceInterest: "",
+  expectedValue: "",
   source: "manual",
   sourceDetail: "",
   utmSource: "",
@@ -83,6 +93,7 @@ export function buildCreateLeadInput(
   values: LeadCreateFormValues,
   canChooseResponsible: boolean,
 ): CreateLeadInput {
+  const expectedValueMinor = parseBrlToMinorUnits(values.expectedValue);
   const candidate = {
     displayName: values.displayName.trim(),
     primaryPhone: values.primaryPhone.trim(),
@@ -91,6 +102,7 @@ export function buildCreateLeadInput(
     instagram: optional(values.instagram),
     city: optional(values.city),
     serviceInterest: optional(values.serviceInterest),
+    expectedValueMinor: expectedValueMinor ?? undefined,
     source: values.source,
     sourceDetail:
       values.source === "other" ? optional(values.sourceDetail) : undefined,

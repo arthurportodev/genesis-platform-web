@@ -52,6 +52,7 @@ export function timelineEventLabel(eventType: string): string {
     "lead.created": "Lead criado",
     "lead.entry.received": "Nova entrada recebida",
     "lead.basic_data.updated": "Dados atualizados",
+    "lead.expected_value.changed": "Valor da oportunidade alterado",
     "lead.assignment.changed": "Responsável alterado",
     "lead.assignment.cleared": "Responsável removido",
     "lead.stage.changed": "Etapa alterada",

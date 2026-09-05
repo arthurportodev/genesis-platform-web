@@ -21,6 +21,7 @@ import {
   type CreateLeadResult,
   type LeadDetail,
   type LeadKanbanFilters,
+  type LeadInformationInput,
   type LeadListFilters,
   type LeadMyActionsFilters,
   type LeadReturnReviewFilters,
@@ -122,7 +123,9 @@ export type LeadIdempotentAction =
       body: { archiveReason: ArchiveReason; reasonNote?: string };
     }
   | { action: "reactivate"; body: Record<string, never> }
-  | { action: "dismiss-return"; body: Record<string, never> };
+  | { action: "dismiss-return"; body: Record<string, never> }
+  | { action: "expected-value"; body: { expectedValueMinor: string | null } }
+  | { action: "information"; body: LeadInformationInput };
 
 const actionSuffix: Record<LeadIdempotentAction["action"], string> = {
   activity: "/activities",
@@ -137,6 +140,8 @@ const actionSuffix: Record<LeadIdempotentAction["action"], string> = {
   archive: "/archive",
   reactivate: "/reactivate",
   "dismiss-return": "/return-review/dismiss",
+  "expected-value": "/expected-value",
+  information: "/information",
 };
 
 export function createLeadApi(http: AuthenticatedHttpClient) {
@@ -406,6 +411,7 @@ export function createLeadApi(http: AuthenticatedHttpClient) {
         },
       );
       if (response.status === 201) parse(mutationCreatedSchema, response.data);
+      if (intent.action === "information") parse(leadViewSchema, response.data);
       return {
         etag: requireEtag(response),
         replayed: response.idempotencyReplayed === true,

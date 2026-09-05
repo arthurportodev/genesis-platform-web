@@ -18,6 +18,7 @@ import {
   leadCreateFormSchema,
   type LeadCreateFormValues,
 } from "@/features/leads/model/lead-create";
+import { formatBrlInput } from "@/features/leads/model/lead-money";
 import { Button } from "@/shared/ui/Button";
 import { Input } from "@/shared/ui/Input";
 import { Label } from "@/shared/ui/Label";
@@ -29,6 +30,7 @@ function FormField({
   error,
   required,
   help,
+  prefix,
   registration,
   ...input
 }: {
@@ -37,6 +39,7 @@ function FormField({
   error?: FieldError;
   required?: boolean;
   help?: string;
+  prefix?: string;
   registration: UseFormRegisterReturn;
 } & Omit<React.ComponentProps<typeof Input>, "id">) {
   const { onBlur, ...inputProps } = input;
@@ -48,24 +51,33 @@ function FormField({
       <Label htmlFor={id}>
         {label} {required ? <span aria-hidden="true">*</span> : null}
       </Label>
-      <Input
-        id={id}
-        className="min-h-11 text-base sm:text-sm"
-        required={required}
-        aria-required={required}
-        aria-invalid={Boolean(error)}
-        aria-describedby={
-          [help ? helpId : null, error ? errorId : null]
-            .filter(Boolean)
-            .join(" ") || undefined
-        }
-        {...inputProps}
-        {...registerProps}
-        onBlur={(event) => {
-          void registerBlur(event);
-          onBlur?.(event);
-        }}
-      />
+      <div
+        className={prefix ? "flex rounded-md border border-input" : undefined}
+      >
+        {prefix ? (
+          <span className="flex items-center border-r border-input px-3 text-sm text-muted-foreground">
+            {prefix}
+          </span>
+        ) : null}
+        <Input
+          id={id}
+          className={`min-h-11 text-base sm:text-sm ${prefix ? "border-0 shadow-none focus-visible:ring-0" : ""}`}
+          required={required}
+          aria-required={required}
+          aria-invalid={Boolean(error)}
+          aria-describedby={
+            [help ? helpId : null, error ? errorId : null]
+              .filter(Boolean)
+              .join(" ") || undefined
+          }
+          {...inputProps}
+          {...registerProps}
+          onBlur={(event) => {
+            void registerBlur(event);
+            onBlur?.(event);
+          }}
+        />
+      </div>
       {help ? (
         <p id={helpId} className="text-xs leading-5 text-muted-foreground">
           {help}
@@ -218,15 +230,39 @@ export function LeadCreateForm({
             error={errors.city}
             registration={register("city")}
           />
-          <div className="md:col-span-2">
-            <FormField
-              id="lead-service-interest"
-              label="Interesse"
-              maxLength={160}
-              error={errors.serviceInterest}
-              registration={register("serviceInterest")}
-            />
-          </div>
+          <FormField
+            id="lead-service-interest"
+            label="Interesse"
+            maxLength={160}
+            error={errors.serviceInterest}
+            registration={register("serviceInterest")}
+          />
+          <FormField
+            id="lead-expected-value"
+            label="Valor da oportunidade"
+            prefix="R$"
+            placeholder="0,00"
+            inputMode="decimal"
+            error={errors.expectedValue}
+            registration={register("expectedValue")}
+            onBlur={(event) => {
+              try {
+                setValue(
+                  "expectedValue",
+                  formatBrlInput(event.currentTarget.value),
+                  {
+                    shouldDirty: true,
+                    shouldValidate: true,
+                  },
+                );
+              } catch {
+                setValue("expectedValue", event.currentTarget.value, {
+                  shouldDirty: true,
+                  shouldValidate: true,
+                });
+              }
+            }}
+          />
         </div>
       </fieldset>
 

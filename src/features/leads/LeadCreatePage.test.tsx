@@ -42,6 +42,13 @@ describe("criação manual de Leads", () => {
       screen.getByRole("textbox", { name: "E-mail" }),
       "LEAD@EXAMPLE.TEST",
     );
+    const expectedValue = screen.getByRole("textbox", {
+      name: "Valor da oportunidade",
+    });
+    expect(expectedValue).toHaveAttribute("placeholder", "0,00");
+    await user.type(expectedValue, "1234,5");
+    await user.tab();
+    expect(expectedValue).toHaveValue("1.234,50");
     await user.click(screen.getByRole("button", { name: "Criar Lead" }));
 
     expect(
@@ -60,6 +67,7 @@ describe("criação manual de Leads", () => {
       primaryPhone: "(62) 99999-9999",
       email: "lead@example.test",
       source: "manual",
+      expectedValueMinor: "123450",
     });
     await waitFor(() =>
       expect(app.queryClient.getMutationCache().getAll()).toHaveLength(0),
