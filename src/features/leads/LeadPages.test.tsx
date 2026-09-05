@@ -221,9 +221,7 @@ describe("Inbox e detalhe do Lead", () => {
     const user = userEvent.setup();
     await renderAppAt(`/app/leads/${testLeadId}`);
 
-    const expectedValue = await screen.findByLabelText(
-      "Valor da oportunidade",
-    );
+    const expectedValue = await screen.findByLabelText("Valor da oportunidade");
     await user.clear(expectedValue);
     await user.type(expectedValue, "0");
     await user.click(screen.getByRole("button", { name: "Salvar alterações" }));
