@@ -20,14 +20,15 @@ const SCRIPT = join(REPOSITORY_ROOT, "scripts", "validate-project-memory.cjs");
 const POINTER = "docs/memory/project-state.pointer.v1.json";
 const SCHEMA = "schemas/genesis-harness/project-state.pointer.v1.schema.json";
 const BRIDGE = "docs/CURRENT_STATE.md";
-const RECEIPT_TARGET_STATE_REVISION =
-  "PIPE-V2-03A-IMPLEMENTED-AND-MERGED-2026-09-05";
+const RECEIPT_TARGET_STATE_REVISION = "PIPE-V2-03A-PRODUCTION-KEEP-2026-09-05";
 const PREVIOUS_RECEIPT = {
-  transitionId: "MVP-10E-CROSS-REPO",
-  targetStateRevision: "MVP-10D-WEB-INTEGRATED-2026-08-24",
-  memoryRevision: "e1ecc23f7c8fe346c93e0b9fd79bbbeaae46f49e",
+  transitionId: "PIPE-V2-03A-CROSS-REPO",
+  targetStateRevision: "PIPE-V2-03A-IMPLEMENTED-AND-MERGED-2026-09-05",
+  memoryRevision: "d5e0f35e21b9fcf8039b0cae2fcbed85374fb174",
 };
-const WEB_RELEASE_REVISION = "6f53180e6c3947bd778e47c8fdb734567802e0d8";
+const WEB_RELEASE_REVISION = "90dc36a3e8a53c1e1852b6acfb8b4c05c97e44e6";
+const PREVIOUS_WEB_RELEASE_REVISION =
+  "6f53180e6c3947bd778e47c8fdb734567802e0d8";
 const FIXTURES = [];
 
 function fixture() {
@@ -85,7 +86,7 @@ function authority(
   {
     stateRevision = "LATER-TEMPORAL-REVISION-2026-08-26",
     releaseBinding = WEB_RELEASE_REVISION,
-    pointerTransitionId = "PIPE-V2-03A-CROSS-REPO",
+    pointerTransitionId = "PIPE-V2-03A-PRODUCTION-KEEP-CROSS-REPO",
     pointerTargetStateRevision = RECEIPT_TARGET_STATE_REVISION,
   } = {},
 ) {
@@ -393,7 +394,8 @@ test("reports the exact predecessor authority as transition pending", () => {
   writeJson(
     root,
     authority(PREVIOUS_RECEIPT.memoryRevision, {
-      stateRevision: "PIPE-V2-03-PRODUCTION-LIVE-2026-09-04",
+      stateRevision: "PIPE-V2-03A-IMPLEMENTED-AND-MERGED-2026-09-05",
+      releaseBinding: PREVIOUS_WEB_RELEASE_REVISION,
       pointerTransitionId: PREVIOUS_RECEIPT.transitionId,
       pointerTargetStateRevision: PREVIOUS_RECEIPT.targetStateRevision,
     }),
