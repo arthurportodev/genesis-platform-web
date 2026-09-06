@@ -13,17 +13,16 @@ permanecem aceitos como legacy read e são normalizados para as invariantes atua
 
 Fatos temporais cross-repo têm uma única autoridade no backend:
 `arthurportodev/genesis-platform-api`, branch `main`, caminho
-`docs/memory/project-state.v1.json`. Este repositório mantém somente o pointer
-verificável `docs/memory/project-state.pointer.v1.json` e a bridge estável
+`docs/memory/project-state.v2.json`. Este repositório mantém somente o pointer
+estático `docs/memory/project-state.pointer.v2.json` e a bridge estável
 `docs/CURRENT_STATE.md`; não mantém projeção nem cache temporal.
 
 Resolva o pointer por checkout explícito, checkout irmão ou origem remota
-read-only. Valide schema, receipt e `memoryRevision`. Se a autoridade estiver
-indisponível, declare `AUTHORITY_UNAVAILABLE`; na janela Web-first/API-last,
-`MEMORY_TRANSITION_PENDING` pode coexistir. Nunca use README, roadmap, ADR,
-TASK_LOG ou uma versão anterior da bridge como fallback. ADRs decidem “por quê”;
-o JSON autoritativo responde fase, trabalho, operação, blockers e decisões
-humanas.
+read-only. Valide o major do schema e, quando fornecido pelo contexto da tarefa,
+o SHA exato da autoridade. Se a fonte selecionada estiver indisponível ou
+divergente, falhe sem tentar um fallback mais antigo. Nunca use README, roadmap,
+ADR, TASK_LOG ou uma versão anterior da bridge como estado temporal. ADRs
+decidem “por quê”; o JSON autoritativo responde o estado atual.
 
 ## Antes de alterar código
 
@@ -94,8 +93,9 @@ memória, papel operacional nem fonte editável de produto.
 - Execute `npm run task:contracts` para verificar schemas, Skills, upstream e
   hashes de paridade.
 - O check obrigatório da CI é `Validate frontend`.
-- Atualize o pointer apenas em transição cross-repo; fatos temporais são
-  atualizados atomicamente no candidato API autoritativo.
+- O pointer Web é estático. Atualize fatos temporais somente na autoridade API;
+  pins exatos pertencem ao manifesto, à evidência transitória ou ao argumento
+  explícito de validação.
 - Registre decisões duráveis em ADRs e história no `TASK_LOG`, sem duplicar
   memória temporal.
 - Não faça commit, push, PR, merge, tag, release ou deploy sem o Gate aplicável e

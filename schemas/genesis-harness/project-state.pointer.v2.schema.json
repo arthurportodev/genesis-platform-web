@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/arthurportodev/genesis-platform-web/schemas/genesis-harness/project-state.pointer.v2.schema.json",
+  "title": "Genesis Platform static canonical-state pointer v2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "authority"],
+  "properties": {
+    "schemaVersion": { "const": "2.0.0" },
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "repository",
+        "branch",
+        "path",
+        "acceptedSchemaMajor",
+        "resolutionOrder"
+      ],
+      "properties": {
+        "repository": { "const": "arthurportodev/genesis-platform-api" },
+        "branch": { "const": "main" },
+        "path": { "const": "docs/memory/project-state.v2.json" },
+        "acceptedSchemaMajor": { "const": 2 },
+        "resolutionOrder": {
+          "const": ["explicit-checkout", "sibling-checkout", "remote-read-only"]
+        }
+      }
+    }
+  }
+}

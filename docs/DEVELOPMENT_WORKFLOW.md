@@ -19,19 +19,19 @@
 
 ## Memória canônica cross-repo
 
-A API é a única autoridade temporal; o Web mantém pointer-only e uma bridge
-sem projeção. Uma transição cross-repo é preparada Web-first/API-last:
+A API é a única autoridade temporal mutável. O Web mantém um pointer V2 estático
+e uma bridge sem projeção ou cópia de estado. Resolva a autoridade por checkout
+explícito, checkout irmão ou origem remota read-only. Uma fonte explícita ou um
+checkout irmão inválido falha sem cair para uma fonte potencialmente obsoleta.
 
-1. o candidato Web registra receipt com `baseSha`, `targetStateRevision` e
-   `revisionSource=containing-commit`;
-2. a janela intermediária é reportada como `MEMORY_TRANSITION_PENDING`, sem
-   fallback para documentos Web;
-3. o candidato API registra o SHA Web final como `memoryRevision`, valida esse
-   commit e ativa a revisão-alvo no mesmo PR autoritativo.
+Quando uma tarefa exigir reprodução exata, forneça o SHA da autoridade API pelo
+manifesto, evidência transitória ou argumento explícito de validação. Esse pin
+não entra no pointer Web. Uma mudança futura de fase, tarefa ou binding live
+altera somente a autoridade API e não exige commit neste repositório.
 
-O schema API deve representar `nextTask` como `identified`, `undecided` ou
-`none`; placeholders como `TBD` são proibidos. Fatos temporais e projeção API
-são atualizados atomicamente na tarefa que muda o estado, sem closeout separado.
+Cada tarefa de produto faz no máximo uma escrita canônica. Com release, Git e
+PR registram implementação e merge; a memória registra somente o resultado
+durável KEEP ou ROLLBACK. Não se mantém por rotina `MERGED / NOT_DEPLOYED`.
 Roadmap, ADR e TASK_LOG preservam direção, decisão e história, respectivamente.
 
 ## Validação e Gate 2

@@ -45,7 +45,7 @@ Para tarefas governadas, crie o manifesto local a partir de
 
 Leia [docs/START_HERE.md](docs/START_HERE.md) antes de contribuir.
 Para fatos temporais, resolva o
-[pointer da memória canônica](docs/memory/project-state.pointer.v1.json). O
+[pointer da memória canônica](docs/memory/project-state.pointer.v2.json). O
 [contrato de produção do frontend](docs/PRODUCTION.md) preserva a arquitetura
 Vercel aprovada e os gates estáveis, sem duplicar status operacional.
 

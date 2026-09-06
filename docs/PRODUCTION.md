@@ -3,7 +3,7 @@
 Este documento preserva somente as decisões e os gates estáveis do frontend.
 Fatos operacionais, disponibilidade de provedores, nomes finais, trabalho em
 curso e restrições vigentes pertencem à memória canônica da API, resolvida pelo
-[pointer Web](memory/project-state.pointer.v1.json).
+[pointer Web](memory/project-state.pointer.v2.json).
 
 ## Arquitetura aprovada
 

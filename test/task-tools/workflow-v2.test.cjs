@@ -63,7 +63,9 @@ test('documents explicit Critical Skill invocation and fallback', () => {
   assert.match(agents, /lente de frontend é aplicada quando o delta exigir/u);
   assert.match(workflow, /três Skills/u);
   assert.match(workflow, /projeção tracked derivada do upstream API/u);
-  assert.match(workflow, /dual-read/u);
+  assert.match(workflow, /pointer V2 estático/u);
+  assert.match(workflow, /no máximo uma escrita canônica/u);
+  assert.match(workflow, /MERGED \/ NOT_DEPLOYED/u);
 });
 
 test('keeps the remote operator conceptual and separately authorized', () => {

@@ -1,27 +1,24 @@
-<!-- genesis-memory-bridge:v1 -->
+<!-- genesis-memory-bridge:v2 -->
 
-# Ponte para o estado canônico
+# Canonical project state
 
-Este repositório não mantém uma projeção nem uma cópia manual da memória
-temporal da Genesis Platform. A autoridade única do Genesis Harness v0.1 fica
-no repositório `arthurportodev/genesis-platform-api`, no caminho
-`docs/memory/project-state.v1.json` da branch `main`.
+This repository stores no temporal project state. The sole mutable authority is
+`arthurportodev/genesis-platform-api`, branch `main`, at
+`docs/memory/project-state.v2.json`.
 
-Resolva primeiro
-[`memory/project-state.pointer.v1.json`](memory/project-state.pointer.v1.json)
-e siga, nesta ordem:
+Resolve the static
+[`docs/memory/project-state.pointer.v2.json`](memory/project-state.pointer.v2.json)
+in this order:
 
-1. checkout explícito fornecido pelo operador;
-2. checkout irmão da API;
-3. origem remota pública em modo read-only.
+1. an explicit API checkout or authority URL;
+2. a sibling `genesis-platform-api` checkout;
+3. the public read-only authority on API `main`.
 
-Valide identidade, major de schema, receipt e `memoryRevision` antes de usar os
-fatos retornados. O pointer é somente localização, compatibilidade e
-proveniência; ele não contém fase, trabalho, fatos operacionais, blockers nem
-decisões humanas.
+The resolver enforces the accepted schema major and fails closed with
+`AUTHORITY_UNAVAILABLE`. When task context supplies an expected API authority
+SHA, a different or unverifiable source fails with
+`EXPECTED_AUTHORITY_SHA_MISMATCH`; it never falls through to a stale source.
 
-Se a autoridade não puder ser lida, reporte `AUTHORITY_UNAVAILABLE` e mantenha
-os fatos como desconhecidos. Durante a janela Web-first/API-last, reporte também
-`MEMORY_TRANSITION_PENDING` quando o receipt ainda não tiver sido ativado pela
-autoridade. Esses estados podem coexistir. Nunca use uma versão anterior deste
-arquivo, o roadmap, um ADR ou outro documento Web como fallback temporal.
+The pointer is static. It contains no phase, task, receipt, state revision,
+deployment, live binding, timestamp, or authority commit. Exact authority pins
+belong to transient task evidence or explicit validation arguments.
