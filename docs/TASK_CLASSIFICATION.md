@@ -1,6 +1,6 @@
-# Classificação de tarefas e perfis de validação
+# Classificação de tarefas e validation surfaces
 
-Classe e perfil são decisões distintas. Registre ambos antes de editar.
+Classe e validation surface são decisões distintas. Registre ambas antes de editar.
 
 ## Classes de tarefa
 
@@ -13,17 +13,23 @@ Classe e perfil são decisões distintas. Registre ambos antes de editar.
 A classe define papéis, Gates, artefatos operacionais, autonomia e condições de
 interrupção. `docs` e `focused` não são classes.
 
-## Perfis técnicos
+## Validation surfaces
 
-| Perfil   | Profundidade técnica                                                       |
-| -------- | -------------------------------------------------------------------------- |
-| docs     | Formatação e validações documentais pertinentes                            |
-| focused  | Scripts diretamente relacionados ao delta                                  |
-| normal   | Formato, lint, tipos, testes e build                                       |
-| critical | Preflight, ferramentas de tarefa, suíte completa, build, E2E e fingerprint |
+O Task Manifest V3 exige uma ou mais surfaces explícitas:
 
-O perfil depende do delta real: uma tarefa `Simple` não implica necessariamente
-`docs`. Uma tarefa `Critical` nunca pode selecionar perfil inferior a `critical`.
+| Surface    | Validação técnica                                                       |
+| ---------- | ----------------------------------------------------------------------- |
+| memory     | Schema, validator, projection e testes do sistema de memória            |
+| app        | Formato, lint, tipos/build, unit e E2E aplicável                        |
+| production | Runtime, release, package e contratos de Production                     |
+| tooling    | Manifesto, preflight, fingerprint, contracts, planner e task-tool tests |
+
+Classe e surface são independentes. Critical preserva Task Packet, verifier,
+Gates e autorização humana mesmo com uma surface pequena. Surfaces mistas
+executam a união determinística dos planos sem repetir comandos comuns.
+
+Manifestos V1/V2 com `validation.profile` permanecem aceitos somente como
+legacy read durante a transição e conservam o comportamento anterior.
 
 Eleve a classe ou interrompa quando houver dúvida sobre impacto transversal.
 Findings médios ou maiores em segurança, contratos, supply chain, arquitetura,

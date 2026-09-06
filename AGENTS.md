@@ -6,8 +6,8 @@ Desenvolvimento da Genesis Platform.
 O contrato operacional vigente é o V2 (`contractVersion: 2.0.0`), distribuído
 sob autoridade do repositório `arthurportodev/genesis-platform-api`. O conjunto
 local registra o commit upstream aprovado e hashes SHA-256 de cada Skill e
-schema compartilhado. A leitura de manifestos permanece dual-read: V1 continua
-aceito e é normalizado para as invariantes V2.
+schema compartilhado. O Task Manifest V3 é o modelo recomendado; V1/V2
+permanecem aceitos como legacy read e são normalizados para as invariantes atuais.
 
 ## Autoridade de memória
 
@@ -30,8 +30,8 @@ humanas.
 1. Leia `docs/START_HERE.md` e os documentos apontados por ele.
 2. Classifique a tarefa como `Simple`, `Normal` ou `Critical` conforme
    `docs/TASK_CLASSIFICATION.md`.
-3. Escolha separadamente o perfil técnico `docs`, `focused`, `normal` ou
-   `critical` conforme o delta real. Uma tarefa `Critical` sempre usa `critical`.
+3. Escolha separadamente uma ou mais validation surfaces: `memory`, `app`,
+   `production` e `tooling`.
 4. Quando exigido pela classe, crie `.codex/task-manifest.json` a partir do
    exemplo e um Task Packet em `.codex/task-packets/<id>.md`.
 5. Confirme branch, SHA-base, estágio limpo e escopo com
@@ -41,6 +41,10 @@ humanas.
    `$genesis-independent-verifier` quando o candidato estiver estável. Se o
    runtime não suportar Skills, aplique os mesmos documentos, schemas e scripts
    como fallback obrigatório.
+
+Task class e validation surface são dimensões independentes. A classe governa
+papéis, Gates, autonomia e aprovações; as surfaces compõem os checks técnicos.
+Uma surface pequena nunca reduz a governança Critical.
 
 Quando o delta envolver frontend, produto ou experiência, aplique
 `$genesis-frontend-product-engineer` como lente especializada do Builder. Sua
@@ -86,7 +90,7 @@ memória, papel operacional nem fonte editável de produto.
 
 ## Entrega
 
-- Execute o perfil de validação registrado no manifesto.
+- Execute as validation surfaces registradas no manifesto; V1/V2 preservam o perfil legacy.
 - Execute `npm run task:contracts` para verificar schemas, Skills, upstream e
   hashes de paridade.
 - O check obrigatório da CI é `Validate frontend`.

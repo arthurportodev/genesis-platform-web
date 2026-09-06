@@ -2,7 +2,7 @@
 
 ## Preparação e Gate 1
 
-1. Classifique a tarefa e escolha separadamente o perfil técnico.
+1. Classifique a tarefa e escolha separadamente as validation surfaces.
 2. Quando houver arquitetura, segurança ou contrato estrutural, obtenha Gate 1
    humano antes da implementação.
 3. Crie branch dedicada a partir do SHA-base aprovado.
@@ -36,10 +36,15 @@ Roadmap, ADR e TASK_LOG preservam direção, decisão e história, respectivamen
 
 ## Validação e Gate 2
 
-Use `npm run task:validate`; o plano depende do perfil, não do nome da classe. O
-perfil `critical` cobre preflight, formatação, lint, TypeScript, task tools,
-Vitest, build e Playwright. Gere fingerprints texto e JSON depois da última
-alteração material e entregue o diff a verifier independente quando exigido.
+Use `npm run task:validate`; no Task Manifest V3, o plano compõe os checks base
+e a união determinística das surfaces declaradas. A classe continua definindo
+governança e o rigor aplicável dentro de cada surface. Gere fingerprints texto
+e JSON depois da última alteração material e entregue o diff a verifier
+independente quando exigido.
+
+Até a inferência automática por paths, prevista para a Process Simplification
+03, builder, reviewer e verifier conferem a coerência entre `allowedPaths` e as
+surfaces. Em caso de dúvida, incluem a surface mais ampla aplicável.
 
 Gate 2 é a decisão humana sobre o candidato estável. Nenhuma entrega remota pode
 começar antes dele. Correções encontradas durante revisão ou entrega retornam ao
@@ -69,13 +74,14 @@ writer por recurso compartilhado. Cada execução deve produzir
 `evidence-manifest.v1` vinculado ao candidato e ao operador. Disponibilidade de
 ferramenta nunca concede permissão de mutação.
 
-## Contrato V2 e identidade do candidato
+## Contrato e identidade do candidato
 
-O Task Manifest usa `contractVersion: 2.0.0`, mas o parser mantém dual-read de
-V1/V2. O V2 declara níveis de validação, fontes de reidratação, gatilhos de
-expansão, envelope de autonomia, artefatos estruturados e o conjunto canônico.
+O Task Manifest V3 usa `contractVersion: 2.0.0` e declara validation surfaces.
+O parser mantém dual-read V1/V2 como legacy read com os planos anteriores e normaliza as
+três versões. V2 continua declarando níveis, reidratação, autonomia, artefatos
+estruturados e o conjunto canônico.
 
-`npm run task:contracts` valida os cinco schemas, as três Skills, o
+`npm run task:contracts` valida os seis schemas, as três Skills, o
 manifesto-exemplo, o commit upstream e os hashes de paridade. No Web, a Skill de
 frontend permanece projeção tracked derivada do upstream API declarado; somente
 a API é autoridade editável. O fingerprint V2 separa:

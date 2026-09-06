@@ -8,9 +8,9 @@
 - Um único operador Git serializa operações remotas somente depois das
   autorizações aplicáveis.
 
-O Task Packet registra classe, perfil, base, ownership e condições de
-interrupção. Classe determina os papéis e Gates; perfil determina apenas a
-profundidade técnica.
+O Task Packet registra classe, validation surfaces, base, ownership e condições
+de interrupção. Classe determina os papéis e Gates; surfaces determinam as
+famílias de validação técnica.
 
 ## Coordenação
 
