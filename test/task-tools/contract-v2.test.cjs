@@ -447,13 +447,31 @@ test('rejects schema-incompatible instances for every structured contract', () =
   const taskManifest = JSON.parse(
     readFileSync('.codex/task-manifest.example.json', 'utf8'),
   );
+  assert.deepEqual(taskManifest.scope.allowedPaths, [
+    'src/features/example/**',
+    'test/**',
+    'docs/**',
+  ]);
+  assert.deepEqual(taskManifest.scope.protectedPaths, [
+    'src/app/providers/**',
+    'src/features/auth/**',
+    'package-lock.json',
+  ]);
   assert.equal(
-    validateSchemaInstance('task-manifest.v2.schema.json', taskManifest),
+    JSON.stringify(taskManifest).includes('src/modules/example'),
+    false,
+  );
+  assert.equal(
+    JSON.stringify(taskManifest).includes('src/database/migrations'),
+    false,
+  );
+  assert.equal(
+    validateSchemaInstance('task-manifest.v3.schema.json', taskManifest),
     taskManifest,
   );
   assert.throws(
     () =>
-      validateSchemaInstance('task-manifest.v2.schema.json', {
+      validateSchemaInstance('task-manifest.v3.schema.json', {
         ...taskManifest,
         unexpected: true,
       }),
@@ -464,7 +482,7 @@ test('rejects schema-incompatible instances for every structured contract', () =
 test('validates the canonical repository contract set', () => {
   const result = validateRepositoryContracts({ cwd: process.cwd() });
   assert.equal(result.status, 'passed');
-  assert.equal(result.schemas, 5);
+  assert.equal(result.schemas, 6);
   assert.equal(result.skills, 3);
   assert.equal(result.upstreamCommitSha, UPSTREAM_COMMIT_SHA);
   assert.deepEqual(SKILLS, [

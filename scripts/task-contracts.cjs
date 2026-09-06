@@ -11,6 +11,7 @@ const {
 
 const CONTRACT_SCHEMAS = [
   'task-manifest.v2.schema.json',
+  'task-manifest.v3.schema.json',
   'finding.v1.schema.json',
   'verifier-evidence.v1.schema.json',
   'handoff.v1.schema.json',
@@ -21,7 +22,7 @@ const SKILLS = [
   'genesis-frontend-product-engineer',
   'genesis-independent-verifier',
 ];
-const UPSTREAM_COMMIT_SHA = '43d45d68ccf6f6663334c18a660a4608ac304507';
+const UPSTREAM_COMMIT_SHA = '2c13a4b2afa6fdd25f42d2770968bde6073b8bea';
 const SHARED_CONTRACT_FILES = [
   ...SKILLS.flatMap((name) => [
     `.agents/skills/${name}/SKILL.md`,
@@ -525,9 +526,10 @@ function validateRepositoryContracts({ cwd = process.cwd() } = {}) {
     }
   }
   try {
+    const example = readJson(cwd, '.codex/task-manifest.example.json');
     validateSchemaInstance(
-      'task-manifest.v2.schema.json',
-      readJson(cwd, '.codex/task-manifest.example.json'),
+      `task-manifest.v${example.version}.schema.json`,
+      example,
       { cwd },
     );
   } catch (error) {
