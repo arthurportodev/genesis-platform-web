@@ -1,0 +1,14 @@
+{
+  "schemaVersion": "2.0.0",
+  "authority": {
+    "repository": "arthurportodev/genesis-platform-api",
+    "branch": "main",
+    "path": "docs/memory/project-state.v2.json",
+    "acceptedSchemaMajor": 2,
+    "resolutionOrder": [
+      "explicit-checkout",
+      "sibling-checkout",
+      "remote-read-only"
+    ]
+  }
+}

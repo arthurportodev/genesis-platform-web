@@ -4,7 +4,7 @@ Este é o ponto de entrada obrigatório para trabalho no frontend.
 
 ## Ordem de leitura
 
-1. `memory/project-state.pointer.v1.json`: localize e valide a autoridade
+1. `memory/project-state.pointer.v2.json`: localize e valide a autoridade
    temporal da API; indisponibilidade é explícita e não admite fallback local.
 2. `CURRENT_STATE.md`: bridge estável e comportamento de resolução.
 3. `PROJECT_OVERVIEW.md`: produto, escopo e limites estruturais.

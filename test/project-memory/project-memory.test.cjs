@@ -1,563 +1,284 @@
-"use strict";
+'use strict';
 
-const test = require("node:test");
-const assert = require("node:assert/strict");
-const { execFileSync, spawnSync } = require("node:child_process");
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const { execFileSync } = require('node:child_process');
 const {
-  cpSync,
-  existsSync,
-  mkdirSync,
   mkdtempSync,
+  mkdirSync,
   readFileSync,
   rmSync,
   writeFileSync,
-} = require("node:fs");
-const { tmpdir } = require("node:os");
-const { join } = require("node:path");
+} = require('node:fs');
+const { join } = require('node:path');
+const { tmpdir } = require('node:os');
 
-const REPOSITORY_ROOT = process.cwd();
-const SCRIPT = join(REPOSITORY_ROOT, "scripts", "validate-project-memory.cjs");
-const POINTER = "docs/memory/project-state.pointer.v1.json";
-const SCHEMA = "schemas/genesis-harness/project-state.pointer.v1.schema.json";
-const BRIDGE = "docs/CURRENT_STATE.md";
-const RECEIPT_TARGET_STATE_REVISION = "PIPE-V2-03A-PRODUCTION-KEEP-2026-09-05";
-const PREVIOUS_RECEIPT = {
-  transitionId: "PIPE-V2-03A-CROSS-REPO",
-  targetStateRevision: "PIPE-V2-03A-IMPLEMENTED-AND-MERGED-2026-09-05",
-  memoryRevision: "d5e0f35e21b9fcf8039b0cae2fcbed85374fb174",
-};
-const WEB_RELEASE_REVISION = "90dc36a3e8a53c1e1852b6acfb8b4c05c97e44e6";
-const PREVIOUS_WEB_RELEASE_REVISION =
-  "6f53180e6c3947bd778e47c8fdb734567802e0d8";
-const FIXTURES = [];
+const validator = require('../../scripts/validate-project-memory.cjs');
 
-function fixture() {
-  const root = mkdtempSync(join(tmpdir(), "genesis-memory-"));
-  FIXTURES.push(root);
-  for (const path of [POINTER, SCHEMA, BRIDGE]) {
-    const target = join(root, ...path.split("/"));
-    mkdirSync(join(target, ".."), { recursive: true });
-    cpSync(join(REPOSITORY_ROOT, ...path.split("/")), target);
-  }
-  return root;
+const POINTER = 'docs/memory/project-state.pointer.v2.json';
+const SCHEMA = 'schemas/genesis-harness/project-state.pointer.v2.schema.json';
+const FICTIONAL_SHA = 'a'.repeat(40);
+const OTHER_SHA = 'b'.repeat(40);
+
+function readJson(path) {
+  return JSON.parse(readFileSync(join(process.cwd(), path), 'utf8'));
 }
 
-function readJson(root, path = POINTER) {
-  return JSON.parse(readFileSync(join(root, ...path.split("/")), "utf8"));
+function clone(value) {
+  return structuredClone(value);
 }
 
-function writeJson(root, value, path = POINTER) {
-  writeFileSync(
-    join(root, ...path.split("/")),
-    `${JSON.stringify(value, null, 2)}\n`,
-    "utf8",
-  );
-}
-
-function run(root, args = ["--mode", "local"]) {
-  const execution = spawnSync(process.execPath, [SCRIPT, ...args], {
-    cwd: root,
-    encoding: "utf8",
-  });
+function validState(overrides = {}) {
   return {
-    ...execution,
-    result: execution.stdout ? JSON.parse(execution.stdout) : null,
-  };
-}
-
-function expectCode(execution, code, status = 1) {
-  assert.equal(execution.status, status, execution.stderr);
-  assert.equal(execution.result.ok, false);
-  assert.ok(execution.result.codes.includes(code));
-  assert.ok(execution.stderr.length > 0);
-}
-
-function expectApiAuthorityOnlyNextAction(execution) {
-  expectCode(execution, "MEMORY_STABLE_SOURCE_HAS_STATE");
-  assert.match(execution.result.nextAction, /canonical API authority/u);
-  assert.doesNotMatch(
-    execution.result.nextAction,
-    /marker|snapshot|hist[oó]rico|superseded/iu,
-  );
-}
-
-function authority(
-  memoryRevision,
-  {
-    stateRevision = "LATER-TEMPORAL-REVISION-2026-08-26",
-    releaseBinding = WEB_RELEASE_REVISION,
-    pointerTransitionId = "PIPE-V2-03A-PRODUCTION-KEEP-CROSS-REPO",
-    pointerTargetStateRevision = RECEIPT_TARGET_STATE_REVISION,
-  } = {},
-) {
-  return {
-    schemaVersion: "1.0.0",
-    instanceKind: "current",
-    stateRevision,
-    project: { id: "genesis-platform", name: "Genesis Platform" },
-    authority: {
-      repository: "arthurportodev/genesis-platform-api",
-      branch: "main",
-      path: "docs/memory/project-state.v1.json",
-      revisionSource: "containing-commit",
+    schemaVersion: '2.0.0',
+    stateRevision: 'ROADMAP-WAVE-7-KEEP',
+    phase: { id: 'ROADMAP-WAVE-7', title: 'Fictional product wave' },
+    lastCompleted: {
+      id: 'ROADMAP-WAVE-6',
+      title: 'Fictional completed work',
+      outcome: 'KEEP',
     },
-    repositories: [
-      {
-        id: "web",
-        repository: "arthurportodev/genesis-platform-web",
-        memoryRevision: { kind: "commit", sha: memoryRevision },
+    currentWork: { status: 'none' },
+    nextTask: {
+      status: 'undecided',
+      planningState: 'PENDING-PRIORITIZATION',
+    },
+    live: {
+      api: {
+        sourceSha: FICTIONAL_SHA,
+        image: `ghcr.io/example/platform-api@sha256:${'c'.repeat(64)}`,
       },
-    ],
-    releaseBindings: { webIntegratedRevision: releaseBinding },
-    pointerMetadata: {
-      repository: "arthurportodev/genesis-platform-web",
-      path: POINTER,
-      schemaVersion: "1.0.0",
-      mode: "pointer-only",
-      transitionId: pointerTransitionId,
-      targetStateRevision: pointerTargetStateRevision,
+      web: {
+        sourceSha: OTHER_SHA,
+        deploymentId: 'dpl_1234567890AbCdEfGhIjKlMn',
+        domain: 'https://example.invalid',
+      },
     },
+    openBlockers: [],
+    activeRestrictions: [],
+    followUps: [],
+    ...overrides,
   };
 }
 
-function initializeGit(root) {
-  execFileSync("git", ["init", "-q"], { cwd: root });
-  execFileSync("git", ["config", "user.email", "memory@example.invalid"], {
+function temporaryDirectory() {
+  const path = mkdtempSync(join(tmpdir(), 'genesis-memory-v2-'));
+  test.after(() => rmSync(path, { recursive: true, force: true }));
+  return path;
+}
+
+function createApiRepository(parent, state = validState()) {
+  const root = join(parent, 'genesis-platform-api');
+  const target = join(root, ...validator.AUTHORITY.path.split('/'));
+  mkdirSync(join(target, '..'), { recursive: true });
+  writeFileSync(target, `${JSON.stringify(state, null, 2)}\n`);
+  execFileSync('git', ['init', '-q'], { cwd: root });
+  execFileSync('git', ['config', 'user.email', 'memory@example.invalid'], {
     cwd: root,
   });
-  execFileSync("git", ["config", "user.name", "Memory Fixture"], {
+  execFileSync('git', ['config', 'user.name', 'Memory Test'], { cwd: root });
+  execFileSync('git', ['add', '.'], { cwd: root });
+  execFileSync('git', ['commit', '-q', '-m', 'authority'], { cwd: root });
+  const sha = execFileSync('git', ['rev-parse', 'HEAD'], {
     cwd: root,
-  });
-  execFileSync("git", ["config", "core.autocrlf", "false"], { cwd: root });
-  execFileSync("git", ["config", "core.safecrlf", "false"], { cwd: root });
-  execFileSync("git", ["add", "."], { cwd: root });
-  execFileSync("git", ["commit", "-q", "-m", "fixture"], { cwd: root });
-  return execFileSync("git", ["rev-parse", "HEAD"], {
-    cwd: root,
-    encoding: "utf8",
+    encoding: 'utf8',
   }).trim();
+  return { root, target, sha };
 }
 
-test.after(() => {
-  for (const root of FIXTURES) rmSync(root, { recursive: true, force: true });
+test('accepts the checked-in static v2 pointer and strict schema', () => {
+  assert.doesNotThrow(() => validator.validatePointer(readJson(POINTER)));
+  assert.doesNotThrow(() => validator.validatePointerSchema(readJson(SCHEMA)));
+  assert.equal(validator.validateLocal().authority.acceptedSchemaMajor, 2);
 });
 
-test("accepts the reviewed pointer, bridge, schema and stable sources", () => {
-  const execution = run(fixture());
-  assert.equal(execution.status, 0, execution.stderr);
-  assert.deepEqual(execution.result, {
-    ok: true,
-    code: "POINTER_VALID",
-    pointerContractValidated: true,
-    pointerSemanticRulesValidated: true,
-    schemaPrototypeParsed: true,
-    stableSourcesValidated: true,
-    authorityResolved: false,
+test('rejects a temporal receipt field', () => {
+  const pointer = readJson(POINTER);
+  pointer.receipt = { transitionId: 'TEMPORAL-RECEIPT' };
+  assert.throws(() => validator.validatePointer(pointer), {
+    code: 'SCHEMA_INVALID',
   });
-  assert.equal(execution.stderr, "");
 });
 
-test("rejects invalid JSON", () => {
-  const root = fixture();
-  writeFileSync(join(root, ...POINTER.split("/")), "{", "utf8");
-  expectCode(run(root), "MEMORY_PARSE_ERROR");
-});
-
-test("rejects non-UTF-8 input", () => {
-  const root = fixture();
-  writeFileSync(join(root, ...POINTER.split("/")), Buffer.from([0xff, 0xfe]));
-  expectCode(run(root), "MEMORY_PARSE_ERROR");
-});
-
-test("rejects an unsupported schema major", () => {
-  const root = fixture();
-  const pointer = readJson(root);
-  pointer.schemaVersion = "2.0.0";
-  writeJson(root, pointer);
-  expectCode(run(root), "MEMORY_SCHEMA_UNSUPPORTED");
-});
-
-test("rejects divergent nested pointer schema contracts", () => {
-  for (const mutate of [
-    (schema) => {
-      schema.properties.receipt.properties.revisionSource.const =
-        "integrated-revision";
-    },
-    (schema) => {
-      schema.properties.authority.properties.repository.const =
-        "example.invalid/wrong-authority";
-    },
-    (schema) => {
-      schema.properties.receipt.required =
-        schema.properties.receipt.required.filter((key) => key !== "baseSha");
-    },
-    (schema) => {
-      schema.properties.receipt.properties.baseSha.pattern = "^[a-f0-9]+$";
-    },
-  ]) {
-    const root = fixture();
-    const schema = readJson(root, SCHEMA);
-    mutate(schema);
-    writeJson(root, schema, SCHEMA);
-    expectCode(run(root), "MEMORY_SCHEMA_INVALID");
+test('rejects current task and phase fields', () => {
+  for (const key of ['currentTask', 'phase']) {
+    const pointer = readJson(POINTER);
+    pointer[key] = 'TEMPORAL-VALUE';
+    assert.throws(() => validator.validatePointer(pointer), {
+      code: 'SCHEMA_INVALID',
+    });
   }
 });
 
-test("rejects an unknown pointer property", () => {
-  const root = fixture();
-  const pointer = readJson(root);
-  pointer.note = "benign but not allowed";
-  writeJson(root, pointer);
-  expectCode(run(root), "MEMORY_SCHEMA_INVALID");
-});
-
-for (const key of [
-  "phase",
-  "currentWork",
-  "nextTask",
-  "operationalState",
-  "blockers",
-  "pendingHumanDecisions",
-  "currentRestrictions",
-  "production",
-  "productionFacts",
-  "productionState",
-  "hostname",
-  "hostnames",
-  "currentTask",
-  "lastCompleted",
-  "projectState",
-  "stateCopy",
-  "facts",
-  "documentedAt",
-  "observedAt",
-]) {
-  test(`rejects forbidden temporal field ${key} recursively`, () => {
-    const root = fixture();
-    const pointer = readJson(root);
-    pointer.authority.extension = { nested: { [key]: "forbidden" } };
-    writeJson(root, pointer);
-    expectCode(run(root), "MEMORY_POINTER_TEMPORAL_DATA");
+test('rejects a secret-bearing pointer field', () => {
+  const pointer = readJson(POINTER);
+  pointer.authority.authorizationToken = 'not-a-real-secret';
+  assert.throws(() => validator.validatePointer(pointer), {
+    code: 'SECRET_MATERIAL',
   });
-}
-
-test("rejects a secret-bearing field recursively", () => {
-  const root = fixture();
-  const pointer = readJson(root);
-  pointer.receipt.authorizationToken = "not-a-real-token";
-  writeJson(root, pointer);
-  expectCode(run(root), "MEMORY_POINTER_SECRET");
 });
 
-test("rejects a malformed or wrong base SHA", () => {
-  const root = fixture();
-  const pointer = readJson(root);
-  pointer.receipt.baseSha = "a".repeat(40);
-  writeJson(root, pointer);
-  expectCode(run(root), "MEMORY_SCHEMA_INVALID");
-});
-
-test("rejects a wrong transition identity or target state revision", () => {
-  for (const mutate of [
-    (pointer) => {
-      pointer.receipt.transitionId = "MVP-10F-CROSS-REPO";
-    },
-    (pointer) => {
-      pointer.receipt.targetStateRevision = "MVP-10B-LIVE-2026-08-21";
-    },
-  ]) {
-    const root = fixture();
-    const pointer = readJson(root);
-    mutate(pointer);
-    writeJson(root, pointer);
-    expectCode(run(root), "MEMORY_SCHEMA_INVALID");
-  }
-});
-
-test("rejects invalid receipt provenance", () => {
-  const root = fixture();
-  const pointer = readJson(root);
-  pointer.receipt.revisionSource = "integrated-revision";
-  writeJson(root, pointer);
-  expectCode(run(root), "MEMORY_SCHEMA_INVALID");
-});
-
-test("rejects a malformed timestamp", () => {
-  const root = fixture();
-  const pointer = readJson(root);
-  pointer.receipt.generatedAt = "2026-02-31T12:00:00Z";
-  writeJson(root, pointer);
-  expectCode(run(root), "MEMORY_SCHEMA_INVALID");
-});
-
-test("rejects temporal facts in the bridge", () => {
-  const root = fixture();
-  writeFileSync(
-    join(root, ...BRIDGE.split("/")),
-    "<!-- genesis-memory-bridge:v1 -->\nAUTHORITY_UNAVAILABLE\nMEMORY_TRANSITION_PENDING\nA fase atual é 0.8.\n",
-    "utf8",
-  );
-  expectCode(run(root), "MEMORY_STABLE_SOURCE_HAS_STATE");
-});
-
-test("rejects a history marker outside the explicit allowlist", () => {
-  const root = fixture();
-  writeFileSync(
-    join(root, "README.md"),
-    "<!-- genesis-memory-history:v1 -->\n# histórico/superseded\nA próxima tarefa era 0.8.2 na época.\n",
-    "utf8",
-  );
-  const execution = run(root);
-  expectCode(execution, "MEMORY_HISTORY_MARKER_NOT_ALLOWED");
-});
-
-test("allows a wholly labeled historical roadmap snapshot", () => {
-  const root = fixture();
-  mkdirSync(join(root, "docs"), { recursive: true });
-  writeFileSync(
-    join(root, "docs", "ROADMAP.md"),
-    "<!-- genesis-memory-history:v1 -->\n# Roadmap — snapshot histórico/superseded\nA próxima tarefa era 0.8.2 na época.\n",
-    "utf8",
-  );
-  assert.equal(run(root).status, 0);
-});
-
-test("rejects a historical roadmap without a whole-document label", () => {
-  const root = fixture();
-  mkdirSync(join(root, "docs"), { recursive: true });
-  writeFileSync(
-    join(root, "docs", "ROADMAP.md"),
-    "<!-- genesis-memory-history:v1 -->\n# Roadmap\nA próxima tarefa era 0.8.2 na época.\n",
-    "utf8",
-  );
-  expectCode(run(root), "MEMORY_STABLE_SOURCE_HAS_STATE");
-});
-
-for (const hostname of [
-  "app.agenciagenesis.com.br",
-  "app.agenciagenesismkt.com.br",
-]) {
-  test(`rejects hardcoded operational hostname ${hostname}`, () => {
-    const root = fixture();
-    writeFileSync(
-      join(root, "README.md"),
-      `# Stable source\nO hostname operacional é ${hostname}.\n`,
-      "utf8",
-    );
-    expectApiAuthorityOnlyNextAction(run(root));
+test('rejects an unsupported pointer schema major', () => {
+  const pointer = readJson(POINTER);
+  pointer.schemaVersion = '3.0.0';
+  assert.throws(() => validator.validatePointer(pointer), {
+    code: 'UNSUPPORTED_SCHEMA_MAJOR',
   });
-}
-
-test("gives API-authority-only guidance for a temporal README fact", () => {
-  const root = fixture();
-  writeFileSync(
-    join(root, "README.md"),
-    "# Stable source\nA próxima tarefa é 0.8.2.\n",
-    "utf8",
-  );
-  expectApiAuthorityOnlyNextAction(run(root));
 });
 
-test("rejects an old roadmap presented as current", () => {
-  const root = fixture();
-  mkdirSync(join(root, "docs"), { recursive: true });
-  writeFileSync(
-    join(root, "docs", "ROADMAP.md"),
-    "# Roadmap\nA próxima tarefa é 0.8.2 na Hetzner.\n",
-    "utf8",
-  );
-  const execution = run(root);
-  expectCode(execution, "MEMORY_STABLE_SOURCE_HAS_STATE");
-  assert.match(execution.result.nextAction, /canonical API authority/u);
-  assert.match(
-    execution.result.nextAction,
-    /entire document hist[oó]rico\/superseded/iu,
-  );
+test('resolves an exact explicit checkout and verifies its commit pin', async () => {
+  const api = createApiRepository(temporaryDirectory());
+  const result = await validator.resolveAuthority(readJson(POINTER), {
+    apiSource: api.root,
+    expectedAuthoritySha: api.sha,
+  });
+  assert.equal(result.strategy, 'explicit-checkout');
+  assert.equal(result.authoritySha, api.sha);
+  assert.equal(result.state.stateRevision, 'ROADMAP-WAVE-7-KEEP');
 });
 
-test("reports authority unavailable and transition pending together", () => {
-  const root = fixture();
-  const execution = run(root, [
-    "--mode",
-    "resolve",
-    "--api-source",
-    join(root, "missing-api"),
-  ]);
-  expectCode(execution, "AUTHORITY_UNAVAILABLE");
-  assert.ok(execution.result.codes.includes("MEMORY_TRANSITION_PENDING"));
-  assert.equal(execution.result.staleFallbackUsed, false);
+test('resolves a sibling API checkout when no explicit source is supplied', async () => {
+  const parent = temporaryDirectory();
+  const web = join(parent, 'genesis-platform-web');
+  mkdirSync(web);
+  createApiRepository(parent);
+  const result = await validator.resolveAuthority(readJson(POINTER), {
+    cwd: web,
+  });
+  assert.equal(result.strategy, 'sibling-checkout');
+  assert.equal(result.state.schemaVersion, '2.0.0');
 });
 
-test("reports the exact predecessor authority as transition pending", () => {
-  const root = fixture();
-  const source = join(root, "authority.json");
-  writeJson(
-    root,
-    authority(PREVIOUS_RECEIPT.memoryRevision, {
-      stateRevision: "PIPE-V2-03A-IMPLEMENTED-AND-MERGED-2026-09-05",
-      releaseBinding: PREVIOUS_WEB_RELEASE_REVISION,
-      pointerTransitionId: PREVIOUS_RECEIPT.transitionId,
-      pointerTargetStateRevision: PREVIOUS_RECEIPT.targetStateRevision,
+test('resolves remote read-only authority in a controlled simulation', async () => {
+  const pointer = readJson(POINTER);
+  const calls = [];
+  const result = await validator.resolveAuthority(
+    pointer,
+    {},
+    {
+      exists: () => false,
+      readRemote: async (url) => {
+        calls.push(url);
+        return JSON.stringify(validState());
+      },
+    },
+  );
+  assert.equal(result.strategy, 'remote-read-only');
+  assert.equal(calls.length, 1);
+  assert.match(calls[0], /\/main\/docs\/memory\/project-state\.v2\.json$/u);
+});
+
+test('fails closed when the selected authority is unavailable', async () => {
+  await assert.rejects(
+    validator.resolveAuthority(readJson(POINTER), {
+      apiSource: join(temporaryDirectory(), 'missing-api'),
     }),
-    "authority.json",
-  );
-  const execution = run(root, ["--mode", "resolve", "--api-source", source]);
-  expectCode(execution, "MEMORY_TRANSITION_PENDING");
-  assert.equal(execution.result.authorityResolved, true);
-  assert.equal(execution.result.transitionPending, true);
-  assert.equal(execution.result.staleFallbackUsed, false);
-  assert.equal(
-    execution.result.targetStateRevision,
-    RECEIPT_TARGET_STATE_REVISION,
+    { code: 'AUTHORITY_UNAVAILABLE' },
   );
 });
 
-test("rejects authority metadata that does not acknowledge the historical receipt", () => {
-  const root = fixture();
-  const source = join(root, "authority.json");
-  writeJson(
-    root,
-    authority("a".repeat(40), {
-      pointerTargetStateRevision: "MVP-10B-LIVE-2026-08-21",
+test('rejects an expected authority SHA mismatch', async () => {
+  const api = createApiRepository(temporaryDirectory());
+  await assert.rejects(
+    validator.resolveAuthority(readJson(POINTER), {
+      apiSource: api.root,
+      expectedAuthoritySha: OTHER_SHA,
     }),
-    "authority.json",
+    { code: 'EXPECTED_AUTHORITY_SHA_MISMATCH' },
   );
-  const execution = run(root, ["--mode", "resolve", "--api-source", source]);
-  expectCode(execution, "MEMORY_POINTER_MISMATCH");
 });
 
-test("reports a mismatched Web memoryRevision", () => {
-  const root = fixture();
-  const commit = initializeGit(root);
-  const source = join(root, "authority.json");
-  const different = commit === "a".repeat(40) ? "b".repeat(40) : "a".repeat(40);
-  writeJson(root, authority(different), "authority.json");
-  const execution = run(root, ["--mode", "resolve", "--api-source", source]);
-  expectCode(execution, "MEMORY_WEB_REVISION_MISMATCH");
-  assert.equal(execution.result.actualMemoryRevision, commit);
-});
-
-test("resolves distinct pointer, release and later temporal revisions", () => {
-  const root = fixture();
-  const commit = initializeGit(root);
-  const source = join(root, "authority.json");
-  writeJson(root, authority(commit), "authority.json");
-  const execution = run(root, ["--mode", "resolve", "--api-source", source]);
-  assert.equal(execution.status, 0, execution.stderr);
-  assert.equal(execution.result.code, "MEMORY_RESOLVED");
-  assert.equal(execution.result.webMemoryRevision, commit);
-  assert.equal(execution.result.webIntegratedRevision, WEB_RELEASE_REVISION);
-  assert.equal(
-    execution.result.receiptTargetStateRevision,
-    RECEIPT_TARGET_STATE_REVISION,
+test('never falls through from a broken explicit source to remote', async () => {
+  let remoteReads = 0;
+  await assert.rejects(
+    validator.resolveAuthority(
+      readJson(POINTER),
+      { apiSource: join(temporaryDirectory(), 'missing-api') },
+      {
+        readRemote: async () => {
+          remoteReads += 1;
+          return JSON.stringify(validState());
+        },
+      },
+    ),
+    { code: 'AUTHORITY_UNAVAILABLE' },
   );
-  assert.equal(
-    execution.result.stateRevision,
-    "LATER-TEMPORAL-REVISION-2026-08-26",
+  assert.equal(remoteReads, 0);
+});
+
+test('keeps the pointer byte-identical across fictional state changes', () => {
+  const before = readFileSync(join(process.cwd(), POINTER));
+  validator.validateAuthority(validState());
+  validator.validateAuthority(
+    validState({
+      stateRevision: 'ROADMAP-WAVE-8-ROLLBACK',
+      currentWork: {
+        status: 'active',
+        id: 'ROADMAP-WAVE-8',
+        title: 'Another fictional task',
+      },
+      nextTask: {
+        status: 'decided',
+        id: 'ROADMAP-WAVE-9',
+        title: 'Later fictional task',
+      },
+    }),
   );
-  assert.notEqual(commit, WEB_RELEASE_REVISION);
-  assert.notEqual(
-    execution.result.stateRevision,
-    RECEIPT_TARGET_STATE_REVISION,
+  const after = readFileSync(join(process.cwd(), POINTER));
+  assert.deepEqual(after, before);
+});
+
+test('accepts generic authority instances and rejects malformed live data', () => {
+  assert.doesNotThrow(() => validator.validateAuthority(validState()));
+  const invalid = validState();
+  invalid.live.api.sourceSha = 'short';
+  assert.throws(() => validator.validateAuthority(invalid), {
+    code: 'AUTHORITY_SCHEMA_INVALID',
+  });
+});
+
+test('rejects authority secrets and unsupported schema majors', () => {
+  const secret = validState();
+  secret.followUps.push({
+    id: 'SAFE-ID',
+    summary: 'Bearer abcdefghijklmnopqrstuvwxyz',
+  });
+  assert.throws(() => validator.validateAuthority(secret), {
+    code: 'SECRET_MATERIAL',
+  });
+  assert.throws(
+    () => validator.validateAuthority(validState({ schemaVersion: '4.0.0' })),
+    { code: 'UNSUPPORTED_SCHEMA_MAJOR' },
   );
-  assert.equal(execution.result.staleFallbackUsed, false);
-});
-
-test("keeps authority at the historical receipt target backward compatible", () => {
-  const root = fixture();
-  const commit = initializeGit(root);
-  const source = join(root, "authority.json");
-  writeJson(
-    root,
-    authority(commit, { stateRevision: RECEIPT_TARGET_STATE_REVISION }),
-    "authority.json",
+  assert.throws(
+    () => validator.validateAuthority(validState({ schemaVersion: '2x' })),
+    { code: 'UNSUPPORTED_SCHEMA_MAJOR' },
   );
-  const execution = run(root, ["--mode", "resolve", "--api-source", source]);
-  assert.equal(execution.status, 0, execution.stderr);
-  assert.equal(execution.result.code, "MEMORY_RESOLVED");
 });
 
-test("does not resolve an uncommitted pointer", () => {
-  const root = fixture();
-  const commit = initializeGit(root);
-  const pointer = readJson(root);
-  pointer.receipt.generatedAt = "2026-08-24T14:19:54.2261794Z";
-  writeJson(root, pointer);
-  const source = join(root, "authority.json");
-  writeJson(root, authority(commit), "authority.json");
-  const execution = run(root, ["--mode", "resolve", "--api-source", source]);
-  expectCode(execution, "MEMORY_TRANSITION_PENDING");
-  assert.equal(execution.result.transitionPending, true);
-});
-
-test("rejects an unauthorized Web application/release binding", () => {
-  const root = fixture();
-  const commit = initializeGit(root);
-  const source = join(root, "authority.json");
-  writeJson(
-    root,
-    authority(commit, { releaseBinding: "a".repeat(40) }),
-    "authority.json",
+test('contains no current task, receipt, deployment or release hardcodes', () => {
+  const source = readFileSync(
+    join(process.cwd(), 'scripts/validate-project-memory.cjs'),
+    'utf8',
   );
-  const execution = run(root, ["--mode", "resolve", "--api-source", source]);
-  expectCode(execution, "MEMORY_RELEASE_BINDING_MISMATCH");
-});
-
-test("never treats CURRENT_STATE content as authority fallback", () => {
-  const root = fixture();
-  writeFileSync(
-    join(root, ...BRIDGE.split("/")),
-    "<!-- genesis-memory-bridge:v1 -->\nAUTHORITY_UNAVAILABLE\nMEMORY_TRANSITION_PENDING\nGH-FAKE-FALLBACK\n",
-    "utf8",
+  assert.doesNotMatch(
+    source,
+    /PIPE-V2-03A|transitionId|targetStateRevision|memoryRevision|90dc36a3|DhUzyz|e0d3613f/u,
   );
-  const execution = run(root, [
-    "--mode",
-    "resolve",
-    "--api-source",
-    join(root, "missing-api"),
-  ]);
-  expectCode(execution, "AUTHORITY_UNAVAILABLE");
-  assert.doesNotMatch(execution.stdout, /GH-FAKE-FALLBACK/u);
-  assert.equal(execution.result.staleFallbackUsed, false);
 });
 
-test("rejects irregular pointer input", () => {
-  const root = fixture();
-  rmSync(join(root, ...POINTER.split("/")));
-  mkdirSync(join(root, ...POINTER.split("/")));
-  expectCode(run(root), "MEMORY_UNSAFE_INPUT");
-});
-
-test("returns exit 2 for invalid usage", () => {
-  const execution = run(fixture(), ["--mode", "resolve"]);
-  expectCode(execution, "USAGE_ERROR", 2);
-});
-
-test("uses temporary fixtures without copying repository .codex state", () => {
-  const root = fixture();
-  assert.equal(run(root).status, 0);
-  assert.equal(existsSync(join(root, ".codex")), false);
-});
-
-test("accepts the complete corrected candidate", () => {
-  const execution = run(REPOSITORY_ROOT);
-  assert.equal(execution.status, 0, execution.stderr);
-  assert.equal(execution.result.code, "POINTER_VALID");
-  assert.equal(execution.result.stableSourcesValidated, true);
-});
-
-test("CI invokes memory checks in the existing job", () => {
-  const workflow = readFileSync(
-    join(REPOSITORY_ROOT, ".github", "workflows", "ci.yml"),
-    "utf8",
+test('checked-in v1 pointer and schema are removed', () => {
+  assert.throws(() =>
+    readFileSync(
+      join(process.cwd(), 'docs/memory/project-state.pointer.v1.json'),
+    ),
   );
-  assert.match(
-    workflow,
-    /node scripts\/validate-project-memory\.cjs --mode local/u,
+  assert.throws(() =>
+    readFileSync(
+      join(
+        process.cwd(),
+        'schemas/genesis-harness/project-state.pointer.v1.schema.json',
+      ),
+    ),
   );
-  assert.match(
-    workflow,
-    /node --test test\/project-memory\/project-memory\.test\.cjs/u,
-  );
-  assert.equal((workflow.match(/name: Validate frontend/gu) ?? []).length, 1);
 });

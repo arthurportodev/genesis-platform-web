@@ -40,5 +40,5 @@ nova decisão e apontar qual documento anterior foi superado.
 
 ADRs são autoridade para decisões e justificativas, não para fase, trabalho,
 operação, blockers ou sequência. Todo fato temporal é resolvido na autoridade
-da API por meio de `docs/memory/project-state.pointer.v1.json`; se indisponível,
+da API por meio de `docs/memory/project-state.pointer.v2.json`; se indisponível,
 permanece desconhecido.

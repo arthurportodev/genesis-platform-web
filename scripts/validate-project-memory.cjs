@@ -2,96 +2,49 @@
 'use strict';
 
 const { execFileSync } = require('node:child_process');
-const { existsSync, lstatSync, readFileSync, statSync } = require('node:fs');
-const { join, resolve } = require('node:path');
+const { existsSync, lstatSync, readFileSync } = require('node:fs');
+const { dirname, join, relative, resolve, sep } = require('node:path');
 const { TextDecoder } = require('node:util');
 
-const POINTER_PATH = 'docs/memory/project-state.pointer.v1.json';
+const POINTER_PATH = 'docs/memory/project-state.pointer.v2.json';
 const SCHEMA_PATH =
-  'schemas/genesis-harness/project-state.pointer.v1.schema.json';
+  'schemas/genesis-harness/project-state.pointer.v2.schema.json';
 const BRIDGE_PATH = 'docs/CURRENT_STATE.md';
-const BRIDGE_MARKER = '<!-- genesis-memory-bridge:v1 -->';
-const HISTORY_MARKER = '<!-- genesis-memory-history:v1 -->';
-const HISTORY_MARKER_ALLOWLIST = new Set(['docs/ROADMAP.md']);
-const RECEIPT = Object.freeze({
-  transitionId: 'PIPE-V2-03A-PRODUCTION-KEEP-CROSS-REPO',
-  targetStateRevision: 'PIPE-V2-03A-PRODUCTION-KEEP-2026-09-05',
-  baseSha: '9c626245c381c3186011059a8716d5b67b752038',
-  revisionSource: 'containing-commit',
-});
-const PREVIOUS_RECEIPT = Object.freeze({
-  transitionId: 'PIPE-V2-03A-CROSS-REPO',
-  targetStateRevision: 'PIPE-V2-03A-IMPLEMENTED-AND-MERGED-2026-09-05',
-  memoryRevision: 'd5e0f35e21b9fcf8039b0cae2fcbed85374fb174',
-});
+const BRIDGE_MARKER = '<!-- genesis-memory-bridge:v2 -->';
 const AUTHORITY = Object.freeze({
   repository: 'arthurportodev/genesis-platform-api',
   branch: 'main',
-  path: 'docs/memory/project-state.v1.json',
+  path: 'docs/memory/project-state.v2.json',
+  acceptedSchemaMajor: 2,
 });
-const WEB_POINTER = Object.freeze({
-  repository: 'arthurportodev/genesis-platform-web',
-  path: POINTER_PATH,
-  schemaVersion: '1.0.0',
-  mode: 'pointer-only',
-});
-const WEB_RELEASE_REVISION = '90dc36a3e8a53c1e1852b6acfb8b4c05c97e44e6';
-const PREVIOUS_WEB_RELEASE_REVISION =
-  '6f53180e6c3947bd778e47c8fdb734567802e0d8';
 const RESOLUTION_ORDER = Object.freeze([
   'explicit-checkout',
   'sibling-checkout',
   'remote-read-only',
 ]);
-const MAX_LOCAL_BYTES = 256 * 1024;
-const MAX_REMOTE_BYTES = 256 * 1024;
+const MAX_BYTES = 64 * 1024;
 const REMOTE_TIMEOUT_MS = 5000;
-
-const STABLE_SOURCES = Object.freeze([
-  'AGENTS.md',
-  'README.md',
-  'docs/START_HERE.md',
-  BRIDGE_PATH,
-  'docs/PROJECT_OVERVIEW.md',
-  'docs/ROADMAP.md',
-  'docs/PRODUCTION.md',
-  'docs/ARCHITECTURE.md',
-  'docs/SECURITY.md',
-  'docs/DEVELOPMENT_WORKFLOW.md',
-  'docs/decisions/README.md',
-  'docs/decisions/ADR-008-vercel-same-origin-production.md',
-  'docs/decisions/ADR-009-development-operating-system-v2-parity.md',
-]);
-
-const FORBIDDEN_POINTER_KEYS = new Set([
-  'phase',
-  'currentwork',
-  'nexttask',
-  'operationalstate',
-  'blockers',
-  'pendinghumandecisions',
-  'currentrestrictions',
-  'production',
-  'productionfacts',
-  'productionstate',
-  'hostname',
-  'hostnames',
-  'currenttask',
-  'lastcompleted',
-  'projectstate',
-  'statecopy',
-  'facts',
-  'documentedat',
-  'observedat',
-]);
-const SECRET_KEY =
-  /(?:secret|token|password|authorization|cookie|api[_-]?key)/iu;
 const FULL_SHA = /^(?!0{40}$)[a-f0-9]{40}$/u;
+const SEMVER = /^(?<major>0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)$/u;
 const IDENTIFIER = /^[A-Za-z0-9][A-Za-z0-9._-]{1,79}$/u;
-const RFC3339_UTC =
-  /^\d{4}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12]\d|3[01])T(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d{1,9})?Z$/u;
-const KNOWN_OPERATIONAL_HOSTNAME =
-  /\b(?:app\.agenciagenesis\.com\.br|app\.agenciagenesismkt\.com\.br)\b/iu;
+const IMAGE = /^ghcr\.io\/[a-z0-9][a-z0-9._/-]*@sha256:[a-f0-9]{64}$/u;
+const DEPLOYMENT = /^dpl_[A-Za-z0-9]{20,80}$/u;
+const SECRET_KEY =
+  /(?:password|passwd|token|cookie|authorization|secret|private[_-]?key|credential|client[_-]?secret)/iu;
+const SECRET_VALUE =
+  /(?:-----BEGIN [A-Z ]*PRIVATE KEY-----|(?:gh[opurs]|github_pat)_[A-Za-z0-9_]{20,}|Bearer\s+[A-Za-z0-9._~+/-]{12,}|Basic\s+[A-Za-z0-9+/=]{12,}|eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{8,})/u;
+const TOP_LEVEL_KEYS = Object.freeze([
+  'schemaVersion',
+  'stateRevision',
+  'phase',
+  'lastCompleted',
+  'currentWork',
+  'nextTask',
+  'live',
+  'openBlockers',
+  'activeRestrictions',
+  'followUps',
+]);
 
 class MemoryError extends Error {
   constructor(code, message, path, nextAction) {
@@ -111,68 +64,59 @@ function isObject(value) {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
 
-function assertObject(value, path) {
+function exactKeys(value, keys, path) {
   if (!isObject(value)) {
     fail(
-      'MEMORY_SCHEMA_INVALID',
+      'SCHEMA_INVALID',
       `${path} must be an object.`,
       path,
-      'Restore the documented pointer object shape.',
+      'Fix the JSON shape.',
     );
   }
-}
-
-function assertExactKeys(value, expected, path) {
-  assertObject(value, path);
   const actual = Object.keys(value).sort();
-  const wanted = [...expected].sort();
-  if (JSON.stringify(actual) !== JSON.stringify(wanted)) {
+  const expected = [...keys].sort();
+  if (JSON.stringify(actual) !== JSON.stringify(expected)) {
     fail(
-      'MEMORY_SCHEMA_INVALID',
-      `${path} has an unexpected or missing property.`,
+      'SCHEMA_INVALID',
+      `${path} has missing or unexpected properties.`,
       path,
-      `Use exactly these properties: ${wanted.join(', ')}.`,
+      `Use exactly: ${expected.join(', ')}.`,
     );
   }
 }
 
-function decodeUtf8(buffer, path) {
+function decode(bytes, path) {
   try {
-    return new TextDecoder('utf-8', { fatal: true }).decode(buffer);
+    return new TextDecoder('utf-8', { fatal: true }).decode(bytes);
   } catch {
     fail(
       'MEMORY_PARSE_ERROR',
-      `${path} is not strict UTF-8.`,
+      `${path} is not valid UTF-8.`,
       path,
-      'Encode the file as valid UTF-8 without replacement characters.',
+      'Use UTF-8 JSON.',
     );
   }
 }
 
-function safeReadText(path, maxBytes = MAX_LOCAL_BYTES) {
-  let info;
+function safeRead(path) {
   try {
-    info = lstatSync(path);
+    const info = lstatSync(path);
+    if (!info.isFile() || info.isSymbolicLink() || info.size > MAX_BYTES) {
+      throw new Error('unsafe file');
+    }
+    return decode(readFileSync(path), path);
   } catch (error) {
+    if (error instanceof MemoryError) throw error;
     fail(
-      'MEMORY_UNSAFE_INPUT',
-      `Input cannot be inspected: ${error.code ?? 'read failure'}.`,
+      'AUTHORITY_UNAVAILABLE',
+      `Cannot read a bounded regular file at ${path}.`,
       path,
-      'Provide an existing regular file.',
+      'Provide the expected checkout or authority JSON file.',
     );
   }
-  if (info.isSymbolicLink() || !info.isFile() || info.size > maxBytes) {
-    fail(
-      'MEMORY_UNSAFE_INPUT',
-      'Input must be a bounded regular file and not a symbolic link.',
-      path,
-      `Provide a regular file no larger than ${maxBytes} bytes.`,
-    );
-  }
-  return decodeUtf8(readFileSync(path), path);
 }
 
-function parseJsonText(text, path) {
+function parseJson(text, path) {
   try {
     return JSON.parse(text);
   } catch {
@@ -180,487 +124,446 @@ function parseJsonText(text, path) {
       'MEMORY_PARSE_ERROR',
       `${path} is not valid JSON.`,
       path,
-      'Fix JSON syntax and preserve strict UTF-8.',
+      'Fix the JSON syntax.',
     );
   }
 }
 
-function readJson(path) {
-  return parseJsonText(safeReadText(path), path);
-}
-
-function walkPointer(value, path = '$') {
-  if (Array.isArray(value)) {
-    value.forEach((entry, index) => walkPointer(entry, `${path}[${index}]`));
-    return;
-  }
-  if (!isObject(value)) {
-    if (typeof value === 'string' && /https?:\/\/[^/\s]*@/iu.test(value)) {
+function scanSecrets(value, path = '$') {
+  if (typeof value === 'string') {
+    if (SECRET_VALUE.test(value)) {
       fail(
-        'MEMORY_POINTER_SECRET',
-        'Authenticated URLs are forbidden in the pointer.',
+        'SECRET_MATERIAL',
+        `Credential-like value at ${path}.`,
         path,
-        'Use repository identity and the public read-only resolution contract.',
+        'Remove credential material.',
       );
     }
     return;
   }
-  for (const [key, entry] of Object.entries(value)) {
-    const normalized = key.toLowerCase();
-    if (FORBIDDEN_POINTER_KEYS.has(normalized)) {
-      fail(
-        'MEMORY_POINTER_TEMPORAL_DATA',
-        `Temporal or operational field is forbidden: ${key}.`,
-        `${path}.${key}`,
-        'Keep temporal facts only in the API authority.',
-      );
-    }
+  if (Array.isArray(value)) {
+    value.forEach((item, index) => scanSecrets(item, `${path}[${index}]`));
+    return;
+  }
+  if (!isObject(value)) return;
+  for (const [key, item] of Object.entries(value)) {
+    const itemPath = `${path}.${key}`;
     if (SECRET_KEY.test(key)) {
       fail(
-        'MEMORY_POINTER_SECRET',
-        `Secret-bearing field is forbidden: ${key}.`,
-        `${path}.${key}`,
-        'Remove credentials and authorization material from the pointer.',
+        'SECRET_MATERIAL',
+        `Secret-bearing key at ${itemPath}.`,
+        itemPath,
+        'Remove secret-bearing fields.',
       );
     }
-    walkPointer(entry, `${path}.${key}`);
-  }
-}
-
-function validateTimestamp(value, path) {
-  const parsed = typeof value === 'string' ? Date.parse(value) : Number.NaN;
-  if (
-    typeof value !== 'string' ||
-    !RFC3339_UTC.test(value) ||
-    !Number.isFinite(parsed) ||
-    new Date(parsed).toISOString().slice(0, 10) !== value.slice(0, 10)
-  ) {
-    fail(
-      'MEMORY_SCHEMA_INVALID',
-      `${path} must be a real RFC 3339 UTC timestamp.`,
-      path,
-      'Use an ISO timestamp such as 2026-08-10T12:00:00Z.',
-    );
-  }
-  if (parsed > Date.now() + 5 * 60 * 1000) {
-    fail(
-      'MEMORY_SCHEMA_INVALID',
-      `${path} cannot be materially in the future.`,
-      path,
-      'Use the candidate generation time.',
-    );
+    scanSecrets(item, itemPath);
   }
 }
 
 function validatePointer(pointer) {
-  walkPointer(pointer);
-  assertExactKeys(
-    pointer,
-    [
-      'schemaVersion',
-      'instanceKind',
-      'project',
-      'mode',
-      'authority',
-      'receipt',
-    ],
-    '$',
-  );
-  const major = Number.parseInt(
-    String(pointer.schemaVersion).split('.')[0],
-    10,
-  );
-  if (major !== 1) {
+  scanSecrets(pointer);
+  exactKeys(pointer, ['schemaVersion', 'authority'], '$');
+  if (pointer.schemaVersion !== '2.0.0') {
     fail(
-      'MEMORY_SCHEMA_UNSUPPORTED',
-      'Pointer schema major is not supported.',
+      'UNSUPPORTED_SCHEMA_MAJOR',
+      'Pointer schema major is unsupported.',
       '$.schemaVersion',
-      'Use project-state.pointer schema major 1.',
+      'Use pointer schema 2.0.0.',
     );
   }
-  if (
-    pointer.schemaVersion !== '1.0.0' ||
-    pointer.instanceKind !== 'current' ||
-    pointer.project !== 'genesis-platform' ||
-    pointer.mode !== 'pointer-only'
-  ) {
-    fail(
-      'MEMORY_SCHEMA_INVALID',
-      'Pointer identity is invalid.',
-      '$',
-      'Restore the v1 current pointer identity.',
-    );
-  }
-
-  assertExactKeys(
+  exactKeys(
     pointer.authority,
     ['repository', 'branch', 'path', 'acceptedSchemaMajor', 'resolutionOrder'],
     '$.authority',
   );
+  const authority = pointer.authority;
   if (
-    pointer.authority.repository !== AUTHORITY.repository ||
-    pointer.authority.branch !== AUTHORITY.branch ||
-    pointer.authority.path !== AUTHORITY.path ||
-    pointer.authority.acceptedSchemaMajor !== 1 ||
-    JSON.stringify(pointer.authority.resolutionOrder) !==
+    authority.repository !== AUTHORITY.repository ||
+    authority.branch !== AUTHORITY.branch ||
+    authority.path !== AUTHORITY.path ||
+    authority.acceptedSchemaMajor !== AUTHORITY.acceptedSchemaMajor ||
+    JSON.stringify(authority.resolutionOrder) !==
       JSON.stringify(RESOLUTION_ORDER)
   ) {
     fail(
-      'MEMORY_SCHEMA_INVALID',
-      'Authority locator or resolution order is invalid.',
+      'POINTER_CONTRACT_INVALID',
+      'Pointer authority contract is invalid.',
       '$.authority',
-      'Restore the approved API main authority and resolution order.',
+      'Restore the static v2 authority coordinates and resolution order.',
     );
   }
-
-  assertExactKeys(
-    pointer.receipt,
-    [
-      'transitionId',
-      'targetStateRevision',
-      'baseSha',
-      'revisionSource',
-      'generatedAt',
-    ],
-    '$.receipt',
-  );
-  if (
-    typeof pointer.receipt.transitionId !== 'string' ||
-    !IDENTIFIER.test(pointer.receipt.transitionId) ||
-    typeof pointer.receipt.targetStateRevision !== 'string' ||
-    !IDENTIFIER.test(pointer.receipt.targetStateRevision)
-  ) {
-    fail(
-      'MEMORY_SCHEMA_INVALID',
-      'Receipt identifiers are malformed.',
-      '$.receipt',
-      'Use stable non-placeholder transition and state revision IDs.',
-    );
-  }
-  if (
-    pointer.receipt.transitionId !== RECEIPT.transitionId ||
-    pointer.receipt.targetStateRevision !== RECEIPT.targetStateRevision
-  ) {
-    fail(
-      'MEMORY_SCHEMA_INVALID',
-      'Receipt transition identity or target state revision is invalid.',
-      '$.receipt',
-      `Use transition ${RECEIPT.transitionId} targeting ${RECEIPT.targetStateRevision}.`,
-    );
-  }
-  if (
-    !FULL_SHA.test(pointer.receipt.baseSha) ||
-    pointer.receipt.baseSha !== RECEIPT.baseSha
-  ) {
-    fail(
-      'MEMORY_SCHEMA_INVALID',
-      'Receipt baseSha is invalid for this transition.',
-      '$.receipt.baseSha',
-      `Use the approved Web base ${RECEIPT.baseSha}.`,
-    );
-  }
-  if (pointer.receipt.revisionSource !== RECEIPT.revisionSource) {
-    fail(
-      'MEMORY_SCHEMA_INVALID',
-      'Receipt provenance must identify its containing commit.',
-      '$.receipt.revisionSource',
-      'Do not predict or embed the future integrated commit SHA.',
-    );
-  }
-  validateTimestamp(pointer.receipt.generatedAt, '$.receipt.generatedAt');
   return pointer;
 }
 
-function validateSchemaPrototype(schema) {
-  assertObject(schema, '$schema');
-  const expectedRequired = [
-    'schemaVersion',
-    'instanceKind',
-    'project',
-    'mode',
-    'authority',
-    'receipt',
-  ];
-  const expectedAuthorityRequired = [
-    'repository',
-    'branch',
-    'path',
-    'acceptedSchemaMajor',
-    'resolutionOrder',
-  ];
-  const expectedReceiptRequired = [
-    'transitionId',
-    'targetStateRevision',
-    'baseSha',
-    'revisionSource',
-    'generatedAt',
-  ];
+function validatePointerSchema(schema) {
+  exactKeys(
+    schema,
+    [
+      '$schema',
+      '$id',
+      'title',
+      'type',
+      'additionalProperties',
+      'required',
+      'properties',
+    ],
+    '$schema',
+  );
   const authority = schema.properties?.authority;
-  const receipt = schema.properties?.receipt;
+  exactKeys(
+    schema.properties,
+    ['schemaVersion', 'authority'],
+    '$schema.properties',
+  );
+  exactKeys(
+    authority,
+    ['type', 'additionalProperties', 'required', 'properties'],
+    '$schema.properties.authority',
+  );
+  exactKeys(
+    authority.properties,
+    ['repository', 'branch', 'path', 'acceptedSchemaMajor', 'resolutionOrder'],
+    '$schema.properties.authority.properties',
+  );
   if (
     schema.$schema !== 'https://json-schema.org/draft/2020-12/schema' ||
-    schema.$id !==
-      'https://github.com/arthurportodev/genesis-platform-web/schemas/genesis-harness/project-state.pointer.v1.schema.json' ||
     schema.type !== 'object' ||
     schema.additionalProperties !== false ||
-    JSON.stringify(schema.required) !== JSON.stringify(expectedRequired) ||
-    schema.properties?.schemaVersion?.const !== '1.0.0' ||
-    schema.properties?.instanceKind?.const !== 'current' ||
-    schema.properties?.project?.const !== 'genesis-platform' ||
-    schema.properties?.mode?.const !== 'pointer-only' ||
+    JSON.stringify(schema.required) !==
+      JSON.stringify(['schemaVersion', 'authority']) ||
+    schema.properties?.schemaVersion?.const !== '2.0.0' ||
     authority?.type !== 'object' ||
     authority?.additionalProperties !== false ||
     JSON.stringify(authority.required) !==
-      JSON.stringify(expectedAuthorityRequired) ||
+      JSON.stringify([
+        'repository',
+        'branch',
+        'path',
+        'acceptedSchemaMajor',
+        'resolutionOrder',
+      ]) ||
     authority.properties?.repository?.const !== AUTHORITY.repository ||
     authority.properties?.branch?.const !== AUTHORITY.branch ||
     authority.properties?.path?.const !== AUTHORITY.path ||
-    authority.properties?.acceptedSchemaMajor?.const !== 1 ||
+    authority.properties?.acceptedSchemaMajor?.const !==
+      AUTHORITY.acceptedSchemaMajor ||
     JSON.stringify(authority.properties?.resolutionOrder?.const) !==
-      JSON.stringify(RESOLUTION_ORDER) ||
-    receipt?.type !== 'object' ||
-    receipt?.additionalProperties !== false ||
-    JSON.stringify(receipt.required) !==
-      JSON.stringify(expectedReceiptRequired) ||
-    receipt.properties?.transitionId?.type !== 'string' ||
-    receipt.properties?.transitionId?.pattern !==
-      '^[A-Za-z0-9][A-Za-z0-9._-]{1,79}$' ||
-    receipt.properties?.targetStateRevision?.type !== 'string' ||
-    receipt.properties?.targetStateRevision?.pattern !==
-      '^[A-Za-z0-9][A-Za-z0-9._-]{2,79}$' ||
-    receipt.properties?.baseSha?.type !== 'string' ||
-    receipt.properties?.baseSha?.pattern !== '^(?!0{40}$)[a-f0-9]{40}$' ||
-    receipt.properties?.revisionSource?.const !== RECEIPT.revisionSource ||
-    receipt.properties?.generatedAt?.type !== 'string' ||
-    receipt.properties?.generatedAt?.format !== 'date-time'
+      JSON.stringify(RESOLUTION_ORDER)
   ) {
     fail(
-      'MEMORY_SCHEMA_INVALID',
-      'Pointer schema prototype does not match the focused validator contract.',
+      'POINTER_SCHEMA_INVALID',
+      'Pointer schema does not encode the closed v2 contract.',
       SCHEMA_PATH,
-      'Restore the reviewed v1 schema prototype.',
+      'Restore the strict static pointer schema.',
     );
   }
 }
 
-function normalizeStableSourcePath(path) {
-  return path.replaceAll('\\', '/').replace(/^(?:\.\/)+/u, '');
-}
-
-function stableSourceStateNextAction(normalizedPath) {
-  if (HISTORY_MARKER_ALLOWLIST.has(normalizedPath)) {
-    return 'Move current facts to the canonical API authority or label the entire document histórico/superseded.';
-  }
-  return 'Remove temporal facts from this source and obtain current facts from the canonical API authority.';
-}
-
-function lintStableSource(path, text) {
-  const normalizedPath = normalizeStableSourcePath(path);
-  if (text.includes(HISTORY_MARKER)) {
-    if (!HISTORY_MARKER_ALLOWLIST.has(normalizedPath)) {
-      fail(
-        'MEMORY_HISTORY_MARKER_NOT_ALLOWED',
-        'Historical marker is not allowed in this stable source.',
-        normalizedPath,
-        `Use the marker only in: ${[...HISTORY_MARKER_ALLOWLIST].join(', ')}.`,
-      );
-    }
-    if (!/^# .*hist[oó]rico\s*\/\s*superseded.*$/imu.test(text)) {
-      fail(
-        'MEMORY_STABLE_SOURCE_HAS_STATE',
-        'Historical marker requires an explicit histórico/superseded label.',
-        normalizedPath,
-        'Label the entire snapshot as histórico/superseded.',
-      );
-    }
-    return;
-  }
-  const forbidden = [
-    /\b(?:fase|tarefa|estado)\s+atual\b/iu,
-    /\bpr[oó]xima\s+tarefa\b/iu,
-    /\b0\.8\.(?:2|3|4|5|6|7|8|9|10|11)\b/u,
-    /\b(?:Hetzner|Hostinger)\b/iu,
-    KNOWN_OPERATIONAL_HOSTNAME,
-    /\bcandidato\s+frontend\s+ainda\s+local\b/iu,
-    /\bainda\s+n[aã]o\s+(?:est[aá]|foi)\s+(?:implementad[oa]|configurad[oa]|publicad[oa])\b/iu,
-  ];
-  if (forbidden.some((pattern) => pattern.test(text))) {
-    fail(
-      'MEMORY_STABLE_SOURCE_HAS_STATE',
-      'A stable source contains a current or superseded temporal assertion.',
-      normalizedPath,
-      stableSourceStateNextAction(normalizedPath),
-    );
-  }
-}
-
-function validateStableSources(root) {
-  const bridge = join(root, ...BRIDGE_PATH.split('/'));
-  const bridgeText = safeReadText(bridge);
+function validateNamed(value, path) {
+  exactKeys(value, ['id', 'title'], path);
   if (
-    !bridgeText.includes(BRIDGE_MARKER) ||
-    !bridgeText.includes('AUTHORITY_UNAVAILABLE') ||
-    !bridgeText.includes('MEMORY_TRANSITION_PENDING')
+    !IDENTIFIER.test(value.id) ||
+    typeof value.title !== 'string' ||
+    value.title.length < 1 ||
+    value.title.length > 160
   ) {
     fail(
-      'MEMORY_BRIDGE_INVALID',
-      'CURRENT_STATE is not the stable pointer bridge.',
-      BRIDGE_PATH,
-      'Restore the v1 bridge marker and explicit unavailable/pending behavior.',
+      'AUTHORITY_SCHEMA_INVALID',
+      `${path} is invalid.`,
+      path,
+      'Use a valid identifier and title.',
     );
   }
-  for (const source of STABLE_SOURCES) {
-    const absolute = join(root, ...source.split('/'));
-    if (existsSync(absolute)) lintStableSource(source, safeReadText(absolute));
+}
+
+function validateNotes(items, path, ids) {
+  if (!Array.isArray(items))
+    fail(
+      'AUTHORITY_SCHEMA_INVALID',
+      `${path} must be an array.`,
+      path,
+      'Use an array.',
+    );
+  for (const [index, item] of items.entries()) {
+    const itemPath = `${path}[${index}]`;
+    exactKeys(item, ['id', 'summary'], itemPath);
+    if (
+      !IDENTIFIER.test(item.id) ||
+      typeof item.summary !== 'string' ||
+      item.summary.length < 1 ||
+      item.summary.length > 500
+    ) {
+      fail(
+        'AUTHORITY_SCHEMA_INVALID',
+        `${itemPath} is invalid.`,
+        itemPath,
+        'Use a valid id and concise summary.',
+      );
+    }
+    if (ids.has(item.id))
+      fail(
+        'DUPLICATE_ID',
+        `Duplicate id ${item.id}.`,
+        itemPath,
+        'Use unique blocker, restriction and follow-up ids.',
+      );
+    ids.add(item.id);
   }
+}
+
+function validateAuthority(
+  state,
+  acceptedMajor = AUTHORITY.acceptedSchemaMajor,
+) {
+  scanSecrets(state);
+  exactKeys(state, TOP_LEVEL_KEYS, '$authority');
+  const version = SEMVER.exec(state.schemaVersion);
+  if (!version || Number(version.groups.major) !== acceptedMajor) {
+    fail(
+      'UNSUPPORTED_SCHEMA_MAJOR',
+      'Authority schema major is unsupported.',
+      '$authority.schemaVersion',
+      `Use schema major ${acceptedMajor}.`,
+    );
+  }
+  if (!IDENTIFIER.test(state.stateRevision))
+    fail(
+      'AUTHORITY_SCHEMA_INVALID',
+      'stateRevision is invalid.',
+      '$authority.stateRevision',
+      'Use a stable semantic identifier.',
+    );
+  validateNamed(state.phase, '$authority.phase');
+  exactKeys(
+    state.lastCompleted,
+    ['id', 'title', 'outcome'],
+    '$authority.lastCompleted',
+  );
+  if (
+    !IDENTIFIER.test(state.lastCompleted.id) ||
+    typeof state.lastCompleted.title !== 'string' ||
+    state.lastCompleted.title.length < 1 ||
+    state.lastCompleted.title.length > 160 ||
+    typeof state.lastCompleted.outcome !== 'string' ||
+    state.lastCompleted.outcome.length < 1 ||
+    state.lastCompleted.outcome.length > 500
+  ) {
+    fail(
+      'AUTHORITY_SCHEMA_INVALID',
+      'lastCompleted is invalid.',
+      '$authority.lastCompleted',
+      'Provide id, title and outcome.',
+    );
+  }
+  if (state.currentWork?.status === 'none')
+    exactKeys(state.currentWork, ['status'], '$authority.currentWork');
+  else if (state.currentWork?.status === 'active') {
+    exactKeys(
+      state.currentWork,
+      ['status', 'id', 'title'],
+      '$authority.currentWork',
+    );
+    validateNamed(
+      { id: state.currentWork.id, title: state.currentWork.title },
+      '$authority.currentWork',
+    );
+  } else
+    fail(
+      'STATE_CONTRADICTION',
+      'currentWork status is invalid.',
+      '$authority.currentWork',
+      'Use none or active with its exact shape.',
+    );
+  if (state.nextTask?.status === 'undecided') {
+    exactKeys(
+      state.nextTask,
+      ['status', 'planningState'],
+      '$authority.nextTask',
+    );
+    if (!IDENTIFIER.test(state.nextTask.planningState))
+      fail(
+        'AUTHORITY_SCHEMA_INVALID',
+        'planningState is invalid.',
+        '$authority.nextTask.planningState',
+        'Use an identifier.',
+      );
+  } else if (state.nextTask?.status === 'decided') {
+    exactKeys(state.nextTask, ['status', 'id', 'title'], '$authority.nextTask');
+    validateNamed(
+      { id: state.nextTask.id, title: state.nextTask.title },
+      '$authority.nextTask',
+    );
+  } else
+    fail(
+      'STATE_CONTRADICTION',
+      'nextTask status is invalid.',
+      '$authority.nextTask',
+      'Use undecided or decided with its exact shape.',
+    );
+  exactKeys(state.live, ['api', 'web'], '$authority.live');
+  exactKeys(state.live.api, ['sourceSha', 'image'], '$authority.live.api');
+  exactKeys(
+    state.live.web,
+    ['sourceSha', 'deploymentId', 'domain'],
+    '$authority.live.web',
+  );
+  if (
+    !FULL_SHA.test(state.live.api.sourceSha) ||
+    !IMAGE.test(state.live.api.image) ||
+    !FULL_SHA.test(state.live.web.sourceSha) ||
+    !DEPLOYMENT.test(state.live.web.deploymentId)
+  ) {
+    fail(
+      'AUTHORITY_SCHEMA_INVALID',
+      'Live bindings are invalid.',
+      '$authority.live',
+      'Provide complete immutable API and Web bindings.',
+    );
+  }
+  let domain;
+  try {
+    domain = new URL(state.live.web.domain);
+  } catch {
+    domain = null;
+  }
+  if (
+    !domain ||
+    domain.protocol !== 'https:' ||
+    domain.username ||
+    domain.password ||
+    domain.pathname !== '/' ||
+    domain.search ||
+    domain.hash
+  ) {
+    fail(
+      'AUTHORITY_SCHEMA_INVALID',
+      'Web domain must be a credential-free HTTPS origin.',
+      '$authority.live.web.domain',
+      'Use an HTTPS origin.',
+    );
+  }
+  const ids = new Set();
+  validateNotes(state.openBlockers, '$authority.openBlockers', ids);
+  validateNotes(state.activeRestrictions, '$authority.activeRestrictions', ids);
+  validateNotes(state.followUps, '$authority.followUps', ids);
+  return state;
 }
 
 function validateLocal(root = process.cwd()) {
   const pointer = validatePointer(
-    readJson(join(root, ...POINTER_PATH.split('/'))),
+    parseJson(safeRead(join(root, POINTER_PATH)), POINTER_PATH),
   );
-  const schema = readJson(join(root, ...SCHEMA_PATH.split('/')));
-  validateSchemaPrototype(schema);
-  validateStableSources(root);
+  validatePointerSchema(
+    parseJson(safeRead(join(root, SCHEMA_PATH)), SCHEMA_PATH),
+  );
+  const bridge = safeRead(join(root, BRIDGE_PATH));
+  for (const marker of [
+    BRIDGE_MARKER,
+    POINTER_PATH,
+    AUTHORITY.path,
+    'AUTHORITY_UNAVAILABLE',
+    'EXPECTED_AUTHORITY_SHA_MISMATCH',
+  ]) {
+    if (!bridge.includes(marker))
+      fail(
+        'BRIDGE_INVALID',
+        `Bridge is missing ${marker}.`,
+        BRIDGE_PATH,
+        'Restore the static v2 bridge contract.',
+      );
+  }
+  if (
+    /project-state(?:\.pointer)?\.v1|MEMORY_TRANSITION_PENDING/u.test(bridge)
+  ) {
+    fail(
+      'BRIDGE_INVALID',
+      'Bridge still describes the v1 receipt protocol.',
+      BRIDGE_PATH,
+      'Remove v1 transition semantics.',
+    );
+  }
   return pointer;
 }
 
-function authorityProjectId(authority) {
-  return typeof authority.project === 'string'
-    ? authority.project
-    : authority.project?.id;
+function gitOutput(root, args) {
+  try {
+    return execFileSync('git', ['-C', root, ...args], {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+    }).trim();
+  } catch {
+    return null;
+  }
 }
 
-function validateAuthority(authority, acceptedMajor) {
-  assertObject(authority, '$authority');
-  const major = Number.parseInt(
-    String(authority.schemaVersion).split('.')[0],
-    10,
-  );
-  if (major !== acceptedMajor) {
+function verifyLocalPin(sourcePath, expectedSha) {
+  if (!FULL_SHA.test(expectedSha))
     fail(
-      'MEMORY_SCHEMA_UNSUPPORTED',
-      'Authority schema major is incompatible with the pointer.',
-      '$authority.schemaVersion',
-      `Provide authority schema major ${acceptedMajor}.`,
+      'EXPECTED_AUTHORITY_SHA_MISMATCH',
+      'Expected authority SHA is malformed.',
+      '--expected-authority-sha',
+      'Supply a lowercase full Git SHA.',
+    );
+  const root = gitOutput(dirname(sourcePath), ['rev-parse', '--show-toplevel']);
+  if (!root || gitOutput(root, ['rev-parse', 'HEAD']) !== expectedSha) {
+    fail(
+      'EXPECTED_AUTHORITY_SHA_MISMATCH',
+      'Checkout HEAD does not match the expected authority SHA.',
+      sourcePath,
+      'Use the exact pinned API checkout.',
     );
   }
-  if (
-    authority.instanceKind !== 'current' ||
-    authorityProjectId(authority) !== 'genesis-platform' ||
-    authority.authority?.repository !== AUTHORITY.repository ||
-    authority.authority?.branch !== AUTHORITY.branch ||
-    authority.authority?.path !== AUTHORITY.path ||
-    authority.authority?.revisionSource !== 'containing-commit'
-  ) {
+  const rel = relative(root, sourcePath).split(sep).join('/');
+  if (rel !== AUTHORITY.path)
     fail(
-      'MEMORY_AUTHORITY_INVALID',
-      'Authority identity or provenance is invalid.',
-      '$authority',
-      'Use the current Genesis API authority with containing-commit provenance.',
+      'EXPECTED_AUTHORITY_SHA_MISMATCH',
+      'Pinned source is not the canonical authority path.',
+      sourcePath,
+      `Use ${AUTHORITY.path}.`,
+    );
+  let committed;
+  try {
+    committed = execFileSync(
+      'git',
+      ['-C', root, 'show', `${expectedSha}:${AUTHORITY.path}`],
+      { maxBuffer: MAX_BYTES, stdio: ['ignore', 'pipe', 'ignore'] },
+    );
+  } catch {
+    fail(
+      'EXPECTED_AUTHORITY_SHA_MISMATCH',
+      'Pinned commit does not contain the authority.',
+      sourcePath,
+      'Use an integrated API v2 authority SHA.',
     );
   }
-  if (
-    typeof authority.stateRevision !== 'string' ||
-    !IDENTIFIER.test(authority.stateRevision) ||
-    !Array.isArray(authority.repositories)
-  ) {
+  if (!readFileSync(sourcePath).equals(committed))
     fail(
-      'MEMORY_AUTHORITY_INVALID',
-      'Authority revision metadata is incomplete.',
-      '$authority',
-      'Provide stateRevision and repository memoryRevision metadata.',
+      'EXPECTED_AUTHORITY_SHA_MISMATCH',
+      'Working authority differs from the pinned commit.',
+      sourcePath,
+      'Restore the exact committed authority.',
     );
-  }
-  const web = authority.repositories.find(
-    (repository) => repository?.id === 'web',
-  );
-  if (
-    !web ||
-    web.memoryRevision?.kind !== 'commit' ||
-    !FULL_SHA.test(web.memoryRevision?.sha)
-  ) {
-    fail(
-      'MEMORY_AUTHORITY_INVALID',
-      'Web memoryRevision is missing or invalid.',
-      '$authority.repositories[web].memoryRevision',
-      'The API authority must record the exact Web pointer provenance commit.',
-    );
-  }
-  const webIntegratedRevision =
-    authority.releaseBindings?.webIntegratedRevision;
-  const pointerMetadata = authority.pointerMetadata;
-  const acknowledgesCurrentReceipt =
-    pointerMetadata?.repository === WEB_POINTER.repository &&
-    pointerMetadata?.path === WEB_POINTER.path &&
-    pointerMetadata?.schemaVersion === WEB_POINTER.schemaVersion &&
-    pointerMetadata?.mode === WEB_POINTER.mode &&
-    pointerMetadata?.transitionId === RECEIPT.transitionId &&
-    pointerMetadata?.targetStateRevision === RECEIPT.targetStateRevision;
-  const acknowledgesPreviousReceipt =
-    pointerMetadata?.repository === WEB_POINTER.repository &&
-    pointerMetadata?.path === WEB_POINTER.path &&
-    pointerMetadata?.schemaVersion === WEB_POINTER.schemaVersion &&
-    pointerMetadata?.mode === WEB_POINTER.mode &&
-    pointerMetadata?.transitionId === PREVIOUS_RECEIPT.transitionId &&
-    pointerMetadata?.targetStateRevision ===
-      PREVIOUS_RECEIPT.targetStateRevision &&
-    web.memoryRevision.sha === PREVIOUS_RECEIPT.memoryRevision;
-  if (!acknowledgesCurrentReceipt && !acknowledgesPreviousReceipt) {
-    fail(
-      'MEMORY_POINTER_MISMATCH',
-      'The API authority does not acknowledge the historical Web receipt.',
-      '$authority.pointerMetadata',
-      'Restore the exact pointer metadata for the approved Web receipt.',
-    );
-  }
-  const releaseBindingMatchesCurrent =
-    acknowledgesCurrentReceipt &&
-    webIntegratedRevision === WEB_RELEASE_REVISION;
-  const releaseBindingMatchesPrevious =
-    acknowledgesPreviousReceipt &&
-    webIntegratedRevision === PREVIOUS_WEB_RELEASE_REVISION;
-  if (
-    !FULL_SHA.test(webIntegratedRevision) ||
-    (!releaseBindingMatchesCurrent && !releaseBindingMatchesPrevious)
-  ) {
-    fail(
-      'MEMORY_RELEASE_BINDING_MISMATCH',
-      'The Web application/release binding is invalid for its receipt.',
-      '$authority.releaseBindings.webIntegratedRevision',
-      `Use ${WEB_RELEASE_REVISION} for the current receipt or ${PREVIOUS_WEB_RELEASE_REVISION} for the exact predecessor receipt.`,
-    );
-  }
-  return {
-    authority,
-    webMemoryRevision: web.memoryRevision.sha,
-    webIntegratedRevision,
-    acknowledgesCurrentReceipt,
-  };
+  return expectedSha;
 }
 
-async function readRemoteAuthority(url) {
+async function defaultRemoteRead(url) {
   let parsed;
   try {
     parsed = new URL(url);
   } catch {
-    fail(
-      'AUTHORITY_UNAVAILABLE',
-      'Authority URL is invalid.',
-      '--api-source',
-      'Provide an HTTPS URL without credentials.',
-    );
+    parsed = null;
   }
   if (
+    !parsed ||
     parsed.protocol !== 'https:' ||
-    parsed.username !== '' ||
-    parsed.password !== ''
+    parsed.username ||
+    parsed.password
   ) {
     fail(
       'AUTHORITY_UNAVAILABLE',
-      'Remote authority must use unauthenticated HTTPS.',
-      '--api-source',
-      'Use the public read-only authority URL without credentials.',
+      'Remote source must be credential-free HTTPS.',
+      url,
+      'Use the approved read-only authority URL.',
     );
   }
   const controller = new AbortController();
@@ -672,291 +575,223 @@ async function readRemoteAuthority(url) {
       headers: { accept: 'application/json' },
     });
     const length = Number(response.headers.get('content-length') ?? 0);
-    if (!response.ok || length > MAX_REMOTE_BYTES) {
+    if (!response.ok || length > MAX_BYTES)
       throw new Error(`HTTP ${response.status}`);
-    }
     const bytes = Buffer.from(await response.arrayBuffer());
-    if (bytes.length > MAX_REMOTE_BYTES) throw new Error('response too large');
-    return decodeUtf8(bytes, parsed.toString());
+    if (bytes.length > MAX_BYTES) throw new Error('response too large');
+    return decode(bytes, parsed.toString());
   } catch (error) {
+    if (error instanceof MemoryError) throw error;
     fail(
       'AUTHORITY_UNAVAILABLE',
       `Remote authority could not be read: ${error.name ?? 'network error'}.`,
-      '--api-source',
-      'Retry the bounded public read-only source or use an explicit checkout.',
+      url,
+      'Retry or provide an explicit checkout.',
     );
   } finally {
     clearTimeout(timeout);
   }
 }
 
-async function loadAuthorityText(source) {
-  if (/^https?:\/\//iu.test(source)) return readRemoteAuthority(source);
-  const absolute = resolve(source);
-  let target = absolute;
-  try {
-    if (statSync(absolute).isDirectory()) {
-      target = join(absolute, ...AUTHORITY.path.split('/'));
+async function resolveAuthority(pointer, options = {}, dependencies = {}) {
+  const cwd = options.cwd ?? process.cwd();
+  const exists = dependencies.exists ?? existsSync;
+  const readLocal = dependencies.readLocal ?? safeRead;
+  const readRemote = dependencies.readRemote ?? defaultRemoteRead;
+  const verifyPin = dependencies.verifyPin ?? verifyLocalPin;
+  const explicit = options.apiSource;
+  let strategy;
+  let source;
+  let isRemote = false;
+  if (explicit) {
+    isRemote = /^https?:\/\//iu.test(explicit);
+    strategy = isRemote ? 'remote-read-only' : 'explicit-checkout';
+    source = explicit;
+  } else {
+    const sibling = resolve(cwd, '..', 'genesis-platform-api');
+    if (exists(sibling)) {
+      strategy = 'sibling-checkout';
+      source = sibling;
+    } else {
+      strategy = 'remote-read-only';
+      source = `https://raw.githubusercontent.com/${pointer.authority.repository}/${pointer.authority.branch}/${pointer.authority.path}`;
+      isRemote = true;
     }
-  } catch {
-    fail(
-      'AUTHORITY_UNAVAILABLE',
-      'Authority source does not exist.',
-      '--api-source',
-      'Provide the API checkout or the authority JSON path.',
-    );
   }
-  try {
-    return safeReadText(target);
-  } catch (error) {
-    if (error instanceof MemoryError) {
+  let text;
+  let authoritySha = null;
+  if (isRemote) {
+    let parsedSource;
+    try {
+      parsedSource = new URL(source);
+    } catch {
+      parsedSource = null;
+    }
+    if (
+      !parsedSource ||
+      parsedSource.protocol !== 'https:' ||
+      parsedSource.username ||
+      parsedSource.password
+    ) {
       fail(
         'AUTHORITY_UNAVAILABLE',
-        'Authority source is unavailable or unsafe.',
-        '--api-source',
-        'Provide a regular authority file from an explicit API checkout.',
+        'Remote source must be credential-free HTTPS.',
+        String(source),
+        'Use the approved read-only authority URL.',
       );
     }
-    throw error;
+    if (options.expectedAuthoritySha) {
+      if (
+        !FULL_SHA.test(options.expectedAuthoritySha) ||
+        !parsedSource.pathname.includes(`/${options.expectedAuthoritySha}/`)
+      ) {
+        fail(
+          'EXPECTED_AUTHORITY_SHA_MISMATCH',
+          'Remote URL does not bind the expected authority SHA.',
+          source,
+          'Use a raw URL containing the exact API commit SHA.',
+        );
+      }
+      authoritySha = options.expectedAuthoritySha;
+    }
+    text = await readRemote(source);
+  } else {
+    const absolute = resolve(source);
+    const sourcePath =
+      exists(absolute) && lstatSync(absolute).isDirectory()
+        ? join(absolute, ...pointer.authority.path.split('/'))
+        : absolute;
+    if (!exists(sourcePath))
+      fail(
+        'AUTHORITY_UNAVAILABLE',
+        'Selected authority source is unavailable.',
+        sourcePath,
+        'Provide the API checkout or authority JSON path.',
+      );
+    if (options.expectedAuthoritySha)
+      authoritySha = verifyPin(sourcePath, options.expectedAuthoritySha);
+    text = readLocal(sourcePath);
+    source = sourcePath;
   }
-}
-
-function containingCommit(root) {
-  try {
-    const status = execFileSync(
-      'git',
-      ['status', '--porcelain=v1', '--untracked-files=all', '--', POINTER_PATH],
-      {
-        cwd: root,
-        encoding: 'utf8',
-        stdio: ['ignore', 'pipe', 'ignore'],
-      },
-    ).trim();
-    if (status !== '') return null;
-
-    const value = execFileSync(
-      'git',
-      ['log', '-1', '--format=%H', '--', POINTER_PATH],
-      { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] },
-    ).trim();
-    return FULL_SHA.test(value) ? value : null;
-  } catch {
-    return null;
-  }
-}
-
-function writeResult(result, diagnostics = []) {
-  process.stdout.write(`${JSON.stringify(result)}\n`);
-  for (const diagnostic of diagnostics) process.stderr.write(`${diagnostic}\n`);
-}
-
-function errorResult(error) {
-  return {
-    ok: false,
-    code: error.code,
-    codes: [error.code],
-    path: error.path,
-    nextAction: error.nextAction,
-  };
+  const state = validateAuthority(
+    parseJson(text, String(source)),
+    pointer.authority.acceptedSchemaMajor,
+  );
+  return { state, strategy, source: String(source), authoritySha };
 }
 
 function parseArguments(argv) {
-  const values = new Map();
-  for (let index = 0; index < argv.length; index += 2) {
+  const options = {};
+  for (let index = 0; index < argv.length; index += 1) {
     const name = argv[index];
-    const value = argv[index + 1];
-    if (!name?.startsWith('--') || value === undefined) {
-      throw new MemoryError(
+    if (
+      !['--mode', '--api-source', '--expected-authority-sha'].includes(name) ||
+      options[name] !== undefined
+    ) {
+      fail(
         'USAGE_ERROR',
-        'Arguments must be --name value pairs.',
+        `Unexpected argument: ${name}.`,
         'argv',
-        'Use --mode local or --mode resolve --api-source <path|url>.',
+        'Use --mode local|resolve with optional resolve inputs.',
       );
     }
-    values.set(name, value);
+    const value = argv[index + 1];
+    if (!value || value.startsWith('--'))
+      fail(
+        'USAGE_ERROR',
+        `${name} requires a value.`,
+        'argv',
+        'Supply every argument value.',
+      );
+    options[name] = value;
+    index += 1;
   }
-  const mode = values.get('--mode');
+  const mode = options['--mode'];
   if (
-    (mode !== 'local' && mode !== 'resolve') ||
-    (mode === 'resolve' && !values.get('--api-source')) ||
-    (mode === 'local' && values.size !== 1) ||
-    (mode === 'resolve' && values.size !== 2)
+    !['local', 'resolve'].includes(mode) ||
+    (mode === 'local' && Object.keys(options).length !== 1)
   ) {
-    throw new MemoryError(
+    fail(
       'USAGE_ERROR',
-      'Unsupported mode or argument set.',
+      'Unsupported argument combination.',
       'argv',
-      'Use --mode local or --mode resolve --api-source <path|url>.',
+      'Use --mode local, or --mode resolve with optional source and expected SHA.',
     );
   }
-  return { mode, apiSource: values.get('--api-source') };
+  return {
+    mode,
+    apiSource: options['--api-source'],
+    expectedAuthoritySha: options['--expected-authority-sha'],
+  };
+}
+
+function writeResult(value) {
+  process.stdout.write(`${JSON.stringify(value)}\n`);
 }
 
 async function main() {
-  let args;
   try {
-    args = parseArguments(process.argv.slice(2));
-  } catch (error) {
-    writeResult(errorResult(error), [error.message]);
-    process.exitCode = 2;
-    return;
-  }
-
-  let pointer;
-  try {
-    pointer = validateLocal();
-  } catch (error) {
-    const failure =
-      error instanceof MemoryError
-        ? error
-        : new MemoryError(
-            'MEMORY_PARSE_ERROR',
-            'Unexpected local validation failure.',
-            POINTER_PATH,
-            'Inspect the focused validator inputs.',
-          );
-    writeResult(errorResult(failure), [failure.message]);
-    process.exitCode = 1;
-    return;
-  }
-
-  if (args.mode === 'local') {
+    const args = parseArguments(process.argv.slice(2));
+    const pointer = validateLocal();
+    if (args.mode === 'local') {
+      writeResult({
+        ok: true,
+        code: 'POINTER_VALID',
+        pointerStatic: true,
+        authorityResolved: false,
+      });
+      return;
+    }
+    const resolved = await resolveAuthority(pointer, args);
     writeResult({
       ok: true,
-      code: 'POINTER_VALID',
-      pointerContractValidated: true,
-      pointerSemanticRulesValidated: true,
-      schemaPrototypeParsed: true,
-      stableSourcesValidated: true,
-      authorityResolved: false,
+      code: 'MEMORY_RESOLVED',
+      authorityResolved: true,
+      staleFallbackUsed: false,
+      resolutionStrategy: resolved.strategy,
+      authoritySha: resolved.authoritySha,
+      schemaVersion: resolved.state.schemaVersion,
+      stateRevision: resolved.state.stateRevision,
     });
-    return;
-  }
-
-  let authority;
-  try {
-    const text = await loadAuthorityText(args.apiSource);
-    authority = validateAuthority(
-      parseJsonText(text, '--api-source'),
-      pointer.authority.acceptedSchemaMajor,
-    );
   } catch (error) {
     const failure =
       error instanceof MemoryError
         ? error
         : new MemoryError(
             'AUTHORITY_UNAVAILABLE',
-            'Authority could not be resolved.',
-            '--api-source',
-            'Provide an explicit compatible authority source.',
+            'Authority resolution failed.',
+            'runtime',
+            'Inspect the selected source.',
           );
-    if (failure.code === 'AUTHORITY_UNAVAILABLE') {
-      const codes = ['AUTHORITY_UNAVAILABLE', 'MEMORY_TRANSITION_PENDING'];
-      writeResult(
-        {
-          ok: false,
-          code: codes[0],
-          codes,
-          authorityResolved: false,
-          transitionPending: true,
-          staleFallbackUsed: false,
-          targetStateRevision: pointer.receipt.targetStateRevision,
-          nextAction: failure.nextAction,
-        },
-        [failure.message],
-      );
-    } else {
-      writeResult(errorResult(failure), [failure.message]);
-    }
-    process.exitCode = 1;
-    return;
+    writeResult({
+      ok: false,
+      code: failure.code,
+      authorityResolved: false,
+      staleFallbackUsed: false,
+      path: failure.path,
+      nextAction: failure.nextAction,
+    });
+    process.stderr.write(`${failure.message}\n`);
+    process.exitCode = failure.code === 'USAGE_ERROR' ? 2 : 1;
   }
-
-  if (!authority.acknowledgesCurrentReceipt) {
-    writeResult(
-      {
-        ok: false,
-        code: 'MEMORY_TRANSITION_PENDING',
-        codes: ['MEMORY_TRANSITION_PENDING'],
-        authorityResolved: true,
-        transitionPending: true,
-        staleFallbackUsed: false,
-        targetStateRevision: pointer.receipt.targetStateRevision,
-        nextAction:
-          'Merge the Web pointer, then update the canonical API authority with its containing commit.',
-      },
-      [
-        'The canonical API authority still acknowledges the predecessor receipt.',
-      ],
-    );
-    process.exitCode = 1;
-    return;
-  }
-
-  const actualMemoryRevision = containingCommit(process.cwd());
-  if (actualMemoryRevision === null) {
-    writeResult(
-      {
-        ok: false,
-        code: 'MEMORY_TRANSITION_PENDING',
-        codes: ['MEMORY_TRANSITION_PENDING'],
-        authorityResolved: true,
-        transitionPending: true,
-        staleFallbackUsed: false,
-        targetStateRevision: pointer.receipt.targetStateRevision,
-        nextAction:
-          'Validate again from a clean commit containing the Web pointer.',
-      },
-      ['The pointer is not available from a clean containing commit.'],
-    );
-    process.exitCode = 1;
-    return;
-  }
-
-  if (authority.webMemoryRevision !== actualMemoryRevision) {
-    writeResult(
-      {
-        ok: false,
-        code: 'MEMORY_WEB_REVISION_MISMATCH',
-        codes: ['MEMORY_WEB_REVISION_MISMATCH'],
-        authorityResolved: true,
-        transitionPending: false,
-        staleFallbackUsed: false,
-        expectedMemoryRevision: authority.webMemoryRevision,
-        actualMemoryRevision,
-        nextAction:
-          'The API authority must record the exact clean commit containing the Web pointer as Web memoryRevision.',
-      },
-      ['The authority and Web pointer containing commit differ.'],
-    );
-    process.exitCode = 1;
-    return;
-  }
-
-  writeResult({
-    ok: true,
-    code: 'MEMORY_RESOLVED',
-    pointerContractValidated: true,
-    pointerSemanticRulesValidated: true,
-    schemaPrototypeParsed: true,
-    stableSourcesValidated: true,
-    authorityResolved: true,
-    transitionPending: false,
-    staleFallbackUsed: false,
-    stateRevision: authority.authority.stateRevision,
-    webMemoryRevision: actualMemoryRevision,
-    webIntegratedRevision: authority.webIntegratedRevision,
-    receiptTargetStateRevision: pointer.receipt.targetStateRevision,
-  });
 }
 
-main().catch((error) => {
-  const failure = new MemoryError(
-    'AUTHORITY_UNAVAILABLE',
-    error.message,
-    '--api-source',
-    'Retry with an explicit compatible authority source.',
-  );
-  writeResult(errorResult(failure), [failure.message]);
-  process.exitCode = 2;
-});
+if (require.main === module) main();
+
+module.exports = {
+  AUTHORITY,
+  BRIDGE_MARKER,
+  BRIDGE_PATH,
+  MemoryError,
+  POINTER_PATH,
+  RESOLUTION_ORDER,
+  SCHEMA_PATH,
+  parseArguments,
+  resolveAuthority,
+  safeRead,
+  validateAuthority,
+  validateLocal,
+  validatePointer,
+  validatePointerSchema,
+  verifyLocalPin,
+};

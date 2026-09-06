@@ -47,5 +47,5 @@ continuam indisponíveis e não constituem compromissos automáticos de produto.
 - Preview: interface fail-closed, sem API de produção.
 
 Consulte [PRODUCTION.md](PRODUCTION.md) para o contrato estável do frontend e o
-[pointer](memory/project-state.pointer.v1.json) para estado e sequência
+[pointer](memory/project-state.pointer.v2.json) para estado e sequência
 operacional.
