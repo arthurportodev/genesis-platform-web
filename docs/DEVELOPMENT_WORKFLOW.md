@@ -95,3 +95,9 @@ declarado como artefato.
 No frontend, `npm test` limita o Vitest a um worker para evitar contenção e
 timeouts não determinísticos nos testes de interface. Isso altera apenas o
 agendamento do runner, não a cobertura nem os limites individuais dos testes.
+
+Artifacts transitórios novos devem usar `.codex/task-packets/<task-id>/` e ser
+removidos no closeout quando não tiverem valor durável. A validação de formato
+usa a seleção Git de arquivos tracked e untracked não ignorados; artifacts
+ignored permanecem fora do candidate, enquanto arquivos novos legítimos
+continuam visíveis.

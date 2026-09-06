@@ -6,3 +6,4 @@
 schemas/development-operations/
 scripts/
 test/task-tools/
+.codex/task-packets/**
