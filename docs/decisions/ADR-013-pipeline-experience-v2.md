@@ -1,6 +1,6 @@
 # ADR-013 — Arquitetura de experiência do Pipeline V2
 
-- Estado: Proposed — candidato para Gate 1
+- Estado: Accepted — Gate 1 da PIPE-V2-04 aprovado em 2026-09-06
 - Data: 2026-08-25
 - Revisa parcialmente: ADR-004
 - Complementa: ADR-007, ADR-011 e ADR-012
@@ -98,20 +98,31 @@ escolha tecnológica sem alterar a arquitetura de intenção única.
 
 ### Quick create
 
-O Pipeline terá `+ Nova oportunidade` em sheet lateral; mobile pode usar o mesmo
-sheet em tela cheia. Formulário, validação, hook, idempotência, tratamento de
-resultado incerto, autorização e invalidations do fluxo manual existente serão
-reutilizados, não copiados.
+O Pipeline terá `Nova oportunidade` como segundo ponto de entrada para a página
+completa existente `/app/leads/new?from=pipeline`. O search param validado
+preserva o contexto em deep link e refresh sem transportar PII, draft, payload,
+chave idempotente ou estado de negócio. Formulário, validação, hook,
+idempotência, tratamento de resultado incerto, autorização e invalidations do
+fluxo manual existente serão reutilizados, não copiados nem extraídos
+prematuramente.
 
-O backend continua escolhendo o estágio inicial. Quando o contrato financeiro
-estiver disponível, o quick create permitirá informar valor esperado. A UI não
-pode prometer sempre um card novo ou visível: a operação pode criar Lead,
+A mesma página usa o contexto visual de Vendas e retorna ao Pipeline em
+resultados identificados. `201` anuncia uma oportunidade criada; `200` anuncia
+uma nova entrada na oportunidade existente; replay anuncia somente resultado
+confirmado. O `204` opaco continua retornando à Inbox sem inferir identidade ou
+visibilidade. Voltar e cancelar retornam ao Pipeline, preservando os blockers do
+fluxo existente.
+
+O backend continua escolhendo o estágio inicial. A página reutilizada permite
+informar o valor esperado pelo contrato financeiro existente. A UI não pode
+prometer sempre um card novo ou visível: a operação pode criar Lead,
 adicionar Entry a Lead existente, devolver resultado opaco para member ou criar
 um item ocultado pelos filtros atuais. Dirty state e intenção incerta bloqueiam
 fechamento/navegação nas mesmas condições do fluxo atual.
 
-Esta decisão revisa somente a limitação de entrada da criação à Inbox registrada
-no ADR-007. Todas as suas semânticas de privacidade, resposta por papel,
+Esta decisão revisa somente a limitação de entrada manual exclusiva pela Inbox
+registrada no ADR-007: a mesma criação agora pode começar pela Inbox ou pelo
+Pipeline. Todas as demais semânticas de privacidade, resposta por papel,
 idempotência em memória, ausência de optimistic update e invalidação continuam
 válidas.
 
@@ -160,8 +171,8 @@ ordenação operacional por próxima ação depende de validação de uso real e
 uma iniciativa posterior de contrato/cursor. Reorder manual e ordenação por
 valor também ficam fora do escopo.
 
-Este ADR não autoriza valor/backend, migration, DnD dependency, redesign de
-produto, quick create, painel, estágio dinâmico, sorting, sidebar, deploy ou
+Este ADR não autoriza mudança de valor/backend, migration, DnD dependency,
+redesign de produto, painel, estágio dinâmico, sorting, sidebar, deploy ou
 operação remota. Cada capacidade exige tarefa e gate próprios.
 
 ## Alternativas consideradas
@@ -174,8 +185,9 @@ operação remota. Cada capacidade exige tarefa e gate próprios.
   resiliência operacional.
 - **HTML Drag and Drop nativo:** não recomendado para a primeira escolha por
   custo próprio de teclado, touch, acessibilidade e scroll aninhado.
-- **Quick create modal ou inline:** rejeitados como direção principal por menor
-  preservação de contexto ou duplicação de formulário/layout.
+- **Quick create em sheet, modal ou inline:** rejeitado nesta entrega porque a
+  página robusta existente preserva integralmente o formulário e suas garantias
+  com menor delta e sem duplicação de layout ou lógica.
 - **Detalhe somente em estado local:** rejeitado por quebrar Back e deep link.
 - **Estágios dinâmicos no primeiro release:** rejeitados por misturar evolução
   de experiência com migration estrutural e histórico.
@@ -189,8 +201,8 @@ operação remota. Cada capacidade exige tarefa e gate próprios.
   aprovado; o fallback reduz risco de exclusão de usuários.
 - A UI passa a depender de agregados financeiros backend corretos antes de
   exibir totals.
-- Quick create e detalhe lateral exigem extração/composição de componentes, não
-  duplicação de regras.
+- A nova entrada do Pipeline reutiliza a página completa de criação sem extração
+  ou duplicação; o detalhe lateral permanece uma capacidade futura separada.
 - A fronteira de catálogo reduz novos acoplamentos, mas não finge que estágios
   já são dinâmicos.
 - Sidebar, sorting e programa de estágios continuam iniciativas separadas.
@@ -206,19 +218,19 @@ operação remota. Cada capacidade exige tarefa e gate próprios.
   Deixam de ser decisões duráveis a substituição permanente de DnD pelo controle
   e a composição fixa do conteúdo dos cards. “Nenhuma dependência” continua
   fato histórico do ADR-004, não restrição ao spike futuro.
-- **ADR-007:** preservado, exceto pela futura disponibilidade da mesma criação
-  reutilizada dentro do Pipeline.
+- **ADR-007:** preservado, exceto pela disponibilidade da mesma criação manual
+  reutilizada a partir do Pipeline além da Inbox.
 - **ADR-011:** preserva a prova restrita strong/weak do snapshot; este ADR não
   reconstrói ETag a partir do Kanban.
 - **ADR-012:** preserva o shim browser-facing e o `If-Match` no hop upstream;
   DnD usa o mesmo cliente/mutation e não contorna esse transporte.
-- O ADR API de valor esperado no ciclo comercial é pré-condição para valor em
-  cards, totals e quick create.
+- O ADR API de valor esperado no ciclo comercial permanece a autoridade para
+  valor em cards, totals e criação manual.
 - Um ADR específico de estágios configuráveis só será criado quando o programa
   correspondente for autorizado.
 
 ## Implementação
 
-Não implementado. Este documento é candidato de arquitetura para Gate 1. As
-capacidades descritas serão entregues em tarefas pequenas após aprovação humana
-e seus gates específicos.
+A entrada de criação pela página completa existente pertence à PIPE-V2-04. As
+demais capacidades descritas continuam dependentes de tarefas pequenas,
+aprovação humana e seus gates específicos.

@@ -1,4 +1,4 @@
-import { useBlocker, useNavigate } from "@tanstack/react-router";
+import { useBlocker, useNavigate, useSearch } from "@tanstack/react-router";
 import { ArrowLeft } from "lucide-react";
 import { useCallback, useMemo, useRef, useState } from "react";
 
@@ -25,18 +25,22 @@ const uncertainDiscardWarning =
 
 export function LeadCreatePage() {
   const organization = useActiveOrganization();
+  const search = useSearch({ from: "/app/leads/new" });
   return (
     <OrganizationLeadCreatePage
       key={`${organization.id}:${organization.membershipId}`}
       organization={organization}
+      fromPipeline={search.from === "pipeline"}
     />
   );
 }
 
 function OrganizationLeadCreatePage({
   organization,
+  fromPipeline,
 }: {
   organization: ActiveOrganization;
+  fromPipeline: boolean;
 }) {
   const capabilities = leadCreationCapabilities(organization);
   const assignees = useLeadAssigneesQuery(capabilities.canChooseResponsible);
@@ -49,6 +53,7 @@ function OrganizationLeadCreatePage({
   const navigate = useNavigate();
   const allowNavigation = useRef(false);
   const [pendingChanges, setPendingChanges] = useState(false);
+  const returnTo = fromPipeline ? "/app/pipeline" : "/app/leads";
   const shouldBlock = pendingChanges || creation.uncertain;
   usePendingChangesRegistration(
     shouldBlock,
@@ -70,7 +75,6 @@ function OrganizationLeadCreatePage({
     async (result: CreateLeadResult | null) => {
       if (!result) return;
       allowNavigation.current = true;
-      navigation.markDetailOrigin("inbox");
       if (result.kind === "opaque") {
         navigation.setCreationNotice("lead-submission-received");
         await navigate({ to: "/app/leads", replace: true });
@@ -83,13 +87,18 @@ function OrganizationLeadCreatePage({
             ? "lead-created"
             : "lead-existing-entry-recorded",
       );
+      if (fromPipeline) {
+        await navigate({ to: "/app/pipeline", replace: true });
+        return;
+      }
+      navigation.markDetailOrigin("inbox");
       await navigate({
         to: "/app/leads/$leadId",
         params: { leadId: result.lead.id },
         replace: true,
       });
     },
-    [navigate, navigation],
+    [fromPipeline, navigate, navigation],
   );
 
   const submit = async (input: CreateLeadInput) => {
@@ -102,13 +111,14 @@ function OrganizationLeadCreatePage({
         type="button"
         variant="ghost"
         className="-ml-3 min-h-11"
-        onClick={() => void navigate({ to: "/app/leads" })}
+        onClick={() => void navigate({ to: returnTo })}
       >
-        <ArrowLeft className="size-4" aria-hidden="true" /> Voltar para a Inbox
+        <ArrowLeft className="size-4" aria-hidden="true" />
+        {fromPipeline ? "Voltar para o Pipeline" : "Voltar para a Inbox"}
       </Button>
       <PageHeader
-        eyebrow="Relacionamento"
-        title="Novo Lead"
+        eyebrow={fromPipeline ? "Vendas" : "Relacionamento"}
+        title={fromPipeline ? "Nova oportunidade" : "Novo Lead"}
         description="Registre uma oportunidade manualmente. O serviço valida o telefone, a Organization e as permissões antes de confirmar."
       />
       <LeadCreateFeedback
@@ -129,7 +139,7 @@ function OrganizationLeadCreatePage({
         uncertain={creation.uncertain}
         onLoadMoreMembers={() => void assignees.fetchNextPage()}
         onSubmit={submit}
-        onCancel={() => void navigate({ to: "/app/leads" })}
+        onCancel={() => void navigate({ to: returnTo })}
         onPendingChanges={setPendingChanges}
       />
     </div>

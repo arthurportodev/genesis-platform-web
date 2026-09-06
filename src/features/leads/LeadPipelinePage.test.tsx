@@ -30,6 +30,10 @@ describe("Pipeline Kanban de Leads", () => {
     expect(
       await screen.findByRole("heading", { name: "Pipeline" }),
     ).toBeVisible();
+    expect(
+      screen.getByRole("link", { name: "Nova oportunidade" }),
+    ).toHaveAttribute("href", "/app/leads/new?from=pipeline");
+    expect(screen.getByRole("button", { name: "Atualizar" })).toBeVisible();
     expect(screen.getAllByRole("heading", { level: 2 })).toHaveLength(6);
     expect((await screen.findAllByText("Lead Exemplo"))[0]).toBeVisible();
     expect(screen.queryByText("+5511999999999")).not.toBeInTheDocument();

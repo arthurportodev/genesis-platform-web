@@ -22,7 +22,7 @@ async function fillMinimum(user: ReturnType<typeof userEvent.setup>) {
 }
 
 describe("criação manual de Leads", () => {
-  it("abre somente pela Inbox e cria um Lead identificado com o contrato exato", async () => {
+  it("preserva o fluxo da Inbox e cria um Lead identificado com o contrato exato", async () => {
     const restoreLocks = installWebLocks();
     const requests: Array<{ request: Request; body: unknown }> = [];
     server.use(
@@ -76,6 +76,96 @@ describe("criação manual de Leads", () => {
     restoreLocks();
   }, 20_000);
 
+  it("usa o contexto do Pipeline e retorna após criar uma oportunidade identificada", async () => {
+    const restoreLocks = installWebLocks();
+    server.use(...createAuthHandlers(), ...createLeadHandlers());
+    const user = userEvent.setup();
+    const app = await renderAppAt("/app/leads/new?from=pipeline");
+
+    expect(
+      await screen.findByRole("heading", { name: "Nova oportunidade" }),
+    ).toBeVisible();
+    expect(screen.getByText("Vendas")).toBeVisible();
+    expect(
+      screen.getByRole("button", { name: "Voltar para o Pipeline" }),
+    ).toBeVisible();
+    await fillMinimum(user);
+    await user.click(screen.getByRole("button", { name: "Criar Lead" }));
+
+    expect(
+      await screen.findByRole("heading", { name: "Pipeline" }),
+    ).toBeVisible();
+    expect(await screen.findByText("Oportunidade criada.")).toBeVisible();
+    expect(app.router.state.location.pathname).toBe("/app/pipeline");
+    restoreLocks();
+  });
+
+  it.each([
+    [false, "Nova entrada registrada em oportunidade existente."],
+    [true, "Resultado confirmado."],
+  ] as const)(
+    "retorna ao Pipeline com feedback verdadeiro para resultado existente replay=%s",
+    async (createReplayed, message) => {
+      const restoreLocks = installWebLocks();
+      server.use(
+        ...createAuthHandlers(),
+        ...createLeadHandlers({ createStatus: 200, createReplayed }),
+      );
+      const user = userEvent.setup();
+      const app = await renderAppAt("/app/leads/new?from=pipeline");
+      await fillMinimum(user);
+      await user.click(screen.getByRole("button", { name: "Criar Lead" }));
+
+      expect(await screen.findByText(message)).toBeVisible();
+      expect(app.router.state.location.pathname).toBe("/app/pipeline");
+      restoreLocks();
+    },
+  );
+
+  it("trata contexto desconhecido como fluxo de Leads", async () => {
+    const restoreLocks = installWebLocks();
+    server.use(...createAuthHandlers(), ...createLeadHandlers());
+    const user = userEvent.setup();
+    const app = await renderAppAt("/app/leads/new?from=unknown");
+
+    expect(
+      await screen.findByRole("heading", { name: "Novo Lead" }),
+    ).toBeVisible();
+    expect(screen.getByText("Relacionamento")).toBeVisible();
+    await user.click(
+      screen.getByRole("button", { name: "Voltar para a Inbox" }),
+    );
+    await waitFor(() =>
+      expect(app.router.state.location.pathname).toBe("/app/leads"),
+    );
+    restoreLocks();
+  });
+
+  it("protege o draft antes de cancelar para o Pipeline", async () => {
+    const restoreLocks = installWebLocks();
+    server.use(...createAuthHandlers(), ...createLeadHandlers());
+    const confirm = vi.spyOn(globalThis, "confirm").mockReturnValue(false);
+    const user = userEvent.setup();
+    const app = await renderAppAt("/app/leads/new?from=pipeline");
+    await user.type(
+      screen.getByRole("textbox", { name: /^Nome/iu }),
+      "Rascunho",
+    );
+
+    await user.click(screen.getByRole("button", { name: "Cancelar" }));
+    expect(confirm).toHaveBeenCalledWith(
+      "Descartar os dados preenchidos e sair da criação de Lead?",
+    );
+    expect(app.router.state.location.pathname).toBe("/app/leads/new");
+    confirm.mockReturnValue(true);
+    await user.click(screen.getByRole("button", { name: "Cancelar" }));
+    await waitFor(() =>
+      expect(app.router.state.location.pathname).toBe("/app/pipeline"),
+    );
+    confirm.mockRestore();
+    restoreLocks();
+  });
+
   it("trata entrada existente e replay como sucesso, nunca como erro de duplicidade", async () => {
     const restoreLocks = installWebLocks();
     server.use(
@@ -105,7 +195,7 @@ describe("criação manual de Leads", () => {
       }),
     );
     const user = userEvent.setup();
-    const app = await renderAppAt("/app/leads/new");
+    const app = await renderAppAt("/app/leads/new?from=pipeline");
     expect(screen.queryByLabelText("Responsável")).not.toBeInTheDocument();
     await fillMinimum(user);
     await user.click(screen.getByRole("button", { name: "Criar Lead" }));
@@ -203,7 +293,7 @@ describe("criação manual de Leads", () => {
     );
     const confirm = vi.spyOn(globalThis, "confirm").mockReturnValue(false);
     const user = userEvent.setup();
-    await renderAppAt("/app/leads/new");
+    const app = await renderAppAt("/app/leads/new?from=pipeline");
     await fillMinimum(user);
     await user.click(screen.getByRole("button", { name: "Criar Lead" }));
     await screen.findByRole("heading", { name: "Resultado não confirmado" });
@@ -213,6 +303,7 @@ describe("criação manual de Leads", () => {
         /pode ter sido aplicado.*novo envio.*outra entrada/isu,
       ),
     );
+    expect(app.router.state.location.pathname).toBe("/app/leads/new");
     confirm.mockRestore();
     restoreLocks();
   });

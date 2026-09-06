@@ -1,5 +1,6 @@
-import { RefreshCw } from "lucide-react";
-import { useMemo } from "react";
+import { Link } from "@tanstack/react-router";
+import { Plus, RefreshCw } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 
 import type { LeadKanbanFilters as LeadKanbanFilterValues } from "@/features/leads/api/lead-contracts";
 import {
@@ -12,14 +13,16 @@ import { LeadKanbanFilters } from "@/features/leads/components/LeadKanbanFilters
 import { LeadMoveFeedback } from "@/features/leads/components/LeadMoveFeedback";
 import { useLeadKanbanBoard } from "@/features/leads/hooks/use-lead-kanban";
 import { useLeadAssigneesQuery } from "@/features/leads/hooks/use-lead-queries";
+import { useLeadNavigationState } from "@/features/leads/model/lead-navigation-state";
 import { useLeadPipelineState } from "@/features/leads/model/lead-pipeline-state";
 import { formatBrlMinorUnits } from "@/features/leads/model/lead-money";
 import { toAppError } from "@/shared/api/errors";
 import { OperationalState } from "@/shared/components/OperationalState";
 import { PageHeader } from "@/shared/components/PageHeader";
+import { cn } from "@/shared/lib/cn";
 import { useDebouncedValue } from "@/shared/lib/use-debounced-value";
 import { useActiveOrganization } from "@/shared/organization/active-organization";
-import { Button } from "@/shared/ui/Button";
+import { Button, buttonVariants } from "@/shared/ui/Button";
 
 function pipelineErrorMessage(error: unknown): string {
   const appError = toAppError(error);
@@ -35,6 +38,11 @@ function pipelineErrorMessage(error: unknown): string {
 export function LeadPipelinePage() {
   const organization = useActiveOrganization();
   const state = useLeadPipelineState();
+  const navigation = useLeadNavigationState();
+  const [creationNotice] = useState(navigation.creationNotice);
+  useEffect(() => {
+    if (creationNotice) navigation.clearCreationNotice();
+  }, [creationNotice, navigation]);
   const canUseDirectory =
     organization.role === "owner" || organization.role === "admin";
   const debouncedSearch = useDebouncedValue(state.search, 350);
@@ -66,20 +74,43 @@ export function LeadPipelinePage() {
         title="Pipeline"
         description="Acompanhe Leads ativos por etapa e mova oportunidades com verificação de versão."
         action={
-          <Button
-            variant="secondary"
-            className="min-h-11"
-            disabled={board.isFetching || move.phase !== "idle"}
-            onClick={() => void board.refresh()}
-          >
-            <RefreshCw
-              className={`size-4 ${board.isFetching ? "animate-spin motion-reduce:animate-none" : ""}`}
-              aria-hidden="true"
-            />
-            Atualizar
-          </Button>
+          <div className="flex flex-wrap gap-3">
+            <Link
+              to="/app/leads/new"
+              search={{ from: "pipeline" }}
+              className={cn(buttonVariants(), "min-h-11")}
+            >
+              <Plus className="size-4" aria-hidden="true" /> Nova oportunidade
+            </Link>
+            <Button
+              variant="secondary"
+              className="min-h-11"
+              disabled={board.isFetching || move.phase !== "idle"}
+              onClick={() => void board.refresh()}
+            >
+              <RefreshCw
+                className={`size-4 ${board.isFetching ? "animate-spin motion-reduce:animate-none" : ""}`}
+                aria-hidden="true"
+              />
+              Atualizar
+            </Button>
+          </div>
         }
       />
+
+      {creationNotice && creationNotice !== "lead-submission-received" ? (
+        <p
+          className="rounded-lg border border-success/20 bg-success/10 p-3 text-sm"
+          role="status"
+          aria-live="polite"
+        >
+          {creationNotice === "lead-created"
+            ? "Oportunidade criada."
+            : creationNotice === "lead-existing-entry-recorded"
+              ? "Nova entrada registrada em oportunidade existente."
+              : "Resultado confirmado."}
+        </p>
+      ) : null}
 
       <LeadKanbanFilters
         search={state.search}

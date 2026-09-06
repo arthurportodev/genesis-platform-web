@@ -142,9 +142,15 @@ const leadsRoute = createRoute({
   component: LeadsPage,
 });
 
+interface LeadCreateSearch {
+  from?: "pipeline";
+}
+
 const leadCreateRoute = createRoute({
   getParentRoute: () => appRoute,
   path: "/leads/new",
+  validateSearch: (search: Record<string, unknown>): LeadCreateSearch =>
+    search.from === "pipeline" ? { from: "pipeline" } : {},
   component: LeadCreatePage,
 });
 

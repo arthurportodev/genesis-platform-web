@@ -662,11 +662,26 @@ test("criação mobile mantém inputs e ações acessíveis", async ({ page }) =
   );
 });
 
-test("Novo Lead permanece restrito à Inbox", async ({ page }) => {
+test("Pipeline inicia a criação existente e retorna após resultado identificado", async ({
+  page,
+}) => {
   await login(page, "owner@example.test", "/app/pipeline");
-  await expect(page.getByRole("link", { name: "Novo Lead" })).toHaveCount(0);
-  await page.getByRole("link", { name: "Leads", exact: true }).click();
-  await expect(page.getByRole("link", { name: "Novo Lead" })).toBeVisible();
+  await expect(
+    page.getByRole("link", { name: "Nova oportunidade" }),
+  ).toBeVisible();
+  await expect(page.getByRole("button", { name: "Atualizar" })).toBeVisible();
+  await page.getByRole("link", { name: "Nova oportunidade" }).click();
+  await expect(page).toHaveURL(/\/app\/leads\/new\?from=pipeline$/u);
+  await expect(
+    page.getByRole("heading", { name: "Nova oportunidade" }),
+  ).toBeVisible();
+  await page
+    .getByRole("textbox", { name: /^Nome/iu })
+    .fill("Oportunidade Pipeline E2E");
+  await page.getByRole("textbox", { name: /^Telefone/iu }).fill("62999999999");
+  await page.getByRole("button", { name: "Criar Lead" }).click();
+  await expect(page).toHaveURL(/\/app\/pipeline$/u);
+  await expect(page.getByText("Oportunidade criada.")).toBeVisible();
 });
 
 test("conflito de versão preserva o rascunho", async ({ page }) => {
