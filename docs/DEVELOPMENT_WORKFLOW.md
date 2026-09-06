@@ -9,6 +9,10 @@
 4. Prepare manifesto e Task Packet quando exigidos pela classe.
 5. Execute `npm ci` e `npm run task:preflight`.
 
+`.codex/task-manifest.json` é transitório. Ao trocar de tarefa, regenere-o para
+o novo branch, base e escopo ou remova-o. Artifacts históricos ignorados podem
+permanecer; não faça limpeza em massa para iniciar trabalho novo.
+
 ## Implementação
 
 - Faça mudanças pequenas e coerentes com o escopo permitido.
@@ -33,6 +37,11 @@ Cada tarefa de produto faz no máximo uma escrita canônica. Com release, Git e
 PR registram implementação e merge; a memória registra somente o resultado
 durável KEEP ou ROLLBACK. Não se mantém por rotina `MERGED / NOT_DEPLOYED`.
 Roadmap, ADR e TASK_LOG preservam direção, decisão e história, respectivamente.
+
+Uma tarefa funcional possui um PR de entrega por repositório afetado quando
+necessário. Depois de um resultado terminal de release, é permitido um único PR
+memory-only de closeout na autoridade canônica da API. Esse PR não cria
+histórico nem autoriza nova operação de Production; o Web não recebe uma cópia.
 
 ## Validação e Gate 2
 

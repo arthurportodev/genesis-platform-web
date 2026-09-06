@@ -6,6 +6,29 @@ API definido pelo ADR-020 no repositório
 repositório. Não cria plataforma, staging, transação distribuída ou autorização
 de Production.
 
+## Lifecycle durável
+
+```text
+Product Task
+→ Discovery
+→ Task Classification
+→ minimum Validation Surfaces
+→ Implementation
+→ delta-aware validation
+→ verifier e Gates quando exigidos
+→ Pull Request / merge
+→ immutable candidate
+→ Production Gate
+→ promotion
+→ Production Health
+→ Manual Product Acceptance
+→ KEEP / ROLLBACK
+→ one Memory V2 terminal closeout
+```
+
+Automated Feature Validation e checkpoints adicionais entram somente quando o
+risco da tarefa os exigir.
+
 ## Classifique a superfície
 
 | Superfície    | Quando usar                               | Ordem                                                     |
@@ -36,11 +59,11 @@ continuam autoridades do fluxo API.
 3. Quais são os candidate SHAs/digests/deployments imutáveis?
 4. Quais são as versões previous factuais?
 5. A CI pertence aos candidates exatos?
-6. Qual é o core smoke?
-7. Qual feature smoke foi congelada e ela é obrigatória em Production?
+6. Quais sinais compõem o Production Health?
+7. O risco exige validação automatizada adicional ou observação longa? Qual?
 8. O Gate de Production vincula todas as identidades exatas?
 9. Quais falhas acionam rollback?
-10. Quais observações precisam passar antes de `KEEP`?
+10. Quem fará a Manual Product Acceptance e registrará `APPROVE` ou `REJECT`?
 
 ## Rotina Web
 
@@ -50,25 +73,30 @@ Antes da promotion:
 - identifique candidate imutável e `PREVIOUS_WEB_DEPLOYMENT`;
 - comprove mesmo projeto, estado `READY` e elegibilidade de ambos;
 - valide o generated host sem credenciais;
-- qualifique em ambiente controlado o core e o comando exato da feature;
-- congele no Task Packet os comandos e se a feature é obrigatória;
+- classifique se o risco exige browser, feature smoke ou observação longa e,
+  somente quando exigir, congele o menor comando e os checkpoints necessários;
 - obtenha Gate de Production vinculado às identidades exatas.
 
 Depois de uma única promotion manual:
 
-1. execute o core browser smoke no domínio customizado;
-2. execute exatamente a feature smoke congelada quando obrigatória;
-3. observe T+0, T+30 e T+120;
-4. declare `KEEP` somente com todos os gates obrigatórios aprovados.
+1. comprove o Production Health: deployment `READY`, candidate/source correto,
+   custom domain correto, Web pública HTTP 200 e API health HTTP 200;
+2. execute somente a validação automatizada adicional e os checkpoints
+   declarados pelo risco, quando existirem;
+3. obtenha Manual Product Acceptance no domínio real;
+4. com `APPROVE` e todos os gates aplicáveis aprovados, declare `KEEP`; com
+   `REJECT` ou falha obrigatória, execute `ROLLBACK`.
 
-### Comandos duráveis
+### Ferramentas opcionais de validação
 
 ```text
 npm run smoke:web:generated-host
 npm run smoke:production:web
 ```
 
-O harness possui exatamente três perfis:
+O harness permanece disponível para tarefas cujo risco exija browser ou
+mutation automatizada. Sua existência não o torna gate universal. Ele possui
+exatamente três perfis:
 
 | Perfil               | Alvo e permissão                                                            |
 | -------------------- | --------------------------------------------------------------------------- |
@@ -106,30 +134,42 @@ campo extra, divergência ou duas Organizations encerram o smoke antes da
 mutation. A seleção visual usa o nome exato do binding e nunca depende da
 primeira opção.
 
-O core prova app, login quando necessário, seleção real de Organization quando
-necessária, shell protegido, API same-origin, ausência de fatal browser error e
-HTTP 5xx, e logout. Ele não contém assertions de uma feature.
+Quando exigido pelo risco, o core prova app, login, seleção real de Organization
+quando necessária, shell protegido, API same-origin, ausência de fatal browser
+error e HTTP 5xx, e logout. Ele não contém assertions de uma feature.
 
-### Feature smoke
+### Automated Feature Validation
 
-Uma mudança funcional Web declara antes da promotion:
+Automated Feature Validation não é gate padrão de uma mudança Web normal,
+reversível e de baixo risco. Ela é declarada antes da promotion somente quando
+o risco justificar, por exemplo:
+
+- autenticação, autorização, sessão, tenant ou privilégios;
+- fluxo financeiro ou operação destrutiva/irreversível;
+- migration, transformação de dados ou integração externa crítica;
+- proxy, DNS, runtime ou infraestrutura de deployment;
+- falha silenciosa difícil de detectar manualmente.
+
+Mesmo nesses casos, use o menor teste capaz de cobrir o risco. Quando uma
+validação automatizada adicional for exigida, declare:
 
 - nome e routes;
-- comportamento crítico e assertions;
-- comando Playwright exato;
-- obrigatoriedade em Production.
+- risco coberto e assertions;
+- comando exato, que pode ou não usar Playwright;
+- checkpoints adicionais necessários.
 
 Target e validação são dimensões independentes.
 `GENESIS_REQUIRE_FEATURE_SMOKE=true` permanece verdadeiro tanto em
-`local` quanto em `production`; nunca derive a obrigatoriedade do target. O
-spec versionado de Presentation V2 é apenas um exemplo separado:
+`local` quanto em `production` quando a tarefa exigir feature smoke; nunca
+derive a obrigatoriedade do target. O spec versionado de Presentation V2 é
+apenas um exemplo separado:
 
 ```text
 npm run smoke:web:feature:presentation-v2
 ```
 
-Futuras features fornecem seu próprio spec/comando no Task Packet. Não edite o
-harness depois da promotion.
+Tarefas de risco que exijam nova feature validation fornecem seu próprio
+spec/comando no Task Packet. Não edite o harness depois da promotion.
 
 O smoke `PIPE-V2-03A` deriva nome e telefone sintéticos de
 `PIPE-V2-03A + Web functional integrated SHA`, usa o prefixo
@@ -138,30 +178,32 @@ Pipeline. Antes da mutation em Production, uma busca exata deve provar que a
 identidade da release ainda não existe. Um Lead preexistente encerra a
 execução; o harness não apaga dados e não reutiliza fixture ou ordem visual.
 
-O binding precisa ser provisionado e validado antes do Gate de Production. Na
-ausência do arquivo ou de correspondência factual do principal e da
-Organization, registre `PRODUCTION_BINDING_READY=false`; o core e toda
-mutation de feature permanecem bloqueados.
+Quando browser core ou feature smoke forem exigidos, o binding precisa ser
+provisionado e validado antes do Gate de Production. Na ausência do arquivo ou
+de correspondência factual do principal e da Organization, registre
+`PRODUCTION_BINDING_READY=false`; o browser core e toda mutation automatizada
+permanecem bloqueados.
 
 ## Rollback Web
 
 Se qualquer gate obrigatório falhar após promotion:
 
-`PREVIOUS_WEB_DEPLOYMENT → promote → compatibility core smoke → STOP`
+`PREVIOUS_WEB_DEPLOYMENT → promote → Production Health → STOP`
 
 Não ajuste Production, não tente a feature novamente e não faça uma segunda
 promotion automática do candidate.
 
 ## Observação
 
-Em cada ponto Web (`T+0/T+30/T+120`), confirme deployment `READY`, custom
-domain, core smoke/proxy, API health, zero HTTP 5xx e nenhum fatal browser
-error. Para API, preserve os sinais do ADR-020 em `T+0/T+30/T+120` no Level 1
-e `T+0/T+60/T+300` no Level 2.
+Para uma feature Web normal, confirme o Production Health imediatamente depois
+da promotion. `T+30`, `T+120`, browser e observações adicionais entram somente
+quando o risco da tarefa os justificar. Para API, preserve os sinais e tempos
+do ADR-020 em `T+0/T+30/T+120` no Level 1 e `T+0/T+60/T+300` no Level 2.
 
 ## Resultado
 
-- `KEEP`: todos os gates, smokes obrigatórios e observações passaram.
+- `KEEP`: Production Health, Manual Product Acceptance e qualquer validação
+  adicional exigida pelo risco passaram.
 - `ROLLBACK`: previous foi restaurado após falha pós-promotion.
 - `STOP`: identidade, preflight, autorização, validação ou rollback não pôde
   ser comprovado.
