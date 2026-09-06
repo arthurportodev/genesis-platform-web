@@ -32,8 +32,9 @@
   server-side proxy→API; Proposed para o candidato local de 2026-08-25.
 - `ADR-013-pipeline-experience-v2.md`: define a arquitetura de experiência do
   Pipeline V2, movimento DnD pela intenção existente, fallback acessível,
-  quick create, detalhe URL-backed e fronteira para estágios futuros; Proposed
-  para Gate 1, sem implementação.
+  entrada de criação pela página completa existente, detalhe URL-backed e
+  fronteira para estágios futuros; Accepted no Gate 1 da PIPE-V2-04. Cada
+  capacidade permanece dependente de sua tarefa e gate próprios.
 
 ADRs são imutáveis depois de substituídas. Uma mudança relevante deve criar uma
 nova decisão e apontar qual documento anterior foi superado.

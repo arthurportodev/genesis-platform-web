@@ -162,14 +162,17 @@ sub-raiz de Metrics. Mutações invalidam essa raiz somente quando alteram os
 contadores. A visualização usa cards, lista e barras CSS acessíveis, sem
 dependência gráfica ou persistência.
 
-A criação manual usa a página `/app/leads/new` e exclusivamente
-`POST /api/v1/leads`. O formulário React Hook Form/Zod produz o DTO exato, omite
-opcionais vazios e deixa E.164 e deduplicação por telefone sob autoridade do
-backend. Owner/admin podem consultar e escolher uma Membership ativa; member
-não monta o diretório nem envia responsável. Respostas `200/201` validam
-`LeadView` e ETag opaco e navegam ao GET oficial do detalhe; `201` também exige
-o `Location` contratual. `204` permanece opaco e retorna à Inbox sem inferir ID
-ou efeito.
+A criação manual usa a única página `/app/leads/new` e exclusivamente
+`POST /api/v1/leads`. A Inbox entra sem search param; o Pipeline usa somente
+`from=pipeline`, validado pela rota e fail-safe para o contexto da Inbox. O
+formulário React Hook Form/Zod produz o DTO exato, omite opcionais vazios e deixa
+E.164 e deduplicação por telefone sob autoridade do backend. Owner/admin podem
+consultar e escolher uma Membership ativa; member não monta o diretório nem
+envia responsável. No contexto da Inbox, respostas `200/201` validam `LeadView`
+e ETag opaco e navegam ao GET oficial do detalhe; `201` também exige o
+`Location` contratual. No contexto do Pipeline, resultados identificados voltam
+ao Kanban com feedback compatível com criação, entrada existente ou replay.
+`204` permanece opaco e retorna à Inbox sem inferir ID ou efeito.
 
 Cada intenção vincula Organization, ator, payload normalizado e UUID v4 somente
 em memória. Resultado remoto incerto bloqueia edição e oferece retry manual com
@@ -181,9 +184,11 @@ troca confirmada de Organization remonta o fluxo sem estado anterior, enquanto
 logout nunca é bloqueado.
 
 Um estado geral de navegação de Leads registra origem Inbox, Pipeline ou
-Follow-up. Tabs, filtros e posição do Follow-up sobrevivem à ida ao detalhe
+Follow-up para o detalhe. O contexto da criação vem exclusivamente do search
+param validado. Tabs, filtros e posição do Follow-up sobrevivem à ida ao detalhe
 somente em memória e são descartados em reload, troca de Organization, logout ou
-expiração.
+expiração. Busca, filtros e estágio mobile do Pipeline permanecem no provider
+durante navegação SPA, sem nova restauração de scroll ou persistência.
 
 No detalhe, a escolha de etapa dispara persistência imediata e mantém estados
 inequívocos de salvamento, confirmação e falha. Somente a resposta confirmada
