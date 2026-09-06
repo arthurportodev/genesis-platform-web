@@ -86,9 +86,9 @@ da plataforma nem observação desta mitigação em produção.
 - **Staging:** somente mediante decisão posterior explícita.
 
 Por essa fronteira, Preview valida a interface e o comportamento fail-closed,
-mas não valida o fluxo autenticado completo contra a API de produção. O smoke
-same-origin ponta a ponta pertence exclusivamente ao domínio aprovado após uma
-promoção autorizada.
+mas não valida o fluxo autenticado completo contra a API de produção. Quando o
+risco exigir browser ou feature smoke, a validação same-origin ponta a ponta
+pertence exclusivamente ao domínio aprovado após uma promoção autorizada.
 
 ## Gates de publicação e abertura
 
@@ -101,9 +101,10 @@ desses gates; este contrato não declara seu resultado.
 
 ## Rollback
 
-Toda promoção preserva o deployment anterior e é seguida imediatamente pelos
-smokes de raiz, autenticação e proxy. O rollback do frontend promove essa versão
-Vercel anterior, validada e imutável.
+Toda promoção preserva o deployment anterior e é seguida imediatamente pelo
+Production Health. Validações de autenticação, proxy ou feature entram quando o
+risco da tarefa as exigir. O rollback do frontend promove a versão Vercel
+anterior, validada e imutável.
 Mudanças de domínio/DNS têm rollback próprio. Se origem ou proxy não estiverem
 seguros, `/api/v1` falha fechado. A sequência operacional, o candidato anterior
 e a evidência de recuperação devem estar identificados antes da publicação.
@@ -114,15 +115,20 @@ dados reais.
 ## Rotina operacional
 
 O procedimento curto para classificar uma release como `API_ONLY`,
-`WEB_ONLY` ou `API_AND_WEB`, executar os gates existentes e separar core
-smoke de feature smoke está no
+`WEB_ONLY` ou `API_AND_WEB`, executar os gates existentes e separar Production
+Health, Manual Product Acceptance e validação automatizada risk-based está no
 [runbook de deployment](DEPLOYMENT_RUNBOOK.md). Próximas tarefas devem preencher
 somente os fatos variáveis no
 [template de deployment](DEPLOYMENT_TASK_TEMPLATE.md).
 
-O core browser smoke Web possui configuração Playwright versionada em
-`playwright.production.config.cjs` e comando estável
-`npm run smoke:production:web`. Ele não substitui a feature smoke declarada
-pela release e não autoriza deployment. O host gerado pela Vercel é verificado
-separadamente, sem credenciais Genesis, por
-`npm run smoke:web:generated-host`.
+Para uma feature Web normal, reversível e de baixo risco, Production Health
+comprova deployment `READY`, candidate/source correto, custom domain correto,
+Web HTTP 200 e API health HTTP 200. O Product Owner valida a funcionalidade no
+domínio real e registra `APPROVE` para `KEEP` ou `REJECT` para `ROLLBACK`.
+
+O browser smoke Web continua disponível em
+`playwright.production.config.cjs` e `npm run smoke:production:web`, mas não é
+autoridade universal de Production. Automated Feature Validation e checkpoints
+como `T+30`/`T+120` são exigidos somente quando o risco for declarado. O host
+gerado pela Vercel pode ser verificado separadamente, sem credenciais Genesis,
+por `npm run smoke:web:generated-host`.

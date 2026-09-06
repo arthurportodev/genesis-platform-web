@@ -26,10 +26,17 @@ Preencha somente os fatos variáveis. O procedimento está no
 ## Validation
 
 - CI run(s):
-- Core smoke: `npm run smoke:production:web`
-- Feature smoke command:
-- Feature smoke required in Production: `true | false`
-- Observation: Web `T+0/T+30/T+120`; API conforme Level do ADR-020
+- Production Health:
+  - deployment `READY`:
+  - candidate/source correto:
+  - custom domain correto:
+  - Web HTTP 200:
+  - API health HTTP 200:
+- Manual Product Acceptance: `APPROVE | REJECT | PENDING`
+- Risk-based automated validation required: `true | false`
+- Risk and command, when required:
+- Long observation required: `true | false`
+- Checkpoints and reason, when required; API segue o Level do ADR-020:
 
 ## Authorization
 
