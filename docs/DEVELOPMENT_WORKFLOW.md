@@ -42,9 +42,24 @@ governança e o rigor aplicável dentro de cada surface. Gere fingerprints texto
 e JSON depois da última alteração material e entregue o diff a verifier
 independente quando exigido.
 
-Até a inferência automática por paths, prevista para a Process Simplification
-03, builder, reviewer e verifier conferem a coerência entre `allowedPaths` e as
-surfaces. Em caso de dúvida, incluem a surface mais ampla aplicável.
+O classificador versionado infere `memory`, `app`, `production` e `tooling`
+somente a partir dos paths Git. As surfaces do manifesto podem ampliar essa
+união, mas não podem omiti-la; path sem regra bloqueia o preflight e a CI. Um
+delta misto executa cada comando compartilhado uma única vez. Mudanças em
+`package.json` ou `package-lock.json` selecionam conservadoramente App,
+Production, Tooling e build/scan da imagem.
+
+Em Pull Requests, o check obrigatório `Validate frontend` valida os pais do
+merge ref contra base e head declarados, classifica o delta e executa apenas a
+união selecionada. O browser Playwright é instalado somente quando App ou
+Production forem selecionadas; deltas exclusivos de Memory ou Tooling não
+pagam esse custo.
+
+Em push para `main`, o mesmo check executa somente integridade: `git diff
+--check`, classificação fail-closed, contratos básicos de desenvolvimento e
+parse/resolução do pointer de memória. Esse caminho não instala dependências,
+browser ou suítes completas. `workflow_dispatch` oferece `full`, para a união
+ativa completa, e `integrity`, para reproduzir a checagem curta de `main`.
 
 Gate 2 é a decisão humana sobre o candidato estável. Nenhuma entrega remota pode
 começar antes dele. Correções encontradas durante revisão ou entrega retornam ao

@@ -172,7 +172,6 @@ test('Critical plus App applies Critical App depth without Production', () => {
     'npm run task:contracts',
     'npm run format:check',
     'npm run lint',
-    'npm run typecheck',
     'npm test',
     'npm run build',
     'npm run test:e2e',

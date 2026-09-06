@@ -7,6 +7,21 @@ function read(path) {
   return readFileSync(join(process.cwd(), ...path.split('/')), 'utf8');
 }
 
+test('CI preserves the required check and installs Playwright only for selected surfaces', () => {
+  const workflow = read('.github/workflows/ci.yml');
+  assert.match(workflow, /name: Validate frontend/u);
+  assert.match(workflow, /fetch-depth: 0/u);
+  assert.match(workflow, /--verify-pr-checkout/u);
+  assert.match(workflow, /scripts\/ci-main-integrity\.cjs/u);
+  assert.match(workflow, /steps\.delta\.outputs\.needs_dependencies/u);
+  assert.match(workflow, /steps\.delta\.outputs\.playwright/u);
+  const playwrightStep = workflow.slice(
+    workflow.indexOf('Install Playwright browser for selected surfaces'),
+    workflow.indexOf('Validate Tooling surface'),
+  );
+  assert.match(playwrightStep, /outputs\.playwright/u);
+});
+
 test('CI enforces contracts, formatting and task-tool tests', () => {
   const workflow = read('.github/workflows/ci.yml');
   const packageJson = JSON.parse(read('package.json'));
