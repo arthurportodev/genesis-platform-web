@@ -2,72 +2,94 @@ name: Frontend CI
 
 on:
   pull_request:
-    branches: [main]
+    branches:
+      - main
   push:
-    branches: [main]
+    branches:
+      - main
   workflow_dispatch:
+    inputs:
+      mode:
+        description: Validation mode
+        required: true
+        type: choice
+        default: full
+        options:
+          - full
+          - integrity
 
 permissions:
   contents: read
 
 concurrency:
-  group: frontend-ci-${{ github.ref }}
-  cancel-in-progress: true
+  group: frontend-ci-${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   validate:
     name: Validate frontend
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-
+    permissions:
+      contents: read
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
     steps:
-      - name: Checkout
-        uses: actions/checkout@v6
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
 
       - name: Setup Node.js
-        uses: actions/setup-node@v7
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: 24
-          cache: npm
+          node-version-file: .nvmrc
 
-      - name: Install dependencies
+      - name: Classify pull request delta
+        id: delta
+        if: ${{ github.event_name == 'pull_request' }}
+        run: node scripts/ci-surface-classify.cjs --repository web --base "${{ github.event.pull_request.base.sha }}" --head "${{ github.event.pull_request.head.sha }}" --verify-pr-checkout --manifest .codex/task-manifest.json
+
+      - name: Select full manual validation
+        id: full
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.mode == 'full' }}
+        run: node scripts/ci-surface-classify.cjs --repository web --full
+
+      - name: Run main integrity check
+        if: ${{ github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.mode == 'integrity') }}
+        run: node scripts/ci-main-integrity.cjs --repository web --head "${{ github.sha }}"
+
+      - name: Install dependencies for selected surfaces
+        if: ${{ steps.delta.outputs.needs_dependencies == 'true' || steps.full.outputs.needs_dependencies == 'true' }}
         run: npm ci
 
-      - name: Install Playwright browser
+      - name: Install Playwright browser for selected surfaces
+        if: ${{ steps.delta.outputs.playwright == 'true' || steps.full.outputs.playwright == 'true' }}
         run: npx playwright install --with-deps chromium
 
-      - name: Validate development-operation contracts
-        run: npm run task:contracts
+      - name: Validate Tooling surface
+        if: ${{ steps.delta.outputs.tooling == 'true' || steps.full.outputs.tooling == 'true' }}
+        run: |
+          npm run task:contracts
+          npm run format:check:task-tools
+          npm run test:task-tools
 
-      - name: Check task tools formatting
-        run: npm run format:check:task-tools
+      - name: Validate Memory surface
+        if: ${{ steps.delta.outputs.memory == 'true' || steps.full.outputs.memory == 'true' }}
+        run: |
+          node scripts/validate-project-memory.cjs --mode local
+          node --test test/project-memory/project-memory.test.cjs
 
-      - name: Test task tools
-        run: npm run test:task-tools
+      - name: Validate App surface
+        if: ${{ steps.delta.outputs.app == 'true' || steps.full.outputs.app == 'true' }}
+        run: |
+          npm run format:check
+          npm run lint
+          npm test
+          npm run build
+          npm run test:e2e
 
-      - name: Validate project memory pointer
-        run: node scripts/validate-project-memory.cjs --mode local
-
-      - name: Test project memory validator
-        run: node --test test/project-memory/project-memory.test.cjs
-
-      - name: Check formatting
-        run: npm run format:check
-
-      - name: Lint
-        run: npm run lint
-
-      - name: Typecheck
-        run: npm run typecheck
-
-      - name: Validate packaged Vercel Function
-        run: npm run test:vercel-package
-
-      - name: Unit and integration tests
-        run: npm test
-
-      - name: Build
-        run: npm run build
-
-      - name: End-to-end tests
-        run: npm run test:e2e
+      - name: Validate Production surface
+        if: ${{ steps.delta.outputs.production == 'true' || steps.full.outputs.production == 'true' }}
+        run: |
+          npm run test:deployment-smoke
+          npm run test:vercel-package

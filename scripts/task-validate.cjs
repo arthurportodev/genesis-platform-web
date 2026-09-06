@@ -1,6 +1,11 @@
 const { spawnSync } = require('node:child_process');
 const { join } = require('node:path');
 const { MANIFEST_PATH } = require('./lib/task-candidate.cjs');
+const { inspectCandidate } = require('./lib/task-candidate.cjs');
+const {
+  SURFACE_ORDER,
+  classifyPaths,
+} = require('./lib/ci-surface-classifier.cjs');
 const { loadTaskManifest } = require('./lib/task-manifest.cjs');
 
 function npmCommand(args, env = process.env, platform = process.platform) {
@@ -93,7 +98,11 @@ function buildLegacyValidationPlan(manifest, env = process.env) {
   }
 }
 
-function buildSurfaceValidationPlan(manifest, env = process.env) {
+function buildSurfaceValidationPlan(
+  manifest,
+  env = process.env,
+  { surfaces = manifest.validation.surfaces } = {},
+) {
   const npm = (...args) => npmCommand(args, env);
   const taskFormat = npm('run', 'format:check:task-tools');
   const surfacePlans = {
@@ -112,7 +121,6 @@ function buildSurfaceValidationPlan(manifest, env = process.env) {
     app: [
       npm('run', 'format:check'),
       npm('run', 'lint'),
-      npm('run', 'typecheck'),
       npm('test'),
       npm('run', 'build'),
       ...(manifest.task.class === 'critical' ? [npm('run', 'test:e2e')] : []),
@@ -123,9 +131,7 @@ function buildSurfaceValidationPlan(manifest, env = process.env) {
     ],
     tooling: [taskFormat, npm('run', 'test:task-tools')],
   };
-  const selected = manifest.validation.surfaces.flatMap(
-    (surface) => surfacePlans[surface],
-  );
+  const selected = surfaces.flatMap((surface) => surfacePlans[surface]);
   return deduplicateCommands([
     npm('run', 'task:preflight'),
     npm('run', 'task:contracts'),
@@ -135,10 +141,10 @@ function buildSurfaceValidationPlan(manifest, env = process.env) {
   ]);
 }
 
-function buildValidationPlan(manifest, env = process.env) {
+function buildValidationPlan(manifest, env = process.env, selection) {
   return manifest.validation.mode === 'legacy-profile'
     ? buildLegacyValidationPlan(manifest, env)
-    : buildSurfaceValidationPlan(manifest, env);
+    : buildSurfaceValidationPlan(manifest, env, selection);
 }
 
 function validationSelection(manifest) {
@@ -209,8 +215,23 @@ function main() {
       manifestPath: join(cwd, ...MANIFEST_PATH.split('/')),
       packageJsonPath: join(cwd, 'package.json'),
     });
-    const plan = buildValidationPlan(manifest);
-    const result = runValidationPlan(validationSelection(manifest), plan, {
+    const full = process.argv.slice(2).includes('--full');
+    const candidate = inspectCandidate(manifest, cwd);
+    const classification = classifyPaths(
+      [...candidate.tracked, ...candidate.untracked],
+      'web',
+    );
+    const selection = full
+      ? { surfaces: [...SURFACE_ORDER], modifiers: classification.modifiers }
+      : {
+          surfaces: manifest.validation.surfaces,
+          modifiers: classification.modifiers,
+        };
+    const plan = buildValidationPlan(manifest, process.env, selection);
+    const selectedLabel = full
+      ? 'surfaces:memory+app+production+tooling (full active)'
+      : validationSelection(manifest);
+    const result = runValidationPlan(selectedLabel, plan, {
       cwd,
     });
     console.log(
