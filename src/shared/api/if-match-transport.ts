@@ -1,7 +1,9 @@
 export const GENESIS_IF_MATCH_HEADER = "X-Genesis-If-Match";
 export const GENESIS_IF_MATCH_HEADER_LOWER = "x-genesis-if-match";
+export const GENESIS_LEAD_CONTRACT_HEADER = "X-Genesis-Lead-Contract";
+export const GENESIS_LEAD_CONTRACT_HEADER_LOWER = "x-genesis-lead-contract";
 
-const MAX_GENESIS_IF_MATCH_LENGTH = 63;
+const MAX_GENESIS_IF_MATCH_LENGTH = 72;
 const MAX_POSTGRES_BIGINT = 9_223_372_036_854_775_807n;
 const CANONICAL_UUID =
   "[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}";
@@ -9,8 +11,16 @@ const LEAD_ETAG = new RegExp(
   `^"lead:(${CANONICAL_UUID}):(0|[1-9][0-9]*)"$`,
   "u",
 );
+const PIPELINE_ETAG = new RegExp(
+  `^"pipeline:(${CANONICAL_UUID}):(0|[1-9][0-9]*)"$`,
+  "u",
+);
 const CONDITIONAL_LEAD_PATH = new RegExp(
-  `^/api/v1/leads/(${CANONICAL_UUID})(?:/(assignment|activities|notes|next-action(?:/(?:reschedule|complete|cancel))?|move|win|lose|archive|reactivate|return-review/dismiss|expected-value|information))?$`,
+  `^/api/v1/leads/(${CANONICAL_UUID})(?:/(assignment|activities|notes|next-action(?:/(?:reschedule|complete|cancel))?|cycles|move|win|lose|archive|reactivate|return-review/dismiss|expected-value|information))?$`,
+  "u",
+);
+const CONDITIONAL_PIPELINE_PATH = new RegExp(
+  `^/api/v1/pipelines/(${CANONICAL_UUID})(?:/stages(?:/order|/(${CANONICAL_UUID})(?:/archive)?))?$`,
   "u",
 );
 const HTTP_TOKEN = /^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$/u;
@@ -66,29 +76,47 @@ export function parseConnectionHeaderTokens(
   return tokens;
 }
 
-function expectedConditionalLeadId(
+function expectedConditionalResource(
   method: string,
   pathname: string,
-): string | null {
-  const match = CONDITIONAL_LEAD_PATH.exec(pathname);
-  if (!match) return null;
-  const suffix = match[2];
+): { id: string; kind: "lead" | "pipeline" } | null {
+  const leadMatch = CONDITIONAL_LEAD_PATH.exec(pathname);
+  if (leadMatch) {
+    const suffix = leadMatch[2];
+    const allowed =
+      method === "PATCH"
+        ? suffix === undefined || suffix === "assignment"
+        : method === "POST" && suffix !== undefined && suffix !== "assignment";
+    if (allowed) return { id: leadMatch[1].toLowerCase(), kind: "lead" };
+  }
+  const pipelineMatch = CONDITIONAL_PIPELINE_PATH.exec(pathname);
+  if (!pipelineMatch) return null;
+  const pipelineRoot = `/api/v1/pipelines/${pipelineMatch[1]}`;
   const allowed =
-    method === "PATCH"
-      ? suffix === undefined || suffix === "assignment"
-      : method === "POST" && suffix !== undefined && suffix !== "assignment";
-  return allowed ? match[1].toLowerCase() : null;
+    (method === "PATCH" &&
+      (pathname === pipelineRoot || pipelineMatch[2] !== undefined)) ||
+    (method === "PUT" && pathname.endsWith("/stages/order")) ||
+    (method === "PUT" &&
+      pipelineMatch[2] !== undefined &&
+      !pathname.endsWith("/archive")) ||
+    (method === "POST" && pathname.endsWith("/archive"));
+  return allowed
+    ? { id: pipelineMatch[1].toLowerCase(), kind: "pipeline" }
+    : null;
 }
 
 export function validateGenesisIfMatch(
   value: string,
-  expectedLeadId: string,
+  expectedId: string,
+  expectedKind: "lead" | "pipeline" = "lead",
 ): boolean {
   if (value.length === 0 || value.length > MAX_GENESIS_IF_MATCH_LENGTH) {
     return false;
   }
-  const match = LEAD_ETAG.exec(value);
-  if (!match || match[1].toLowerCase() !== expectedLeadId.toLowerCase()) {
+  const match = (expectedKind === "lead" ? LEAD_ETAG : PIPELINE_ETAG).exec(
+    value,
+  );
+  if (!match || match[1].toLowerCase() !== expectedId.toLowerCase()) {
     return false;
   }
   try {
@@ -128,17 +156,21 @@ export function resolveGenesisIfMatchTransport(
   }
   if (!hasPrivate) return { connectionTokens };
 
-  const expectedLeadId = expectedConditionalLeadId(
+  const expectedResource = expectedConditionalResource(
     input.method,
     input.pathname,
   );
-  if (!expectedLeadId) {
+  if (!expectedResource) {
     return { rejection: "if_match_transport_unexpected", connectionTokens };
   }
   if (typeof input.genesisIfMatch !== "string") {
     return { rejection: "if_match_transport_invalid", connectionTokens };
   }
-  return validateGenesisIfMatch(input.genesisIfMatch, expectedLeadId)
+  return validateGenesisIfMatch(
+    input.genesisIfMatch,
+    expectedResource.id,
+    expectedResource.kind,
+  )
     ? { ifMatch: input.genesisIfMatch, connectionTokens }
     : { rejection: "if_match_transport_invalid", connectionTokens };
 }

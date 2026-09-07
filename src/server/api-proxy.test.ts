@@ -427,6 +427,56 @@ describe("Vercel same-origin API proxy", () => {
     expect(fetch).toHaveBeenCalledOnce();
   });
 
+  it("forwards the explicit Lead contract and concurrency for cycle creation", async () => {
+    const leadId = "00000000-0000-4000-8000-000000000001";
+    const etag = `"lead:${leadId}:7"`;
+    const fetch = vi.fn((_input: URL | RequestInfo, init?: RequestInit) => {
+      const headers = new Headers(init?.headers);
+      expect(headers.get("if-match")).toBe(etag);
+      expect(headers.get("x-genesis-if-match")).toBeNull();
+      expect(headers.get("x-genesis-lead-contract")).toBe("pipeline-v2");
+      return Promise.resolve(
+        Response.json(
+          { id: "00000000-0000-4000-8000-000000000003" },
+          { status: 201, headers: { ETag: `"lead:${leadId}:8"` } },
+        ),
+      );
+    });
+
+    const response = await handleApiProxy(
+      productionRequest(`/api/v1/leads/${leadId}/cycles`, {
+        method: "POST",
+        headers: {
+          "X-Genesis-If-Match": etag,
+          "X-Genesis-Lead-Contract": "pipeline-v2",
+          "Idempotency-Key": "00000000-0000-4000-8000-000000000002",
+        },
+        body: JSON.stringify({
+          pipelineId: "00000000-0000-4000-8000-000000000004",
+        }),
+      }),
+      environment,
+      { fetch },
+    );
+
+    expect(response.status).toBe(201);
+    expect(fetch).toHaveBeenCalledOnce();
+  });
+
+  it("rejects the Lead contract outside the exact Leads route boundary", async () => {
+    const fetch = vi.fn();
+    const response = await handleApiProxy(
+      productionRequest("/api/v1/leadership", {
+        headers: { "X-Genesis-Lead-Contract": "pipeline-v2" },
+      }),
+      environment,
+      { fetch, log: vi.fn() },
+    );
+
+    expect(response.status).toBe(400);
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
   it("preserves a 412 response and its ETag through the transport shim", async () => {
     const leadId = "00000000-0000-4000-8000-000000000001";
     const response = await handleApiProxy(

@@ -48,7 +48,10 @@ describe("LeadIntentKeyRegistry", () => {
 
   it("não reutiliza a chave quando a revisão de origem muda", () => {
     const registry = new LeadIntentKeyRegistry();
-    const intent = { action: "move", body: { stage: "proposal" } } as const;
+    const intent = {
+      action: "move",
+      body: { pipelineStageId: "00000000-0000-4000-8000-000000000105" },
+    } as const;
     const first = registry.keyFor("move", intent, "3");
     expect(registry.keyFor("move", intent, "4")).not.toBe(first);
   });

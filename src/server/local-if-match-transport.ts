@@ -2,6 +2,7 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 
 import {
   GENESIS_IF_MATCH_HEADER_LOWER,
+  GENESIS_LEAD_CONTRACT_HEADER_LOWER,
   resolveGenesisIfMatchTransport,
 } from "../shared/api/if-match-transport.js";
 
@@ -36,11 +37,25 @@ export function applyLocalIfMatchTransport(
     return false;
   }
 
+  const rawLeadContract = request.headers[GENESIS_LEAD_CONTRACT_HEADER_LOWER];
+  if (
+    (rawLeadContract !== undefined && rawLeadContract !== "pipeline-v2") ||
+    (rawLeadContract !== undefined &&
+      pathname !== "/api/v1/leads" &&
+      !pathname.startsWith("/api/v1/leads/")) ||
+    transport.connectionTokens.has(GENESIS_LEAD_CONTRACT_HEADER_LOWER)
+  ) {
+    rejectLocalRequest(response);
+    return false;
+  }
+
   for (const name of Object.keys(request.headers)) {
     if (name.toLowerCase().startsWith("x-genesis-")) {
       delete request.headers[name];
     }
   }
   if (transport.ifMatch) request.headers["if-match"] = transport.ifMatch;
+  if (rawLeadContract === "pipeline-v2")
+    request.headers[GENESIS_LEAD_CONTRACT_HEADER_LOWER] = rawLeadContract;
   return true;
 }

@@ -3,19 +3,18 @@ import { useRef, useState, type FormEvent } from "react";
 import {
   activityTypes,
   archiveReasons,
-  leadStages,
   lostReasons,
   nextActionTypes,
   type LeadDetail,
   type LeadInformationInput,
   type Member,
+  type Pipeline,
 } from "@/features/leads/api/lead-contracts";
 import { leadCapabilities } from "@/features/leads/api/lead-capabilities";
 import {
   hasUncertainMutationOutcome,
   LeadIntentKeyRegistry,
 } from "@/features/leads/api/lead-intent-keys";
-import { stageLabels } from "@/features/leads/api/lead-labels";
 import type {
   LeadDetailSnapshot,
   LeadIdempotentAction,
@@ -49,6 +48,7 @@ export function LeadActions({
   loadingMoreMembers,
   onLoadMoreMembers,
   directoryReady,
+  pipelines,
 }: {
   current: LeadDetailSnapshot;
   members: readonly Member[];
@@ -56,10 +56,14 @@ export function LeadActions({
   loadingMoreMembers: boolean;
   onLoadMoreMembers: () => void;
   directoryReady: boolean;
+  pipelines: readonly Pipeline[];
 }) {
   const organization = useActiveOrganization();
   const lead = current.lead;
   const capabilities = leadCapabilities(organization, lead);
+  const currentPipeline = pipelines.find(
+    (pipeline) => pipeline.id === lead.pipelineId,
+  );
   const mutations = useLeadMutations(lead.id);
   const intentKeys = useRef(new LeadIntentKeyRegistry());
   const [message, setMessage] = useState<string | null>(null);
@@ -146,6 +150,7 @@ export function LeadActions({
             key={lead.id}
             current={current}
             busy={busy}
+            hasCycle={lead.latestCycle !== null}
             onSave={async (body) => {
               setError(null);
               setMessage(null);
@@ -181,19 +186,21 @@ export function LeadActions({
             }}
           />
         ) : null}
-        {capabilities.canFollowUp ? (
+        {capabilities.canFollowUp && lead.latestCycle !== null ? (
           <FollowUpCard lead={lead} busy={busy} runAction={runAction} />
         ) : null}
-        {capabilities.canMove ||
-        capabilities.canClose ||
-        capabilities.canArchive ||
-        capabilities.canReactivate ||
-        capabilities.canDismissReturn ? (
+        {lead.latestCycle !== null &&
+        (capabilities.canMove ||
+          capabilities.canClose ||
+          capabilities.canArchive ||
+          capabilities.canReactivate ||
+          capabilities.canDismissReturn) ? (
           <LifecycleCard
             key={`${lead.id}:${lead.revision}`}
             lead={lead}
             busy={busy}
             capabilities={capabilities}
+            pipeline={currentPipeline}
             runAction={runAction}
           />
         ) : null}
@@ -222,10 +229,12 @@ function Panel({
 function EditLeadCard({
   current,
   busy,
+  hasCycle,
   onSave,
 }: {
   current: LeadDetailSnapshot;
   busy: boolean;
+  hasCycle: boolean;
   onSave: (body: LeadInformationInput) => Promise<void>;
 }) {
   const lead = current.lead;
@@ -239,16 +248,16 @@ function EditLeadCard({
     lead.serviceInterest ?? "",
   );
   const [expectedValue, setExpectedValue] = useState(
-    formatBrlInputFromMinorUnits(lead.latestCycle.expectedValueMinor),
+    formatBrlInputFromMinorUnits(lead.latestCycle?.expectedValueMinor ?? null),
   );
   const [expectedValueError, setExpectedValueError] = useState<string | null>(
     null,
   );
   const submit = (event: FormEvent) => {
     event.preventDefault();
-    let expectedValueMinor: string | null;
+    let expectedValueMinor: string | null = null;
     try {
-      expectedValueMinor = parseBrlToMinorUnits(expectedValue);
+      if (hasCycle) expectedValueMinor = parseBrlToMinorUnits(expectedValue);
       setExpectedValueError(null);
     } catch (cause) {
       setExpectedValueError(
@@ -322,6 +331,12 @@ function EditLeadCard({
           prefix="R$"
           placeholder="0,00"
           inputMode="decimal"
+          disabled={!hasCycle}
+          help={
+            hasCycle
+              ? undefined
+              : "Disponível após adicionar o Lead a um Pipeline."
+          }
           error={expectedValueError}
           onBlur={() => {
             try {
@@ -636,6 +651,7 @@ function LifecycleCard({
   busy,
   capabilities,
   runAction,
+  pipeline,
 }: {
   lead: LeadDetail;
   busy: boolean;
@@ -645,8 +661,11 @@ function LifecycleCard({
     intent: LeadIdempotentAction,
     message: string,
   ) => Promise<boolean>;
+  pipeline?: Pipeline;
 }) {
-  const [stage, setStage] = useState<(typeof leadStages)[number]>(lead.stage);
+  const stages =
+    pipeline?.stages.filter((stage) => stage.archivedAt === null) ?? [];
+  const [stage, setStage] = useState(lead.pipelineStageId ?? "");
   const [stageFeedback, setStageFeedback] = useState<
     "idle" | "saving" | "saved" | "error"
   >("idle");
@@ -663,23 +682,25 @@ function LifecycleCard({
             <EnumSelect
               label="Etapa"
               value={stage}
-              values={leadStages}
-              labels={stageLabels}
+              values={stages.map(({ id }) => id)}
+              labels={Object.fromEntries(
+                stages.map(({ id, name }) => [id, name]),
+              )}
               disabled={busy}
               onChange={(value) => {
-                const target = value as typeof stage;
+                const target = value;
                 setStage(target);
                 setStageFeedback("saving");
                 void runAction(
                   "move",
-                  { action: "move", body: { stage: target } },
+                  { action: "move", body: { pipelineStageId: target } },
                   "Etapa atualizada.",
                 ).then((saved) => {
                   if (saved) {
                     setStageFeedback("saved");
                     return;
                   }
-                  setStage(lead.stage);
+                  setStage(lead.pipelineStageId ?? "");
                   setStageFeedback("error");
                 });
               }}
@@ -696,9 +717,9 @@ function LifecycleCard({
               {stageFeedback === "saving"
                 ? "Salvando etapa..."
                 : stageFeedback === "saved"
-                  ? `Etapa salva: ${stageLabels[stage]}.`
+                  ? `Etapa salva: ${stages.find(({ id }) => id === stage)?.name ?? "etapa"}.`
                   : stageFeedback === "error"
-                    ? `A nova etapa não foi confirmada como salva. Etapa mantida: ${stageLabels[lead.stage]}.`
+                    ? `A nova etapa não foi confirmada como salva. Etapa mantida: ${lead.pipelineStageName ?? "atual"}.`
                     : "A nova etapa é salva imediatamente após a seleção."}
             </p>
           </>
@@ -845,6 +866,8 @@ function Field({
   inputMode,
   error,
   onBlur,
+  disabled = false,
+  help,
 }: {
   label: string;
   value: string;
@@ -857,6 +880,8 @@ function Field({
   inputMode?: React.HTMLAttributes<HTMLInputElement>["inputMode"];
   error?: string | null;
   onBlur?: () => void;
+  disabled?: boolean;
+  help?: string;
 }) {
   const id = `lead-field-${label.toLowerCase().replaceAll(" ", "-")}`;
   return (
@@ -887,12 +912,16 @@ function Field({
           inputMode={inputMode}
           aria-invalid={Boolean(error)}
           aria-describedby={error ? `${id}-error` : undefined}
+          disabled={disabled}
         />
       </div>
       {error ? (
         <p id={`${id}-error`} className="mt-1.5 text-sm text-destructive">
           {error}
         </p>
+      ) : null}
+      {help ? (
+        <p className="mt-1.5 text-xs text-muted-foreground">{help}</p>
       ) : null}
     </div>
   );

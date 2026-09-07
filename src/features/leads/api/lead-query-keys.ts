@@ -30,6 +30,10 @@ export const leadQueryKeys = {
     [...root(organizationId), "inboxes", filters, cursor ?? null] as const,
   kanbans: (organizationId: string) =>
     [...root(organizationId), "kanbans"] as const,
+  pipelines: (organizationId: string) =>
+    [...root(organizationId), "pipelines"] as const,
+  pipelineKanban: (organizationId: string, pipelineId: string) =>
+    [...root(organizationId), "kanbans", pipelineId] as const,
   kanban: (organizationId: string, filters: LeadKanbanFilters) =>
     [
       ...root(organizationId),

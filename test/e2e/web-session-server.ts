@@ -27,6 +27,7 @@ let refreshCount = 0;
 let sequence = 0;
 let leadRevision = 3;
 let leadStage = "qualification";
+let leadPipelineStageId = "00000000-0000-4000-8000-000000000103";
 let leadCity = "São Paulo";
 let leadExpectedValueMinor: string | null = "2500000";
 let latestFinancialChange: {
@@ -57,6 +58,47 @@ const workLeadId = "00000000-0000-4000-8000-000000000040";
 const workActionId = "00000000-0000-4000-8000-000000000041";
 const cycleId = "00000000-0000-4000-8000-000000000012";
 const entryId = "00000000-0000-4000-8000-000000000013";
+const pipelineId = "00000000-0000-4000-8000-000000000101";
+const pipelineStages = [
+  { id: "00000000-0000-4000-8000-000000000102", name: "Novo", legacy: "new" },
+  {
+    id: "00000000-0000-4000-8000-000000000103",
+    name: "Qualificação",
+    legacy: "qualification",
+  },
+  {
+    id: "00000000-0000-4000-8000-000000000104",
+    name: "Diagnóstico",
+    legacy: "diagnosis",
+  },
+  {
+    id: "00000000-0000-4000-8000-000000000105",
+    name: "Proposta",
+    legacy: "proposal",
+  },
+  {
+    id: "00000000-0000-4000-8000-000000000106",
+    name: "Negociação",
+    legacy: "negotiation",
+  },
+].map((stage, position) => ({ ...stage, position, archivedAt: null }));
+
+function pipelineView() {
+  return {
+    id: pipelineId,
+    name: "Pipeline comercial",
+    isDefault: true,
+    revision: "1",
+    createdAt: "2026-09-01T12:00:00.000Z",
+    updatedAt: "2026-09-01T12:00:00.000Z",
+    stages: pipelineStages.map(({ id, name, position, archivedAt }) => ({
+      id,
+      name,
+      position,
+      archivedAt,
+    })),
+  };
+}
 
 function parseCookies(request: IncomingMessage): Map<string, string> {
   const result = new Map<string, string>();
@@ -313,7 +355,11 @@ async function handleApi(
     return;
   }
   const tenant = tenantRequest(request);
-  if (pathname.startsWith("/api/v1/leads") || pathname === "/api/v1/members") {
+  if (
+    pathname.startsWith("/api/v1/leads") ||
+    pathname.startsWith("/api/v1/pipelines") ||
+    pathname === "/api/v1/members"
+  ) {
     if (!tenant.session) {
       authError(response, 401, "Unauthorized");
       return;
@@ -396,6 +442,108 @@ async function handleApi(
       ETag: `"lead:${leadId}:${leadRevision}"`,
       ...(status === 201 ? { Location: `/api/v1/leads/${leadId}` } : {}),
       ...(replayed ? { "Idempotency-Replayed": "true" } : {}),
+    });
+    return;
+  }
+  if (pathname === "/api/v1/pipelines" && request.method === "GET") {
+    json(response, 200, [pipelineView()]);
+    return;
+  }
+  const dynamicKanbanMatch =
+    /^\/api\/v1\/pipelines\/([0-9a-f-]{36})\/kanban$/iu.exec(pathname);
+  if (dynamicKanbanMatch && request.method === "GET") {
+    if (dynamicKanbanMatch[1] !== pipelineId) {
+      authError(response, 404, "Pipeline not found.");
+      return;
+    }
+    const requestedStageId = requestUrl.searchParams.get("pipelineStageId");
+    const cursor = requestUrl.searchParams.get("cursor");
+    if (requestedStageId && cursor && pipelineContinuationFails) {
+      authError(response, 503, "Pipeline continuation unavailable.");
+      return;
+    }
+    const secondOrganization =
+      tenant.organizationId === "00000000-0000-4000-8000-000000000004";
+    const currentLead = leadDetail(
+      secondOrganization ? secondLeadId : leadId,
+      secondOrganization ? "Lead Segunda" : "Lead Exemplo",
+    );
+    const selectedStages = requestedStageId
+      ? pipelineStages.filter(({ id }) => id === requestedStageId)
+      : pipelineStages;
+    json(response, 200, {
+      pipeline: {
+        id: pipelineId,
+        name: "Pipeline comercial",
+        isDefault: true,
+        revision: "1",
+      },
+      currency: "BRL",
+      expectedValueTotalMinor: "4000000",
+      withoutExpectedValue: 1,
+      columns: selectedStages.map((candidate) => {
+        const currentStage = candidate.id === leadPipelineStageId;
+        const zeroStage = candidate.legacy === "proposal";
+        const missingStage = candidate.legacy === "negotiation";
+        const items = currentStage
+          ? cursor
+            ? [
+                leadListItem(
+                  {
+                    ...currentLead,
+                    id: "00000000-0000-4000-8000-000000000030",
+                    displayName: "Lead Continuação",
+                  },
+                  "1500000",
+                ),
+              ]
+            : [leadListItem(currentLead, leadExpectedValueMinor)]
+          : [];
+        if (!cursor && zeroStage)
+          items.push(
+            leadListItem(
+              leadDetail(
+                "00000000-0000-4000-8000-000000000031",
+                "Oportunidade Valor Zero",
+              ),
+              "0",
+            ),
+          );
+        if (!cursor && missingStage)
+          items.push(
+            leadListItem(
+              leadDetail(
+                "00000000-0000-4000-8000-000000000032",
+                "Oportunidade Sem Valor",
+              ),
+              null,
+            ),
+          );
+        return {
+          stage: {
+            id: candidate.id,
+            name: candidate.name,
+            position: candidate.position,
+          },
+          total:
+            (currentStage ? 2 : 0) +
+            (zeroStage ? 1 : 0) +
+            (missingStage ? 1 : 0),
+          expectedValueTotalMinor: currentStage ? "4000000" : "0",
+          withoutExpectedValue: missingStage ? 1 : 0,
+          items: items.map((item) => ({
+            ...item,
+            pipelineId,
+            pipelineStageId: candidate.id,
+            pipelineName: "Pipeline comercial",
+            pipelineStageName: candidate.name,
+          })),
+          page: {
+            limit: 20,
+            nextCursor: currentStage && !cursor ? "opaque-kanban-cursor" : null,
+          },
+        };
+      }),
     });
     return;
   }
@@ -654,8 +802,19 @@ async function handleApi(
       authError(response, status, "Lead revision conflict.");
       return;
     }
-    const body = (await readJson(request)) as { stage?: string };
-    if (body.stage) leadStage = body.stage;
+    const body = (await readJson(request)) as {
+      stage?: string;
+      pipelineStageId?: string;
+    };
+    if (body.pipelineStageId) {
+      const stage = pipelineStages.find(
+        ({ id }) => id === body.pipelineStageId,
+      );
+      if (stage) {
+        leadPipelineStageId = stage.id;
+        leadStage = stage.legacy;
+      }
+    } else if (body.stage) leadStage = body.stage;
     leadRevision += 1;
     completedPipelineMoves.add(key);
     if (pipelineUncertainOnce) {
@@ -798,6 +957,11 @@ function leadDetail(id: string, displayName: string) {
     responsibleMembershipId: "00000000-0000-4000-8000-000000000003",
     status: "active",
     stage: leadStage,
+    pipelineId,
+    pipelineStageId: leadPipelineStageId,
+    pipelineName: "Pipeline comercial",
+    pipelineStageName:
+      pipelineStages.find(({ id }) => id === leadPipelineStageId)?.name ?? null,
     latestCycleNumber: "1",
     returnReviewPending: false,
     revision: String(leadRevision),
@@ -818,12 +982,18 @@ function leadDetail(id: string, displayName: string) {
       cycleNumber: "1",
       openingReason: "created",
       startingStage: "new",
+      pipelineId,
+      pipelineStageId: leadPipelineStageId,
+      startingPipelineStageId: pipelineStages[0].id,
+      startingStageName: pipelineStages[0].name,
       openedByMembershipId: "00000000-0000-4000-8000-000000000003",
       openedAt: "2026-07-20T12:00:00.000Z",
       closedByMembershipId: null,
       closedAt: null,
       closingStatus: null,
       stageAtClose: null,
+      stageAtClosePipelineStageId: null,
+      stageAtCloseName: null,
       lostReason: null,
       archiveReason: null,
       reasonNote: null,
@@ -852,6 +1022,10 @@ function leadListItem(
     | "responsibleMembershipId"
     | "status"
     | "stage"
+    | "pipelineId"
+    | "pipelineStageId"
+    | "pipelineName"
+    | "pipelineStageName"
     | "latestEntry"
     | "revision"
     | "createdAt"
@@ -868,6 +1042,10 @@ function leadListItem(
     responsibleMembershipId: lead.responsibleMembershipId,
     status: lead.status,
     stage: lead.stage,
+    pipelineId: lead.pipelineId,
+    pipelineStageId: lead.pipelineStageId,
+    pipelineName: lead.pipelineName,
+    pipelineStageName: lead.pipelineStageName,
     expectedValueMinor,
     source: "manual",
     lastEntryAt: lead.latestEntry.receivedAt,
@@ -924,6 +1102,10 @@ function timelineEvent() {
     newStatus: "active",
     previousStage: null,
     newStage: "new",
+    previousPipelineStageId: null,
+    previousStageName: null,
+    newPipelineStageId: "00000000-0000-4000-8000-000000000102",
+    newStageName: "Novo",
     lostReason: null,
     archiveReason: null,
     activityId: null,
@@ -988,6 +1170,7 @@ export async function startWebSessionServer() {
         sequence = 0;
         leadRevision = 3;
         leadStage = "qualification";
+        leadPipelineStageId = pipelineStages[1].id;
         conflictNextLeadMutation = false;
         pipelineContinuationFails = false;
         pipelineConflictStatus = null;

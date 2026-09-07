@@ -19,6 +19,7 @@ export interface HttpRequestOptions {
   csrfToken?: string;
   ifMatch?: string;
   idempotencyKey?: string;
+  leadContract?: "pipeline-v2";
 }
 
 export interface HttpResponse<T> {

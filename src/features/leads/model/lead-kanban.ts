@@ -1,13 +1,11 @@
-import {
-  leadStages,
-  type LeadKanbanFilters,
-  type LeadKanbanResponse,
-  type LeadListItem,
-  type LeadStage,
+import type {
+  DynamicKanbanResponse,
+  LeadListItem,
+  PipelineStage,
 } from "@/features/leads/api/lead-contracts";
 
 export interface LeadKanbanViewColumn {
-  stage: LeadStage;
+  stage: Pick<PipelineStage, "id" | "name" | "position">;
   total: number;
   expectedValueTotalMinor: string;
   withoutExpectedValue: number;
@@ -23,79 +21,36 @@ export interface LeadKanbanSummary {
   currency: "BRL";
 }
 
-interface Candidate {
-  item: LeadListItem;
-  asOf: string;
-}
-
-function newer(candidate: Candidate, current: Candidate): boolean {
-  const candidateRevision = BigInt(candidate.item.revision);
-  const currentRevision = BigInt(current.item.revision);
-  if (candidateRevision !== currentRevision)
-    return candidateRevision > currentRevision;
-  return Date.parse(candidate.asOf) > Date.parse(current.asOf);
-}
-
-export function composeLeadKanbanColumns(
-  pagesByStage: Record<LeadStage, readonly LeadKanbanResponse[]>,
-): LeadKanbanViewColumn[] {
-  const winners = new Map<string, Candidate>();
-  const order = new Map<LeadStage, string[]>(
-    leadStages.map((stage) => [stage, []]),
-  );
-
-  for (const stage of leadStages) {
-    const seenInStage = new Set<string>();
-    for (const response of pagesByStage[stage]) {
-      const column = response.columns.find((item) => item.stage === stage);
-      if (!column) continue;
-      for (const item of column.items) {
-        if (!seenInStage.has(item.id)) {
-          order.get(stage)?.push(item.id);
-          seenInStage.add(item.id);
-        }
-        const candidate = { item, asOf: response.asOf };
-        const current = winners.get(item.id);
-        if (!current || newer(candidate, current))
-          winners.set(item.id, candidate);
-      }
+export function composeDynamicKanbanColumn(
+  stage: Pick<PipelineStage, "id" | "name" | "position">,
+  pages: readonly DynamicKanbanResponse[],
+): LeadKanbanViewColumn {
+  const items = new Map<string, LeadListItem>();
+  for (const page of pages) {
+    const column = page.columns.find((item) => item.stage.id === stage.id);
+    for (const item of column?.items ?? []) {
+      const current = items.get(item.id);
+      if (!current || BigInt(item.revision) > BigInt(current.revision))
+        items.set(item.id, item);
     }
   }
-
-  return leadStages.map((stage) => {
-    const pages = pagesByStage[stage];
-    const latestResponse = pages.reduce<LeadKanbanResponse | undefined>(
-      (latest, candidate) =>
-        !latest || Date.parse(candidate.asOf) > Date.parse(latest.asOf)
-          ? candidate
-          : latest,
-      undefined,
-    );
-    const finalResponse = pages.at(-1);
-    const latestColumn = latestResponse?.columns.find(
-      (column) => column.stage === stage,
-    );
-    const finalColumn = finalResponse?.columns.find(
-      (column) => column.stage === stage,
-    );
-    const items = (order.get(stage) ?? []).flatMap((id) => {
-      const winner = winners.get(id);
-      return winner?.item.stage === stage ? [winner.item] : [];
-    });
-    return {
-      stage,
-      total: latestColumn?.total ?? 0,
-      expectedValueTotalMinor: latestColumn?.expectedValueTotalMinor ?? "0",
-      withoutExpectedValue: latestColumn?.withoutExpectedValue ?? 0,
-      items,
-      nextCursor: finalColumn?.page.nextCursor ?? null,
-      limit: finalColumn?.page.limit ?? 20,
-    };
-  });
+  const first = pages[0]?.columns.find((item) => item.stage.id === stage.id);
+  const last = pages.at(-1)?.columns.find((item) => item.stage.id === stage.id);
+  return {
+    stage,
+    total: first?.total ?? 0,
+    expectedValueTotalMinor: first?.expectedValueTotalMinor ?? "0",
+    withoutExpectedValue: first?.withoutExpectedValue ?? 0,
+    items: [...items.values()].filter(
+      (item) => item.pipelineStageId === stage.id,
+    ),
+    nextCursor: last?.page.nextCursor ?? null,
+    limit: last?.page.limit ?? 20,
+  };
 }
 
 export function composeLeadKanbanSummary(
-  response: LeadKanbanResponse,
+  response: DynamicKanbanResponse,
 ): LeadKanbanSummary {
   return {
     opportunityCount: response.columns.reduce(
@@ -108,12 +63,17 @@ export function composeLeadKanbanSummary(
   };
 }
 
-export function leadMoveDestinations(stage: LeadStage): LeadStage[] {
-  return leadStages.filter((candidate) => candidate !== stage);
+export function activePipelineStages(
+  stages: readonly PipelineStage[],
+): PipelineStage[] {
+  return [...stages]
+    .filter((stage) => stage.archivedAt === null)
+    .sort((left, right) => left.position - right.position);
 }
 
-export function hasActiveKanbanFilters(filters: LeadKanbanFilters): boolean {
-  return Object.entries(filters).some(
-    ([key, value]) => key !== "limit" && value !== undefined && value !== false,
-  );
+export function leadMoveDestinations(
+  stages: readonly Pick<PipelineStage, "id" | "name" | "position">[],
+  currentStageId: string | null,
+) {
+  return stages.filter((stage) => stage.id !== currentStageId);
 }

@@ -7,12 +7,16 @@ import {
   installWebLocks,
   testOrganizations,
 } from "@/test/msw/auth-handlers";
-import { createLeadHandlers, testLeadId } from "@/test/msw/lead-handlers";
+import {
+  createLeadHandlers,
+  testLeadId,
+  testPipelineId,
+} from "@/test/msw/lead-handlers";
 import { server } from "@/test/msw/server";
 
 async function fillMinimum(user: ReturnType<typeof userEvent.setup>) {
   await user.type(
-    screen.getByRole("textbox", { name: /^Nome/iu }),
+    await screen.findByRole("textbox", { name: /^Nome/iu }),
     "Lead Manual",
   );
   await user.type(
@@ -38,6 +42,7 @@ describe("criação manual de Leads", () => {
       await screen.findByRole("heading", { name: "Novo Lead" }),
     ).toBeVisible();
     await fillMinimum(user);
+    await user.selectOptions(screen.getByLabelText("Pipeline"), testPipelineId);
     await user.type(
       screen.getByRole("textbox", { name: "E-mail" }),
       "LEAD@EXAMPLE.TEST",
@@ -67,6 +72,7 @@ describe("criação manual de Leads", () => {
       primaryPhone: "(62) 99999-9999",
       email: "lead@example.test",
       source: "manual",
+      pipelineId: testPipelineId,
       expectedValueMinor: "123450",
     });
     await waitFor(() =>
@@ -100,8 +106,31 @@ describe("criação manual de Leads", () => {
     restoreLocks();
   });
 
+  it("cria Lead sem Pipeline e omite o valor esperado", async () => {
+    const restoreLocks = installWebLocks();
+    let createBody: unknown;
+    server.use(
+      ...createAuthHandlers(),
+      ...createLeadHandlers({
+        onCreate: (_request, body) => (createBody = body),
+      }),
+    );
+    const user = userEvent.setup();
+    await renderAppAt("/app/leads/new");
+
+    await fillMinimum(user);
+    expect(screen.getByLabelText("Pipeline")).toHaveValue("");
+    expect(screen.getByLabelText("Valor da oportunidade")).toBeDisabled();
+    await user.click(screen.getByRole("button", { name: "Criar Lead" }));
+
+    expect(await screen.findByText("Lead criado.")).toBeVisible();
+    expect(createBody).not.toHaveProperty("pipelineId");
+    expect(createBody).not.toHaveProperty("expectedValueMinor");
+    restoreLocks();
+  });
+
   it.each([
-    [false, "Nova entrada registrada em oportunidade existente."],
+    [false, "Nova entrada registrada no Lead existente."],
     [true, "Resultado confirmado."],
   ] as const)(
     "retorna ao Pipeline com feedback verdadeiro para resultado existente replay=%s",
@@ -117,7 +146,9 @@ describe("criação manual de Leads", () => {
       await user.click(screen.getByRole("button", { name: "Criar Lead" }));
 
       expect(await screen.findByText(message)).toBeVisible();
-      expect(app.router.state.location.pathname).toBe("/app/pipeline");
+      expect(app.router.state.location.pathname).toBe(
+        `/app/leads/${testLeadId}`,
+      );
       restoreLocks();
     },
   );
@@ -148,7 +179,7 @@ describe("criação manual de Leads", () => {
     const user = userEvent.setup();
     const app = await renderAppAt("/app/leads/new?from=pipeline");
     await user.type(
-      screen.getByRole("textbox", { name: /^Nome/iu }),
+      await screen.findByRole("textbox", { name: /^Nome/iu }),
       "Rascunho",
     );
 

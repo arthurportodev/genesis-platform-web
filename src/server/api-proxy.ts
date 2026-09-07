@@ -2,6 +2,8 @@ import { isIP } from "node:net";
 
 import {
   GENESIS_IF_MATCH_HEADER_LOWER,
+  GENESIS_LEAD_CONTRACT_HEADER,
+  GENESIS_LEAD_CONTRACT_HEADER_LOWER,
   parseConnectionHeaderTokens,
   resolveGenesisIfMatchTransport,
   type IfMatchTransportRejection,
@@ -77,6 +79,7 @@ export type ProxyRejectionReason =
   | "forwarded_host_mismatch"
   | "forwarded_proto_mismatch"
   | "host_authority_mismatch"
+  | "lead_contract_invalid"
   | "public_api_url_unresolved"
   | "request_body_too_large"
   | "request_body_unreadable"
@@ -448,6 +451,7 @@ function buildUpstreamHeaders(
   clientIp: string,
   dynamic: Set<string>,
   ifMatch: string | undefined,
+  leadContract: "pipeline-v2" | undefined,
 ): Headers {
   const headers = new Headers();
   for (const [name, value] of request.headers) {
@@ -472,6 +476,7 @@ function buildUpstreamHeaders(
   }
   headers.set("Accept-Encoding", "identity");
   if (ifMatch) headers.set("If-Match", ifMatch);
+  if (leadContract) headers.set(GENESIS_LEAD_CONTRACT_HEADER, leadContract);
   headers.set("X-Genesis-Origin-Key", originKey);
   headers.set("X-Genesis-Client-IP", clientIp);
   return headers;
@@ -640,6 +645,28 @@ export async function handleApiProxy(
       400,
     );
   }
+  const rawLeadContract = request.headers.has(
+    GENESIS_LEAD_CONTRACT_HEADER_LOWER,
+  )
+    ? request.headers.get(GENESIS_LEAD_CONTRACT_HEADER_LOWER)
+    : null;
+  const leadContract = rawLeadContract === null ? undefined : rawLeadContract;
+  if (
+    (leadContract !== undefined &&
+      (leadContract !== "pipeline-v2" ||
+        (publicApiUrl.pathname !== "/api/v1/leads" &&
+          !publicApiUrl.pathname.startsWith("/api/v1/leads/")))) ||
+    ifMatchTransport.connectionTokens.has(GENESIS_LEAD_CONTRACT_HEADER_LOWER)
+  ) {
+    return rejectProxyRequest(
+      request,
+      environment,
+      dependencies,
+      requestUrl,
+      "lead_contract_invalid",
+      400,
+    );
+  }
 
   const configuration = resolveConfiguration(environment);
   if (!configuration) {
@@ -727,6 +754,7 @@ export async function handleApiProxy(
         clientIp,
         dynamic,
         ifMatchTransport.ifMatch,
+        leadContract,
       ),
       body,
       redirect: "manual",

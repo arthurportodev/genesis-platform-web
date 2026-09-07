@@ -93,6 +93,12 @@ export function LeadTimeline({ leadId }: { leadId: string }) {
                     : formatBrlMinorUnits(item.newExpectedValueMinor)}
                 </p>
               ) : null}
+              {item.previousStageName || item.newStageName ? (
+                <p className="mt-2 text-sm text-muted-foreground">
+                  {item.previousStageName ?? "Sem Pipeline"} →{" "}
+                  {item.newStageName ?? "Sem Pipeline"}
+                </p>
+              ) : null}
             </Card>
           ))}
           {timeline.hasNextPage ? (

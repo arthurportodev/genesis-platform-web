@@ -29,6 +29,7 @@ describe("Genesis If-Match transport policy", () => {
     ["POST", `/api/v1/leads/${leadId}/next-action/reschedule`],
     ["POST", `/api/v1/leads/${leadId}/next-action/complete`],
     ["POST", `/api/v1/leads/${leadId}/next-action/cancel`],
+    ["POST", `/api/v1/leads/${leadId}/cycles`],
     ["POST", `/api/v1/leads/${leadId}/move`],
     ["POST", `/api/v1/leads/${leadId}/win`],
     ["POST", `/api/v1/leads/${leadId}/lose`],
@@ -113,5 +114,27 @@ describe("Genesis If-Match transport policy", () => {
     expect(
       validateGenesisIfMatch(`"lead:${leadId}:9223372036854775807"`, leadId),
     ).toBe(true);
+  });
+
+  it.each([
+    ["PATCH", `/api/v1/pipelines/${leadId}`],
+    ["PUT", `/api/v1/pipelines/${leadId}/stages/order`],
+    [
+      "PUT",
+      `/api/v1/pipelines/${leadId}/stages/00000000-0000-4000-8000-000000000002`,
+    ],
+    [
+      "PATCH",
+      `/api/v1/pipelines/${leadId}/stages/00000000-0000-4000-8000-000000000002`,
+    ],
+    [
+      "POST",
+      `/api/v1/pipelines/${leadId}/stages/00000000-0000-4000-8000-000000000002/archive`,
+    ],
+  ])("accepts Pipeline concurrency on %s %s", (method, pathname) => {
+    const pipelineToken = `"pipeline:${leadId}:7"`;
+    expect(
+      resolve({ method, pathname, genesisIfMatch: pipelineToken }),
+    ).toMatchObject({ ifMatch: pipelineToken });
   });
 });

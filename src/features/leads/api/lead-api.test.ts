@@ -83,6 +83,7 @@ describe("createLeadApi mutations", () => {
         kind: "idempotent-mutation",
         method: "POST",
         idempotencyKey,
+        leadContract: "pipeline-v2",
         body: input,
       });
       expect(request.mock.calls[0]?.[1]).not.toHaveProperty("ifMatch");
@@ -195,7 +196,10 @@ describe("createLeadApi mutations", () => {
       suffix: "/next-action/cancel",
     },
     {
-      intent: { action: "move", body: { stage: "proposal" } },
+      intent: {
+        action: "move",
+        body: { pipelineStageId: "00000000-0000-4000-8000-000000000105" },
+      },
       suffix: "/move",
     },
     { intent: { action: "win", body: {} }, suffix: "/win" },
@@ -332,7 +336,12 @@ describe("createLeadApi Kanban", () => {
     ).resolves.toEqual(board);
     expect(request).toHaveBeenCalledWith(
       "/api/v1/leads/kanban?limit=20&q=Lead",
-      { kind: "tenant-scoped", method: "GET", signal: controller.signal },
+      {
+        kind: "tenant-scoped",
+        method: "GET",
+        signal: controller.signal,
+        leadContract: "pipeline-v2",
+      },
     );
   });
 
@@ -360,7 +369,10 @@ describe("createLeadApi Kanban", () => {
     await expect(
       api.act(
         current,
-        { action: "move", body: { stage: "proposal" } },
+        {
+          action: "move",
+          body: { pipelineStageId: "00000000-0000-4000-8000-000000000105" },
+        },
         createIdempotencyKey(),
       ),
     ).resolves.toEqual({ etag: '"receipt-opaco"', replayed: true });
@@ -446,6 +458,7 @@ describe("createLeadApi work queues", () => {
       kind: "tenant-scoped",
       method: "GET",
       signal: controller.signal,
+      leadContract: "pipeline-v2",
     });
   });
 });

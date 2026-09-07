@@ -4,8 +4,8 @@ import { CalendarClock, Clock3, UserRound } from "lucide-react";
 
 import type {
   LeadListItem,
-  LeadStage,
   Member,
+  PipelineStage,
 } from "@/features/leads/api/lead-contracts";
 import { leadCapabilities } from "@/features/leads/api/lead-capabilities";
 import {
@@ -27,6 +27,7 @@ function nextActionTypeLabel(value: string): string {
 
 type LeadKanbanCardProps = {
   lead: LeadListItem;
+  stages: readonly Pick<PipelineStage, "id" | "name" | "position">[];
   instance: "mobile" | "desktop";
   members: readonly Member[];
   organization: ActiveOrganization;
@@ -34,7 +35,8 @@ type LeadKanbanCardProps = {
   movesDisabled: boolean;
   onMove: (
     lead: LeadListItem,
-    targetStage: LeadStage,
+    targetStageId: string,
+    targetStageName: string,
     focusTarget: HTMLElement | null,
   ) => Promise<void>;
 };
@@ -49,6 +51,7 @@ function LeadKanbanCardBody({
   lead,
   members,
   organization,
+  stages,
   processing,
   movesDisabled,
   onMove,
@@ -96,6 +99,7 @@ function LeadKanbanCardBody({
           </div>
           <LeadMoveControl
             lead={lead}
+            stages={stages}
             canMove={canMove}
             moveDisabled={processing || movesDisabled}
             detailAction={
@@ -107,8 +111,8 @@ function LeadKanbanCardBody({
                 Abrir detalhe
               </Link>
             }
-            onConfirm={(targetStage, focusTarget) =>
-              onMove(lead, targetStage, focusTarget)
+            onConfirm={(targetStageId, targetStageName, focusTarget) =>
+              onMove(lead, targetStageId, targetStageName, focusTarget)
             }
           />
         </div>

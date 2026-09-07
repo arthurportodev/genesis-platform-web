@@ -5,9 +5,11 @@ import { useEffect, useMemo, useState } from "react";
 import { LeadActions } from "@/features/leads/components/LeadActions";
 import { LeadOverview } from "@/features/leads/components/LeadOverview";
 import { LeadTimeline } from "@/features/leads/components/LeadTimeline";
+import { StartLeadCycleDialog } from "@/features/leads/components/StartLeadCycleDialog";
 import {
   useLeadAssigneesQuery,
   useLeadDetailQuery,
+  usePipelinesQuery,
 } from "@/features/leads/hooks/use-lead-queries";
 import { toAppError } from "@/shared/api/errors";
 import { OperationalState } from "@/shared/components/OperationalState";
@@ -41,6 +43,7 @@ export function LeadDetailPage() {
     organization.role === "owner" || organization.role === "admin";
   const detail = useLeadDetailQuery(leadId ?? "");
   const assignees = useLeadAssigneesQuery(canUseDirectory);
+  const pipelines = usePipelinesQuery();
   const members = useMemo(
     () => assignees.data?.pages.flatMap((page) => page.items) ?? [],
     [assignees.data],
@@ -139,6 +142,9 @@ export function LeadDetailPage() {
         members={members}
         currentMembershipId={organization.membershipId}
       />
+      {lead.latestCycle === null && pipelines.data ? (
+        <StartLeadCycleDialog current={current} pipelines={pipelines.data} />
+      ) : null}
       <LeadActions
         current={current}
         members={members}
@@ -146,6 +152,7 @@ export function LeadDetailPage() {
         hasMoreMembers={assignees.hasNextPage === true}
         loadingMoreMembers={assignees.isFetchingNextPage}
         onLoadMoreMembers={() => void assignees.fetchNextPage()}
+        pipelines={pipelines.data ?? []}
       />
       <LeadTimeline leadId={lead.id} />
     </div>

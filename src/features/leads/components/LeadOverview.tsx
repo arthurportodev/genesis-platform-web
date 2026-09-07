@@ -11,7 +11,6 @@ import type { LeadDetail, Member } from "@/features/leads/api/lead-contracts";
 import {
   formatDateTime,
   responsibleLabel,
-  stageLabels,
   statusLabels,
   temporalLabels,
 } from "@/features/leads/api/lead-labels";
@@ -42,7 +41,8 @@ export function LeadOverview({
           <div className="flex flex-wrap items-center gap-2">
             <CardTitle>Informações principais</CardTitle>
             <Badge variant={lead.status === "active" ? "info" : "neutral"}>
-              {statusLabels[lead.status]} · {stageLabels[lead.stage]}
+              {statusLabels[lead.status]} ·{" "}
+              {lead.pipelineStageName ?? "Sem Pipeline"}
             </Badge>
             {lead.returnReviewPending ? (
               <Badge variant="warning">Retorno pendente</Badge>
@@ -89,6 +89,11 @@ export function LeadOverview({
             icon={CalendarClock}
             label="Última entrada"
             value={formatDateTime(lead.latestEntry.receivedAt)}
+          />
+          <Info
+            icon={CalendarClock}
+            label="Pipeline"
+            value={lead.pipelineName ?? "Sem Pipeline"}
           />
           <div className="sm:col-span-2">
             <p className="text-xs font-medium text-muted-foreground">
@@ -142,7 +147,9 @@ export function LeadOverview({
           <CardContent>
             <p className="text-2xl font-bold">{lead.counts.cycles}</p>
             <p className="text-sm text-muted-foreground">
-              Ciclo atual #{lead.latestCycle.cycleNumber}
+              {lead.latestCycle
+                ? `Ciclo atual #${lead.latestCycle.cycleNumber}`
+                : "Nenhum ciclo comercial ativo"}
             </p>
             {cycleItems.length > 1 ? (
               <details className="mt-3 text-sm">
@@ -153,6 +160,7 @@ export function LeadOverview({
                   {cycleItems.map((cycle) => (
                     <li key={cycle.id}>
                       #{cycle.cycleNumber} · {formatDateTime(cycle.openedAt)}
+                      {` · ${cycle.startingStageName}`}
                       {cycle.closingStatus
                         ? ` · ${statusLabels[cycle.closingStatus]}`
                         : " · aberto"}

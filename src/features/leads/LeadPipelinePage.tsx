@@ -1,18 +1,15 @@
-import { Link } from "@tanstack/react-router";
+import { Link, useNavigate, useSearch } from "@tanstack/react-router";
 import { Plus, RefreshCw } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
-import type { LeadKanbanFilters as LeadKanbanFilterValues } from "@/features/leads/api/lead-contracts";
-import {
-  canonicalLeadKanbanFilters,
-  leadSearchMessage,
-  normalizedLeadSearch,
-} from "@/features/leads/api/lead-filters";
 import { LeadKanban } from "@/features/leads/components/LeadKanban";
-import { LeadKanbanFilters } from "@/features/leads/components/LeadKanbanFilters";
 import { LeadMoveFeedback } from "@/features/leads/components/LeadMoveFeedback";
+import { PipelineConfiguration } from "@/features/leads/components/PipelineConfiguration";
 import { useLeadKanbanBoard } from "@/features/leads/hooks/use-lead-kanban";
-import { useLeadAssigneesQuery } from "@/features/leads/hooks/use-lead-queries";
+import {
+  useLeadAssigneesQuery,
+  usePipelinesQuery,
+} from "@/features/leads/hooks/use-lead-queries";
 import { useLeadNavigationState } from "@/features/leads/model/lead-navigation-state";
 import { useLeadPipelineState } from "@/features/leads/model/lead-pipeline-state";
 import { formatBrlMinorUnits } from "@/features/leads/model/lead-money";
@@ -20,9 +17,10 @@ import { toAppError } from "@/shared/api/errors";
 import { OperationalState } from "@/shared/components/OperationalState";
 import { PageHeader } from "@/shared/components/PageHeader";
 import { cn } from "@/shared/lib/cn";
-import { useDebouncedValue } from "@/shared/lib/use-debounced-value";
 import { useActiveOrganization } from "@/shared/organization/active-organization";
 import { Button, buttonVariants } from "@/shared/ui/Button";
+import { Label } from "@/shared/ui/Label";
+import { Select } from "@/shared/ui/Select";
 
 function pipelineErrorMessage(error: unknown): string {
   const appError = toAppError(error);
@@ -37,47 +35,92 @@ function pipelineErrorMessage(error: unknown): string {
 
 export function LeadPipelinePage() {
   const organization = useActiveOrganization();
+  const search = useSearch({ from: "/app/pipeline" });
+  const navigate = useNavigate({ from: "/app/pipeline" });
   const state = useLeadPipelineState();
   const navigation = useLeadNavigationState();
   const [creationNotice] = useState(navigation.creationNotice);
-  useEffect(() => {
-    if (creationNotice) navigation.clearCreationNotice();
-  }, [creationNotice, navigation]);
-  const canUseDirectory =
-    organization.role === "owner" || organization.role === "admin";
-  const debouncedSearch = useDebouncedValue(state.search, 350);
-  const searchCanQuery = leadSearchMessage(debouncedSearch) === null;
-  const queryFilters = useMemo(
-    () =>
-      canonicalLeadKanbanFilters({
-        ...state.filters,
-        q: normalizedLeadSearch(debouncedSearch),
-      }),
-    [debouncedSearch, state.filters],
+  const pipelines = usePipelinesQuery();
+  const selectedPipeline = useMemo(() => {
+    if (!pipelines.data) return undefined;
+    return (
+      pipelines.data.find((pipeline) => pipeline.id === search.pipelineId) ??
+      pipelines.data.find((pipeline) => pipeline.isDefault) ??
+      pipelines.data[0]
+    );
+  }, [pipelines.data, search.pipelineId]);
+  const board = useLeadKanbanBoard(
+    selectedPipeline?.id ?? "",
+    Boolean(selectedPipeline),
   );
-  const board = useLeadKanbanBoard(queryFilters, searchCanQuery);
   const move = state.move;
-  const assignees = useLeadAssigneesQuery(canUseDirectory);
+  const canConfigure =
+    organization.role === "owner" || organization.role === "admin";
+  const assignees = useLeadAssigneesQuery(canConfigure);
   const members = useMemo(
     () => assignees.data?.pages.flatMap((page) => page.items) ?? [],
     [assignees.data],
   );
 
-  const changeFilters = (filters: LeadKanbanFilterValues) => {
-    state.setFilters(canonicalLeadKanbanFilters(filters));
-  };
+  useEffect(() => {
+    if (creationNotice) navigation.clearCreationNotice();
+  }, [creationNotice, navigation]);
+  useEffect(() => {
+    if (
+      search.pipelineId &&
+      pipelines.data &&
+      !pipelines.data.some((pipeline) => pipeline.id === search.pipelineId) &&
+      selectedPipeline
+    ) {
+      void navigate({
+        search: { pipelineId: selectedPipeline.id },
+        replace: true,
+      });
+    }
+  }, [navigate, pipelines.data, search.pipelineId, selectedPipeline]);
+
+  if (pipelines.isPending)
+    return (
+      <div className="space-y-6">
+        <PageHeader
+          eyebrow="Vendas"
+          title="Pipeline"
+          description="Acompanhe oportunidades por etapa e mova cada Lead com confirmação do servidor."
+        />
+        <OperationalState
+          kind="loading"
+          title="Carregando Pipelines"
+          description="Consultando os Pipelines da Organization ativa."
+        />
+      </div>
+    );
+  if (pipelines.isError || !selectedPipeline)
+    return (
+      <div className="space-y-6">
+        <PageHeader
+          eyebrow="Vendas"
+          title="Pipeline"
+          description="Acompanhe oportunidades por etapa e mova cada Lead com confirmação do servidor."
+        />
+        <OperationalState
+          kind="error"
+          title="Pipelines indisponíveis"
+          description={pipelineErrorMessage(pipelines.error)}
+        />
+      </div>
+    );
 
   return (
     <div className="space-y-6">
       <PageHeader
         eyebrow="Vendas"
         title="Pipeline"
-        description="Acompanhe Leads ativos por etapa e mova oportunidades com verificação de versão."
+        description="Acompanhe oportunidades por etapa e mova cada Lead com confirmação do servidor."
         action={
           <div className="flex flex-wrap gap-3">
             <Link
               to="/app/leads/new"
-              search={{ from: "pipeline" }}
+              search={{ from: "pipeline", pipelineId: selectedPipeline.id }}
               className={cn(buttonVariants(), "min-h-11")}
             >
               <Plus className="size-4" aria-hidden="true" /> Nova oportunidade
@@ -98,6 +141,26 @@ export function LeadPipelinePage() {
         }
       />
 
+      <div className="max-w-md space-y-2">
+        <Label htmlFor="pipeline-selector">Pipeline atual</Label>
+        <Select
+          id="pipeline-selector"
+          className="min-h-11"
+          value={selectedPipeline.id}
+          onChange={(event) => {
+            state.setMobileStage(null);
+            void navigate({ search: { pipelineId: event.target.value } });
+          }}
+        >
+          {pipelines.data.map((pipeline) => (
+            <option key={pipeline.id} value={pipeline.id}>
+              {pipeline.name}
+              {pipeline.isDefault ? " · padrão" : ""}
+            </option>
+          ))}
+        </Select>
+      </div>
+
       {creationNotice && creationNotice !== "lead-submission-received" ? (
         <p
           className="rounded-lg border border-success/20 bg-success/10 p-3 text-sm"
@@ -107,30 +170,8 @@ export function LeadPipelinePage() {
           {creationNotice === "lead-created"
             ? "Oportunidade criada."
             : creationNotice === "lead-existing-entry-recorded"
-              ? "Nova entrada registrada em oportunidade existente."
+              ? "Nova entrada registrada no Lead existente. Use o detalhe para adicioná-lo ao Pipeline, se necessário."
               : "Resultado confirmado."}
-        </p>
-      ) : null}
-
-      <LeadKanbanFilters
-        search={state.search}
-        filters={state.filters}
-        members={members}
-        canUseDirectory={canUseDirectory}
-        hasMoreMembers={assignees.hasNextPage === true}
-        loadingMoreMembers={assignees.isFetchingNextPage}
-        onSearchChange={(value) => state.setSearch(value)}
-        onFiltersChange={changeFilters}
-        onLoadMoreMembers={() => void assignees.fetchNextPage()}
-      />
-
-      {canUseDirectory && assignees.isError ? (
-        <p
-          className="rounded-lg border border-warning/20 bg-warning/10 p-3 text-sm"
-          role="status"
-        >
-          O diretório de responsáveis está indisponível. O Pipeline continua
-          disponível com rótulos protegidos.
         </p>
       ) : null}
 
@@ -141,21 +182,12 @@ export function LeadPipelinePage() {
         onClose={() => move.clearFeedback()}
       />
 
-      {!searchCanQuery ? (
-        <OperationalState
-          kind="empty"
-          compact
-          title="Complete a busca"
-          description={
-            leadSearchMessage(debouncedSearch) ?? "Revise a busca informada."
-          }
-        />
-      ) : board.initial.isPending ? (
+      {board.initial.isPending ? (
         <OperationalState
           kind="loading"
           compact
           title="Carregando Pipeline"
-          description="Consultando as cinco etapas da Organization ativa."
+          description={`Consultando as etapas de ${selectedPipeline.name}.`}
         />
       ) : board.initial.isError ? (
         <section
@@ -212,19 +244,38 @@ export function LeadPipelinePage() {
             </section>
           ) : null}
           <LeadKanban
+            pipelineId={selectedPipeline.id}
+            stages={board.stages}
             columns={board.columns}
             members={members}
             organization={organization}
             busyLeadId={move.busyLeadId}
             movesDisabled={move.phase !== "idle"}
             mobileStage={state.mobileStage}
-            onMobileStageChange={(stage) => state.setMobileStage(stage)}
-            onMove={(lead, targetStage, focusTarget) =>
-              move.confirmMove(lead, targetStage, focusTarget)
+            onMobileStageChange={state.setMobileStage}
+            onMove={(lead, targetStageId, targetStageName, focusTarget) =>
+              move.confirmMove(
+                lead,
+                targetStageId,
+                targetStageName,
+                selectedPipeline.id,
+                focusTarget,
+              )
             }
           />
         </div>
       )}
+
+      {canConfigure ? (
+        <PipelineConfiguration
+          key={`${selectedPipeline.id}:${selectedPipeline.revision}`}
+          pipeline={selectedPipeline}
+          onPipelineCreated={(pipelineId) => {
+            state.setMobileStage(null);
+            void navigate({ search: { pipelineId } });
+          }}
+        />
+      ) : null}
     </div>
   );
 }

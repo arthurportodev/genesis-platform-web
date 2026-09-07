@@ -1,6 +1,6 @@
 # ADR-013 — Arquitetura de experiência do Pipeline V2
 
-- Estado: Accepted — Gate 1 da PIPE-V2-04 aprovado em 2026-09-06
+- Estado: Accepted — atualizado para Pipelines dinâmicos na PIPE-V2-06
 - Data: 2026-08-25
 - Revisa parcialmente: ADR-004
 - Complementa: ADR-007, ADR-011 e ADR-012
@@ -138,31 +138,41 @@ fallback e experiência mobile. Fechar restaura foco no card de origem. Busca,
 filtros e PII do formulário não são persistidos em URL ou storage para produzir
 essa navegação.
 
-### Fronteira de estágios
+### Pipelines e estágios dinâmicos
 
-Os cinco estágios canônicos e seus valores de contrato permanecem no primeiro
-release. Este ADR não cria `PipelineStage`, não substitui enums e não altera o
-banco ou a API de movimento.
+O Pipeline selecionado é representado por
+`/app/pipeline?pipelineId=<uuid>`. O URL é a autoridade da seleção; na ausência
+de ID ou diante de um ID inválido para a Organization, a experiência usa o
+Pipeline default. Não há persistência client-side adicional.
 
-Novos componentes de apresentação não devem incorporar novas enumerações dos
-cinco estágios. Uma fronteira de catálogo/descriptor ordenado, derivada do
-contrato canônico atual, fornece identidade, label e posição para o board. O
-board e suas colunas recebem uma coleção ordenada em vez de assumir quantidade
-fixa na composição visual. Queries e contratos só deixam de ser estáticos
-quando existir API dinâmica aprovada.
+O board recebe da API as etapas ativas do Pipeline selecionado, ordenadas por
+`position`. `pipelineStageId` é a identidade estrutural de colunas, destinos de
+movimento e controles de configuração; o nome é apresentação. Um card só pode
+pertencer ao Pipeline e à etapa declarados pelo agregado. Movimento entre
+Pipelines não é uma operação de DnD.
 
-Estágios configuráveis por Organization pertencem oficialmente ao roadmap do
-Pipeline V2, mas formam programa Critical posterior. Esse programa exigirá ADR
-próprio, entidade tenant-scoped, IDs estáveis, posição, ativo/inativo, estágio
-inicial e alvo de reativação, snapshot do nome histórico e migration estrutural.
-Uma etapa com oportunidades ativas não poderá ser removida; a primeira versão
-permitirá desativação somente quando vazia, salvo operação atômica explícita de
-migração aprovada depois.
+Owner e admin podem criar e renomear Pipelines e criar, renomear, reordenar e
+arquivar etapas pela superfície compacta do próprio Pipeline. A criação de um
+Pipeline envia nome e ao menos uma etapa numa única intenção. Reordenação usa
+controles explícitos de subir e descer; o DnD permanece reservado aos cards.
+Members podem ler e alternar entre Pipelines conforme autorização da API.
+
+Arquivar não remove histórico e não move oportunidades. A API bloqueia etapa
+com ciclo aberto, último estágio ativo, revisão obsoleta ou escopo divergente.
+Eventos históricos exibem os snapshots de nome retornados pela API, sem
+reconstrução a partir do nome atual da etapa.
+
+Um Lead ativo pode não possuir ciclo comercial ativo. Nesse estado, o detalhe
+continua permitindo editar informações do Lead, apresenta `Sem Pipeline` e
+oculta ações dependentes de ciclo. `Adicionar ao Pipeline` inicia explicitamente
+um ciclo no primeiro estágio ativo por intenção condicional e idempotente.
+Valor esperado permanece propriedade do ciclo e não é enviado na criação de
+Lead sem Pipeline.
 
 ### Estado, ordenação e limites
 
-Busca, filtros, estágio mobile e cache tenant-scoped continuam com o modelo em
-memória atual. Nenhum novo uso de localStorage/sessionStorage é autorizado.
+Seleção de Pipeline, estágio mobile e cache tenant-scoped continuam com o modelo
+em memória atual. Nenhum novo uso de localStorage/sessionStorage é autorizado.
 Painel lateral preserva o board montado; se navegação completa continuar, a
 preservação de scroll interno poderá ser adicionada em memória.
 
@@ -171,9 +181,8 @@ ordenação operacional por próxima ação depende de validação de uso real e
 uma iniciativa posterior de contrato/cursor. Reorder manual e ordenação por
 valor também ficam fora do escopo.
 
-Este ADR não autoriza mudança de valor/backend, migration, DnD dependency,
-redesign de produto, painel, estágio dinâmico, sorting, sidebar, deploy ou
-operação remota. Cada capacidade exige tarefa e gate próprios.
+Este ADR não autoriza mudança de valor/backend, migration, redesign de produto,
+painel, sorting, sidebar, deploy ou operação remota.
 
 ## Alternativas consideradas
 
@@ -189,8 +198,10 @@ operação remota. Cada capacidade exige tarefa e gate próprios.
   página robusta existente preserva integralmente o formulário e suas garantias
   com menor delta e sem duplicação de layout ou lógica.
 - **Detalhe somente em estado local:** rejeitado por quebrar Back e deep link.
-- **Estágios dinâmicos no primeiro release:** rejeitados por misturar evolução
-  de experiência com migration estrutural e histórico.
+- **Estado global ou storage para o Pipeline atual:** rejeitado porque o URL já
+  fornece deep link, refresh e navegação previsíveis.
+- **DnD para ordenar etapas:** rejeitado porque controles direcionais atendem ao
+  escopo com menos interação e sem um segundo protocolo de drag.
 - **Alterar o shell global pelo Pipeline:** rejeitado por ampliar regressão e
   ownership além da feature.
 
@@ -203,21 +214,18 @@ operação remota. Cada capacidade exige tarefa e gate próprios.
   exibir totals.
 - A nova entrada do Pipeline reutiliza a página completa de criação sem extração
   ou duplicação; o detalhe lateral permanece uma capacidade futura separada.
-- A fronteira de catálogo reduz novos acoplamentos, mas não finge que estágios
-  já são dinâmicos.
-- Sidebar, sorting e programa de estágios continuam iniciativas separadas.
-- Este ADR produz arquitetura implementável para Gate 1, sem declarar nenhuma
-  capacidade nova como entregue.
+- IDs estáveis separam estrutura atual de nomes históricos apresentados na
+  timeline.
+- Leads sem ciclo deixam de ser representados artificialmente como oportunidade.
+- Sidebar, sorting e outras ampliações continuam iniciativas separadas.
 
 ## Relações
 
-- **ADR-004:** permanecem válidos os cinco estágios do primeiro release, carga
-  agregada, queries híbridas, paginação, deduplicação, totals backend,
-  server-confirmation, ausência de optimistic update, snapshot compatível,
-  idempotência, conflito, resultado incerto, invalidação e autoridade backend.
-  Deixam de ser decisões duráveis a substituição permanente de DnD pelo controle
-  e a composição fixa do conteúdo dos cards. “Nenhuma dependência” continua
-  fato histórico do ADR-004, não restrição ao spike futuro.
+- **ADR-004:** permanecem válidos carga agregada, paginação, deduplicação, totals
+  backend, server-confirmation, ausência de optimistic update, snapshot
+  compatível, idempotência, conflito, resultado incerto, invalidação e autoridade
+  backend. Os cinco valores legados deixam de definir a estrutura visual do
+  board, que passa a seguir os Pipelines e estágios retornados pela API.
 - **ADR-007:** preservado, exceto pela disponibilidade da mesma criação manual
   reutilizada a partir do Pipeline além da Inbox.
 - **ADR-011:** preserva a prova restrita strong/weak do snapshot; este ADR não
@@ -226,11 +234,10 @@ operação remota. Cada capacidade exige tarefa e gate próprios.
   DnD usa o mesmo cliente/mutation e não contorna esse transporte.
 - O ADR API de valor esperado no ciclo comercial permanece a autoridade para
   valor em cards, totals e criação manual.
-- Um ADR específico de estágios configuráveis só será criado quando o programa
-  correspondente for autorizado.
 
 ## Implementação
 
-A entrada de criação pela página completa existente pertence à PIPE-V2-04. As
-demais capacidades descritas continuam dependentes de tarefas pequenas,
-aprovação humana e seus gates específicos.
+A entrada de criação continua reutilizando a página completa. A PIPE-V2-06
+substitui no board a autoridade do catálogo legado pela API de Pipelines,
+mantendo o mesmo fluxo de movimento condicional, idempotente e confirmado pelo
+servidor.
