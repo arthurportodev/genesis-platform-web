@@ -64,10 +64,16 @@ async function login(
 
 async function preparePipelineMove(page: Page) {
   const trigger = page.getByRole("button", {
-    name: /Mover Lead Exemplo para outra etapa/iu,
+    name: /Ações de Lead Exemplo/iu,
   });
   await trigger.focus();
   await page.keyboard.press("Enter");
+  await expect(
+    page.getByRole("menuitem", { name: "Abrir detalhe" }),
+  ).toBeVisible();
+  const moveTo = page.getByRole("menuitem", { name: "Mover para" });
+  await moveTo.focus();
+  await page.keyboard.press("ArrowRight");
   const destination = page.getByRole("menuitem", { name: "Proposta" });
   await expectTouchTarget(destination);
   await destination.focus();
@@ -702,6 +708,10 @@ test("Pipeline desktop busca, pagina uma coluna e volta do detalhe", async ({
     page.getByRole("heading", { name: "Pipeline", exact: true }),
   ).toBeVisible();
   await expect(page.getByTestId("pipeline-desktop-board")).toBeVisible();
+  const sidebar = page.locator("aside.admin-sidebar-theme");
+  await expect(sidebar).toBeVisible();
+  await expect(sidebar).toHaveCSS("--surface", "#111827");
+  await expect(page.locator("main")).toHaveCSS("--surface", "#fff");
   for (const stage of [
     "Novo",
     "Qualificação",
@@ -735,10 +745,12 @@ test("Pipeline desktop busca, pagina uma coluna e volta do detalhe", async ({
   await expect(page.getByText("Lead Continuação")).toBeVisible();
   await page.getByLabel("Buscar").fill("Lead Exemplo");
   await expect(page.getByText("Lead Exemplo").first()).toBeVisible();
-  await page
+  const leadActions = page
     .getByRole("article", { name: "Lead Exemplo", exact: true })
-    .getByRole("link", { name: "Abrir detalhe" })
-    .click();
+    .getByRole("button", { name: "Ações de Lead Exemplo" });
+  await leadActions.focus();
+  await page.keyboard.press("Enter");
+  await page.getByRole("menuitem", { name: "Abrir detalhe" }).click();
   await expect(page).toHaveURL(
     new RegExp(`/app/leads/${leadIdForTest()}$`, "u"),
   );
@@ -753,6 +765,134 @@ test("Pipeline desktop busca, pagina uma coluna e volta do detalhe", async ({
   await expect(
     page.getByRole("link", { name: "Voltar para a Inbox" }),
   ).toBeVisible();
+});
+
+test("Pipeline move por pointer desktop e mantém scroll do board", async ({
+  page,
+}) => {
+  await login(page, "owner@example.test", "/app/pipeline");
+  const board = page.getByTestId("pipeline-desktop-board");
+  const source = page.getByRole("article", {
+    name: "Lead Exemplo",
+    exact: true,
+  });
+  const target = page.locator(
+    '[aria-labelledby="pipeline-column-desktop-diagnosis"]',
+  );
+  await expect(source).toHaveAttribute("data-draggable", "true");
+  await expect(board).toHaveCSS("overflow-x", "auto");
+  await expect(target.locator(".overflow-y-auto")).toHaveCSS(
+    "overflow-y",
+    "auto",
+  );
+
+  const sourceBox = await source.boundingBox();
+  const targetBox = await target.boundingBox();
+  if (!sourceBox || !targetBox)
+    throw new Error("Board desktop não mensurável.");
+  await page.mouse.move(
+    sourceBox.x + sourceBox.width / 2,
+    sourceBox.y + Math.min(sourceBox.height - 20, 40),
+  );
+  await page.mouse.down();
+  await page.mouse.move(
+    targetBox.x + targetBox.width / 2,
+    targetBox.y + Math.min(targetBox.height - 20, 220),
+    { steps: 12 },
+  );
+  await expect(source).toHaveAttribute("data-dragging", "true");
+  await expect(target).toHaveAttribute("data-drop-target", "true");
+  await page.mouse.up();
+
+  await expect(page.getByText("Lead movido com sucesso.")).toBeVisible();
+  await expect(target.getByText("Lead Exemplo")).toBeVisible();
+});
+
+test("Pipeline ignora drops na mesma etapa e fora do board", async ({
+  page,
+}) => {
+  let moveRequests = 0;
+  page.on("request", (request) => {
+    if (/\/api\/v1\/leads\/[^/]+\/move$/u.test(request.url())) {
+      moveRequests += 1;
+    }
+  });
+  await login(page, "owner@example.test", "/app/pipeline");
+  const source = page.getByRole("article", {
+    name: "Lead Exemplo",
+    exact: true,
+  });
+  const sourceColumn = page.locator(
+    '[aria-labelledby="pipeline-column-desktop-qualification"]',
+  );
+  const sourceBox = await source.boundingBox();
+  const columnBox = await sourceColumn.boundingBox();
+  if (!sourceBox || !columnBox)
+    throw new Error("Board desktop não mensurável.");
+  const sourcePoint = {
+    x: sourceBox.x + sourceBox.width / 2,
+    y: sourceBox.y + Math.min(sourceBox.height - 20, 40),
+  };
+
+  await page.mouse.move(sourcePoint.x, sourcePoint.y);
+  await page.mouse.down();
+  await page.mouse.move(
+    columnBox.x + columnBox.width / 2,
+    columnBox.y + Math.min(columnBox.height - 20, 180),
+    { steps: 8 },
+  );
+  await page.mouse.up();
+  await expect(source).not.toHaveAttribute("data-dragging", "true");
+
+  await page.mouse.move(sourcePoint.x, sourcePoint.y);
+  await page.mouse.down();
+  await page.mouse.move(20, 100, { steps: 8 });
+  await page.mouse.up();
+  await expect(source).not.toHaveAttribute("data-dragging", "true");
+  expect(moveRequests).toBe(0);
+});
+
+test("Pipeline cancela drag por Escape e controles Radix não o ativam", async ({
+  page,
+}) => {
+  let moveRequests = 0;
+  page.on("request", (request) => {
+    if (/\/api\/v1\/leads\/[^/]+\/move$/u.test(request.url())) {
+      moveRequests += 1;
+    }
+  });
+  await login(page, "owner@example.test", "/app/pipeline");
+  const source = page.getByRole("article", {
+    name: "Lead Exemplo",
+    exact: true,
+  });
+  await source.focus();
+  await page.keyboard.press("Space");
+  await expect(source).toHaveAttribute("data-dragging", "true");
+  await page.keyboard.press("Escape");
+  await expect(source).not.toHaveAttribute("data-dragging", "true");
+  await expect(source).toBeFocused();
+
+  const moveTrigger = source.getByRole("button", {
+    name: /Ações de Lead Exemplo/iu,
+  });
+  await moveTrigger.click();
+  await expect(
+    page.getByRole("menuitem", { name: "Abrir detalhe" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("menuitem", { name: "Mover para" }),
+  ).toBeVisible();
+  await expect(
+    page
+      .locator(
+        '[data-draggable="true"][aria-labelledby="pipeline-lead-desktop-00000000-0000-4000-8000-000000000010"]:not([data-dnd-placeholder])',
+      )
+      .first(),
+  ).not.toHaveAttribute("data-dragging", "true");
+  await page.keyboard.press("Escape");
+  await expect(moveTrigger).toBeFocused();
+  expect(moveRequests).toBe(0);
 });
 
 test("Pipeline mobile mostra uma coluna, filtros em Sheet e touch targets", async ({
@@ -796,9 +936,16 @@ test("Pipeline mobile mostra uma coluna, filtros em Sheet e touch targets", asyn
   const filters = page.getByRole("button", { name: "Filtros" });
   await expectTouchTarget(filters);
   await expectTouchTarget(page.getByRole("button", { name: "Atualizar" }));
-  await expectTouchTarget(
-    page.getByRole("button", { name: /Mover Lead Exemplo/iu }),
-  );
+  const leadActions = page.getByRole("button", {
+    name: /Ações de Lead Exemplo/iu,
+  });
+  await expectTouchTarget(leadActions);
+  await leadActions.click();
+  await expect(
+    page.getByRole("menuitem", { name: "Mover para" }),
+  ).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(leadActions).toBeFocused();
   await filters.click();
   const sheet = page.getByRole("dialog", { name: "Filtros do Pipeline" });
   await expect(sheet).toBeVisible();
@@ -812,6 +959,12 @@ test("Pipeline mobile mostra uma coluna, filtros em Sheet e touch targets", asyn
   ]) {
     await expectTouchTarget(control);
   }
+  await sheet.getByRole("button", { name: "Fechar menu" }).click();
+  await page.getByRole("button", { name: "Abrir menu", exact: true }).click();
+  const mainMenu = page.getByRole("dialog", { name: "Menu principal" });
+  await expect(mainMenu).toBeVisible();
+  await expect(mainMenu).toHaveCSS("--surface", "#111827");
+  await mainMenu.getByRole("button", { name: "Fechar menu" }).click();
 });
 
 test("move server-confirmed por teclado e posiciona foco no destino", async ({
@@ -829,7 +982,7 @@ test("move server-confirmed por teclado e posiciona foco no destino", async ({
     page.locator('[data-pipeline-column-heading="proposal"]:visible'),
   ).toBeFocused();
   await expect(
-    page.getByRole("button", { name: /Mover Lead Exemplo/iu }),
+    page.getByRole("button", { name: /Ações de Lead Exemplo/iu }),
   ).toBeEnabled();
 });
 

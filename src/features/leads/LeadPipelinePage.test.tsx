@@ -2,7 +2,11 @@ import { act, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import { renderAppAt } from "@/test/renderApp";
-import { createAuthHandlers, installWebLocks } from "@/test/msw/auth-handlers";
+import {
+  createAuthHandlers,
+  installWebLocks,
+  testOrganizations,
+} from "@/test/msw/auth-handlers";
 import { createLeadHandlers, testLeadId } from "@/test/msw/lead-handlers";
 import { server } from "@/test/msw/server";
 
@@ -10,11 +14,21 @@ async function openMove(user: ReturnType<typeof userEvent.setup>) {
   await user.click(
     (
       await screen.findAllByRole("button", {
-        name: /Mover Lead Exemplo para outra etapa/iu,
+        name: /Ações de Lead Exemplo/iu,
       })
     )[0],
   );
-  await user.click(await screen.findByRole("menuitem", { name: /Proposta/iu }));
+  expect(
+    await screen.findByRole("menuitem", { name: "Abrir detalhe" }),
+  ).toBeVisible();
+  const moveTo = await screen.findByRole("menuitem", { name: "Mover para" });
+  act(() => moveTo.focus());
+  await user.keyboard("{ArrowRight}");
+  const destination = await screen.findByRole("menuitem", {
+    name: /Proposta/iu,
+  });
+  act(() => destination.focus());
+  await user.keyboard("{Enter}");
   const dialog = await screen.findByRole("dialog", {
     name: /Confirmar mudança de etapa/iu,
   });
@@ -110,6 +124,38 @@ describe("Pipeline Kanban de Leads", () => {
     restoreLocks();
   });
 
+  it("mantém Lead sem canMove fora do drag e preserva acesso ao detalhe", async () => {
+    const restoreLocks = installWebLocks();
+    const memberOrganization = {
+      ...testOrganizations[0],
+      membershipId: testOrganizations[1].membershipId,
+      role: "member" as const,
+    };
+    server.use(
+      ...createAuthHandlers({ organizations: [memberOrganization] }),
+      ...createLeadHandlers(),
+    );
+    const user = userEvent.setup();
+    await renderAppAt("/app/pipeline");
+
+    await screen.findAllByText("Lead Exemplo");
+    expect(document.querySelector('[data-draggable="true"]')).toBeNull();
+    await user.click(
+      (
+        await screen.findAllByRole("button", {
+          name: /Ações de Lead Exemplo/iu,
+        })
+      )[0],
+    );
+    expect(
+      await screen.findByRole("menuitem", { name: "Abrir detalhe" }),
+    ).toBeVisible();
+    expect(
+      screen.queryByRole("menuitem", { name: "Mover para" }),
+    ).not.toBeInTheDocument();
+    restoreLocks();
+  });
+
   it("debounceia busca, não consulta termo curto e reinicia o quadro", async () => {
     const restoreLocks = installWebLocks();
     const requests: URL[] = [];
@@ -189,6 +235,7 @@ describe("Pipeline Kanban de Leads", () => {
       within(dialog).getByRole("button", { name: "Confirmar movimento" }),
     );
     expect(await screen.findByText("Movendo Lead")).toBeVisible();
+    expect(document.querySelector('[data-draggable="true"]')).toBeNull();
     expect(screen.getAllByText("Lead Exemplo")[0]).toBeVisible();
     expect(await screen.findByText("Lead movido com sucesso.")).toBeVisible();
     expect(details).toBe(1);
@@ -295,7 +342,9 @@ describe("Pipeline Kanban de Leads", () => {
     );
     expect(await screen.findByText(message)).toBeVisible();
     expect(calls).toBe(1);
-    expect(document.activeElement).toHaveAccessibleName(/Mover Lead Exemplo/iu);
+    expect(document.activeElement).toHaveAccessibleName(
+      /Ações de Lead Exemplo/iu,
+    );
     restoreLocks();
   });
 });

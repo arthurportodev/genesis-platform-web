@@ -1,3 +1,4 @@
+import { useDroppable, type UseDroppableInput } from "@dnd-kit/react";
 import { LoaderCircle, RefreshCw } from "lucide-react";
 
 import type {
@@ -9,8 +10,17 @@ import { stageLabels } from "@/features/leads/api/lead-labels";
 import { LeadKanbanCard } from "@/features/leads/components/LeadKanbanCard";
 import type { LeadKanbanViewColumn } from "@/features/leads/model/lead-kanban";
 import { formatBrlMinorUnits } from "@/features/leads/model/lead-money";
+import { cn } from "@/shared/lib/cn";
 import type { ActiveOrganization } from "@/shared/organization/active-organization";
 import { Button } from "@/shared/ui/Button";
+
+function draggedLeadStage(value: unknown): string | null {
+  if (typeof value !== "object" || value === null) return null;
+  if (!("kind" in value) || value.kind !== "pipeline-lead") return null;
+  if (!("lead" in value) || typeof value.lead !== "object") return null;
+  if (value.lead === null || !("stage" in value.lead)) return null;
+  return typeof value.lead.stage === "string" ? value.lead.stage : null;
+}
 
 export function LeadKanbanColumn({
   column,
@@ -42,10 +52,28 @@ export function LeadKanbanColumn({
   ) => Promise<void>;
 }) {
   const headingId = `pipeline-column-${instance}-${column.stage}`;
+  const droppableInput = {
+    id: `pipeline-stage-${instance}-${column.stage}`,
+    data: { kind: "pipeline-stage", stage: column.stage },
+    disabled: instance !== "desktop" || movesDisabled,
+    accept: (source) => {
+      const sourceStage = draggedLeadStage(source.data);
+      return sourceStage !== null && sourceStage !== column.stage;
+    },
+  } as UseDroppableInput<{
+    kind: "pipeline-stage";
+    stage: LeadStage;
+  }>;
+  const { ref: droppableRef, isDropTarget } = useDroppable(droppableInput);
   return (
     <section
-      className="flex min-h-[24rem] w-full flex-col rounded-xl border border-border/60 bg-muted/15 md:w-[19rem] md:min-w-[19rem]"
+      ref={droppableRef}
+      className={cn(
+        "flex min-h-[24rem] w-full flex-col rounded-xl border border-border/60 bg-muted/15 transition-[border-color,background-color,box-shadow] duration-150 motion-reduce:transition-none md:w-[19rem] md:min-w-[19rem]",
+        isDropTarget && "border-primary/70 bg-primary/5 ring-2 ring-primary/40",
+      )}
       aria-labelledby={headingId}
+      data-drop-target={isDropTarget || undefined}
     >
       <header className="sticky top-0 z-10 rounded-t-xl border-b border-border/60 bg-background/95 p-4">
         <div className="flex items-baseline justify-between gap-2">

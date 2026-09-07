@@ -7,6 +7,7 @@ import { cn } from "@/shared/lib/cn";
 export const DropdownMenu = DropdownMenuPrimitive.Root;
 export const DropdownMenuTrigger = DropdownMenuPrimitive.Trigger;
 export const DropdownMenuGroup = DropdownMenuPrimitive.Group;
+export const DropdownMenuSub = DropdownMenuPrimitive.Sub;
 export const DropdownMenuSeparator = forwardRef<
   React.ElementRef<typeof DropdownMenuPrimitive.Separator>,
   React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.Separator>
@@ -108,6 +109,21 @@ export const DropdownMenuSubTrigger = forwardRef<
   </DropdownMenuPrimitive.SubTrigger>
 ));
 
+export const DropdownMenuSubContent = forwardRef<
+  React.ElementRef<typeof DropdownMenuPrimitive.SubContent>,
+  React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.SubContent>
+>(({ className, sideOffset = 6, ...props }, ref) => (
+  <DropdownMenuPrimitive.SubContent
+    ref={ref}
+    sideOffset={sideOffset}
+    className={cn(
+      "z-[var(--layer-overlay)] min-w-52 rounded-lg border border-border bg-surface p-1 text-foreground shadow-lg outline-none",
+      className,
+    )}
+    {...props}
+  />
+));
+
 DropdownMenuContent.displayName = DropdownMenuPrimitive.Content.displayName;
 DropdownMenuItem.displayName = DropdownMenuPrimitive.Item.displayName;
 DropdownMenuLabel.displayName = DropdownMenuPrimitive.Label.displayName;
@@ -116,3 +132,5 @@ DropdownMenuCheckboxItem.displayName =
   DropdownMenuPrimitive.CheckboxItem.displayName;
 DropdownMenuSubTrigger.displayName =
   DropdownMenuPrimitive.SubTrigger.displayName;
+DropdownMenuSubContent.displayName =
+  DropdownMenuPrimitive.SubContent.displayName;

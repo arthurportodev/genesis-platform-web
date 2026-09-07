@@ -1,3 +1,10 @@
+import {
+  DragDropProvider,
+  KeyboardSensor,
+  PointerSensor,
+  type DragEndEvent,
+} from "@dnd-kit/react";
+
 import type {
   LeadListItem,
   LeadStage,
@@ -18,6 +25,21 @@ interface ColumnState {
   fetchMore: () => Promise<void>;
   retry: () => Promise<void>;
 }
+
+function isInteractiveCardTarget(target: EventTarget | null): boolean {
+  return target instanceof Element && target.closest("[data-no-drag]") !== null;
+}
+
+const pipelineSensors = [
+  PointerSensor.configure({
+    preventActivation: (event) =>
+      event.pointerType === "touch" || isInteractiveCardTarget(event.target),
+  }),
+  KeyboardSensor.configure({
+    offset: { x: 320, y: 80 },
+    preventActivation: (event) => isInteractiveCardTarget(event.target),
+  }),
+];
 
 export function LeadKanban({
   columns,
@@ -58,36 +80,67 @@ export function LeadKanban({
       onMove,
     };
   };
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { operation } = event;
+    const sourceData = operation.source?.data as
+      { kind?: string; lead?: LeadListItem; canMove?: boolean } | undefined;
+    const targetData = operation.target?.data as
+      { kind?: string; stage?: LeadStage } | undefined;
+
+    if (
+      event.canceled ||
+      movesDisabled ||
+      busyLeadId !== null ||
+      sourceData?.kind !== "pipeline-lead" ||
+      !sourceData.lead ||
+      !sourceData.canMove ||
+      targetData?.kind !== "pipeline-stage" ||
+      !targetData.stage ||
+      sourceData.lead.stage === targetData.stage
+    ) {
+      return;
+    }
+
+    const focusTarget =
+      operation.source?.element instanceof HTMLElement
+        ? operation.source.element
+        : null;
+    void onMove(sourceData.lead, targetData.stage, focusTarget);
+  };
+
   return (
-    <section aria-label="Pipeline de Leads" className="space-y-4">
-      <div className="md:hidden">
-        <Label htmlFor="pipeline-mobile-stage">Etapa exibida</Label>
-        <Select
-          id="pipeline-mobile-stage"
-          className="mt-1.5 min-h-11"
-          value={mobileStage}
-          onChange={(event) =>
-            onMobileStageChange(event.target.value as LeadStage)
-          }
+    <DragDropProvider sensors={pipelineSensors} onDragEnd={handleDragEnd}>
+      <section aria-label="Pipeline de Leads" className="space-y-4">
+        <div className="md:hidden">
+          <Label htmlFor="pipeline-mobile-stage">Etapa exibida</Label>
+          <Select
+            id="pipeline-mobile-stage"
+            className="mt-1.5 min-h-11"
+            value={mobileStage}
+            onChange={(event) =>
+              onMobileStageChange(event.target.value as LeadStage)
+            }
+          >
+            {leadStages.map((stage) => (
+              <option key={stage} value={stage}>
+                {stageLabels[stage]} · {columns[stage].column.total}
+              </option>
+            ))}
+          </Select>
+          <div className="mt-4">
+            <LeadKanbanColumn {...columnProps(mobileStage, "mobile")} />
+          </div>
+        </div>
+        <div
+          className="hidden gap-4 overflow-x-auto pb-3 md:flex"
+          data-testid="pipeline-desktop-board"
         >
           {leadStages.map((stage) => (
-            <option key={stage} value={stage}>
-              {stageLabels[stage]} · {columns[stage].column.total}
-            </option>
+            <LeadKanbanColumn key={stage} {...columnProps(stage, "desktop")} />
           ))}
-        </Select>
-        <div className="mt-4">
-          <LeadKanbanColumn {...columnProps(mobileStage, "mobile")} />
         </div>
-      </div>
-      <div
-        className="hidden gap-4 overflow-x-auto pb-3 md:flex"
-        data-testid="pipeline-desktop-board"
-      >
-        {leadStages.map((stage) => (
-          <LeadKanbanColumn key={stage} {...columnProps(stage, "desktop")} />
-        ))}
-      </div>
-    </section>
+      </section>
+    </DragDropProvider>
   );
 }
