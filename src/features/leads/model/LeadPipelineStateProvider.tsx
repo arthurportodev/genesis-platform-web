@@ -1,9 +1,6 @@
 import { useMemo, useState, type ReactNode } from "react";
 
-import type {
-  LeadKanbanFilters,
-  LeadStage,
-} from "@/features/leads/api/lead-contracts";
+import type { LeadKanbanFilters } from "@/features/leads/api/lead-contracts";
 import { defaultLeadKanbanFilters } from "@/features/leads/api/lead-filters";
 import { useLeadPipelineMove } from "@/features/leads/hooks/use-lead-mutations";
 import {
@@ -20,7 +17,7 @@ export function LeadPipelineStateProvider({
   const [filters, setFilters] = useState<LeadKanbanFilters>(
     defaultLeadKanbanFilters,
   );
-  const [mobileStage, setMobileStage] = useState<LeadStage>("new");
+  const [mobileStage, setMobileStage] = useState<string | null>(null);
   const move = useLeadPipelineMove();
   const value = useMemo<LeadPipelineState>(
     () => ({

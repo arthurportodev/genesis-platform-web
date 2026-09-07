@@ -21,6 +21,10 @@ import { LeadPipelinePage } from "@/features/leads/LeadPipelinePage";
 import { LeadFollowUpPage } from "@/features/leads/LeadFollowUpPage";
 import { LeadMetricsPage } from "@/features/leads/LeadMetricsPage";
 import { validateMetricsSearch } from "@/features/leads/model/lead-metrics-period";
+import {
+  validateLeadCreateSearch,
+  validatePipelineSearch,
+} from "@/features/leads/model/pipeline-selection";
 import { SettingsPage } from "@/features/settings/SettingsPage";
 import {
   isAuthenticatedState,
@@ -142,15 +146,10 @@ const leadsRoute = createRoute({
   component: LeadsPage,
 });
 
-interface LeadCreateSearch {
-  from?: "pipeline";
-}
-
 const leadCreateRoute = createRoute({
   getParentRoute: () => appRoute,
   path: "/leads/new",
-  validateSearch: (search: Record<string, unknown>): LeadCreateSearch =>
-    search.from === "pipeline" ? { from: "pipeline" } : {},
+  validateSearch: validateLeadCreateSearch,
   component: LeadCreatePage,
 });
 
@@ -163,6 +162,7 @@ const leadDetailRoute = createRoute({
 const pipelineRoute = createRoute({
   getParentRoute: () => appRoute,
   path: "/pipeline",
+  validateSearch: validatePipelineSearch,
   component: LeadPipelinePage,
 });
 

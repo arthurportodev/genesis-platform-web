@@ -7,7 +7,13 @@ import {
   installWebLocks,
   testOrganizations,
 } from "@/test/msw/auth-handlers";
-import { createLeadHandlers, testLeadId } from "@/test/msw/lead-handlers";
+import {
+  createLeadHandlers,
+  testLeadId,
+  testPipelineId,
+  testPipelines,
+  testPipelineStageIds,
+} from "@/test/msw/lead-handlers";
 import { server } from "@/test/msw/server";
 
 async function openMove(user: ReturnType<typeof userEvent.setup>) {
@@ -46,10 +52,13 @@ describe("Pipeline Kanban de Leads", () => {
     ).toBeVisible();
     expect(
       screen.getByRole("link", { name: "Nova oportunidade" }),
-    ).toHaveAttribute("href", "/app/leads/new?from=pipeline");
+    ).toHaveAttribute(
+      "href",
+      `/app/leads/new?from=pipeline&pipelineId=${testPipelineId}`,
+    );
     expect(screen.getByRole("button", { name: "Atualizar" })).toBeVisible();
-    expect(screen.getAllByRole("heading", { level: 2 })).toHaveLength(6);
     expect((await screen.findAllByText("Lead Exemplo"))[0]).toBeVisible();
+    expect(screen.getAllByRole("heading", { level: 2 })).toHaveLength(6);
     expect(screen.queryByText("+5511999999999")).not.toBeInTheDocument();
     expect(screen.queryByText("lead@example.test")).not.toBeInTheDocument();
     expect(screen.queryByText(testLeadId)).not.toBeInTheDocument();
@@ -153,10 +162,11 @@ describe("Pipeline Kanban de Leads", () => {
     expect(
       screen.queryByRole("menuitem", { name: "Mover para" }),
     ).not.toBeInTheDocument();
+    expect(screen.queryByText("Configurar Pipelines")).not.toBeInTheDocument();
     restoreLocks();
   });
 
-  it("debounceia busca, não consulta termo curto e reinicia o quadro", async () => {
+  it("troca o Pipeline pela URL e recarrega somente o quadro selecionado", async () => {
     const restoreLocks = installWebLocks();
     const requests: URL[] = [];
     server.use(
@@ -164,21 +174,44 @@ describe("Pipeline Kanban de Leads", () => {
       ...createLeadHandlers({ onKanban: (url) => requests.push(url) }),
     );
     const user = userEvent.setup();
-    await renderAppAt("/app/pipeline");
+    const app = await renderAppAt("/app/pipeline");
     await screen.findAllByText("Lead Exemplo");
-    const initial = requests.length;
-    const search = screen.getAllByLabelText("Buscar", {
-      selector: "input",
-    })[0];
-    await user.type(search, "Jo");
-    await act(
-      () => new Promise((resolve) => globalThis.setTimeout(resolve, 450)),
+    await user.selectOptions(
+      screen.getByLabelText("Pipeline atual"),
+      testPipelines[1].id,
     );
-    expect(requests).toHaveLength(initial);
-    expect(screen.getAllByText(/ao menos 3 caracteres/iu)[0]).toBeVisible();
-    await user.type(search, "sé");
     await waitFor(() =>
-      expect(requests.at(-1)?.searchParams.get("q")).toBe("José"),
+      expect(app.router.state.location.search.pipelineId).toBe(
+        testPipelines[1].id,
+      ),
+    );
+    expect(
+      (await screen.findAllByRole("heading", { name: "Recebido" }))[0],
+    ).toBeVisible();
+    expect(screen.queryByText("Lead Exemplo")).not.toBeInTheDocument();
+    expect(requests.at(-1)?.pathname).toBe(
+      `/api/v1/pipelines/${testPipelines[1].id}/kanban`,
+    );
+    restoreLocks();
+  });
+
+  it.each([
+    "/app/pipeline?pipelineId=valor-invalido",
+    "/app/pipeline?pipelineId=00000000-0000-4000-8000-000000000199",
+  ])("faz fallback seguro para o Pipeline padrão em %s", async (path) => {
+    const restoreLocks = installWebLocks();
+    const requests: URL[] = [];
+    server.use(
+      ...createAuthHandlers(),
+      ...createLeadHandlers({ onKanban: (url) => requests.push(url) }),
+    );
+    await renderAppAt(path);
+
+    expect(await screen.findByLabelText("Pipeline atual")).toHaveValue(
+      testPipelineId,
+    );
+    expect(requests.at(-1)?.pathname).toBe(
+      `/api/v1/pipelines/${testPipelineId}/kanban`,
     );
     restoreLocks();
   });
@@ -243,8 +276,43 @@ describe("Pipeline Kanban de Leads", () => {
     expect(typeof calls[0]?.key).toBe("string");
     expect(document.activeElement).toHaveAttribute(
       "data-pipeline-column-heading",
-      "proposal",
+      testPipelineStageIds[3],
     );
+    restoreLocks();
+  });
+
+  it("descarta continuação stale após movimento e releitura autoritativa", async () => {
+    const restoreLocks = installWebLocks();
+    server.use(
+      ...createAuthHandlers(),
+      ...createLeadHandlers({ kanbanNextCursor: "opaque-column-cursor" }),
+    );
+    const user = userEvent.setup();
+    await renderAppAt("/app/pipeline");
+    await screen.findAllByText("Lead Exemplo");
+
+    await user.click(
+      screen.getAllByRole("button", { name: "Carregar mais" })[0],
+    );
+    await waitFor(() =>
+      expect(
+        screen.queryAllByRole("button", { name: "Carregar mais" }),
+      ).toHaveLength(0),
+    );
+    const dialog = await openMove(user);
+    await user.click(
+      within(dialog).getByRole("button", { name: "Confirmar movimento" }),
+    );
+    expect(await screen.findByText("Lead movido com sucesso.")).toBeVisible();
+
+    const source = document.querySelector(
+      `[aria-labelledby="pipeline-column-desktop-${testPipelineStageIds[1]}"]`,
+    );
+    const destination = document.querySelector(
+      `[aria-labelledby="pipeline-column-desktop-${testPipelineStageIds[3]}"]`,
+    );
+    expect(source).not.toHaveTextContent("Lead Exemplo");
+    expect(destination).toHaveTextContent("Lead Exemplo");
     restoreLocks();
   });
 
@@ -345,6 +413,166 @@ describe("Pipeline Kanban de Leads", () => {
     expect(document.activeElement).toHaveAccessibleName(
       /Ações de Lead Exemplo/iu,
     );
+    restoreLocks();
+  });
+
+  it("envia a configuração com revisão do Pipeline e exibe sucesso", async () => {
+    const restoreLocks = installWebLocks();
+    const calls: Array<{ request: Request; body: unknown }> = [];
+    server.use(
+      ...createAuthHandlers(),
+      ...createLeadHandlers({
+        onPipelineMutation: (request, body) => calls.push({ request, body }),
+      }),
+    );
+    const user = userEvent.setup();
+    await renderAppAt("/app/pipeline");
+    await screen.findAllByText("Lead Exemplo");
+
+    await user.click(screen.getByText("Configurar Pipelines"));
+    const name = screen.getByLabelText("Nome do Pipeline atual");
+    await user.clear(name);
+    await user.type(name, "Pipeline principal");
+    await user.click(screen.getByRole("button", { name: "Renomear" }));
+
+    expect(await screen.findByText("Configuração salva.")).toBeVisible();
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.request.method).toBe("PATCH");
+    expect(new URL(calls[0]?.request.url ?? "").pathname).toBe(
+      `/api/v1/pipelines/${testPipelineId}`,
+    );
+    expect(calls[0]?.request.headers.get("x-genesis-if-match")).toBe(
+      `"pipeline:${testPipelineId}:1"`,
+    );
+    expect(calls[0]?.body).toEqual({ name: "Pipeline principal" });
+    restoreLocks();
+  });
+
+  it("explica conflito de configuração sem repetir a operação", async () => {
+    const restoreLocks = installWebLocks();
+    let calls = 0;
+    server.use(
+      ...createAuthHandlers(),
+      ...createLeadHandlers({
+        pipelineMutationStatus: 409,
+        onPipelineMutation: () => (calls += 1),
+      }),
+    );
+    const user = userEvent.setup();
+    await renderAppAt("/app/pipeline");
+    await screen.findAllByText("Lead Exemplo");
+
+    await user.click(screen.getByText("Configurar Pipelines"));
+    await user.click(screen.getByRole("button", { name: "Renomear" }));
+
+    expect(await screen.findByText(/O Pipeline mudou.*revise/iu)).toBeVisible();
+    expect(calls).toBe(1);
+    restoreLocks();
+  });
+
+  it("cria Pipeline e Stages pelo contrato dinâmico sem inventar defaults", async () => {
+    const restoreLocks = installWebLocks();
+    const calls: Array<{ request: Request; body: unknown }> = [];
+    server.use(
+      ...createAuthHandlers(),
+      ...createLeadHandlers({
+        onPipelineMutation: (request, body) => calls.push({ request, body }),
+      }),
+    );
+    const user = userEvent.setup();
+    await renderAppAt("/app/pipeline");
+    await screen.findAllByText("Lead Exemplo");
+    await user.click(screen.getByText("Configurar Pipelines"));
+
+    await user.type(screen.getByLabelText("Nova etapa"), "Aprovação");
+    await user.click(screen.getByRole("button", { name: "Adicionar etapa" }));
+    await waitFor(() => expect(calls).toHaveLength(1));
+
+    const firstStageName = screen.getAllByLabelText("Nome da etapa")[0];
+    await user.clear(firstStageName);
+    await user.type(firstStageName, "Entrada qualificada");
+    await user.click(screen.getAllByRole("button", { name: "Salvar nome" })[0]);
+    await waitFor(() => expect(calls).toHaveLength(2));
+
+    await user.click(
+      screen.getByRole("button", { name: "Mover Novo para baixo" }),
+    );
+    await waitFor(() => expect(calls).toHaveLength(3));
+
+    const confirm = vi.spyOn(globalThis, "confirm").mockReturnValue(true);
+    await user.click(screen.getAllByRole("button", { name: "Arquivar" })[0]);
+    await waitFor(() => expect(calls).toHaveLength(4));
+    expect(confirm).toHaveBeenCalledWith(
+      "A etapa precisa estar sem oportunidades abertas. Arquivar esta etapa?",
+    );
+    confirm.mockRestore();
+
+    await user.type(screen.getByLabelText("Nome do Pipeline"), "Pós-venda");
+    await user.type(screen.getByLabelText("Etapa 1"), "Onboarding");
+    await user.click(
+      screen.getByRole("button", { name: "Adicionar outra etapa" }),
+    );
+    await user.type(screen.getByLabelText("Etapa 2"), "Acompanhamento");
+    await user.click(screen.getByRole("button", { name: "Criar Pipeline" }));
+    await waitFor(() => expect(calls).toHaveLength(5));
+
+    expect(calls.map(({ request }) => request.method)).toEqual([
+      "PUT",
+      "PATCH",
+      "PUT",
+      "POST",
+      "PUT",
+    ]);
+    expect(new URL(calls[0]?.request.url ?? "").pathname).toMatch(
+      new RegExp(
+        `^/api/v1/pipelines/${testPipelineId}/stages/[0-9a-f-]+$`,
+        "u",
+      ),
+    );
+    expect(calls[0]?.body).toEqual({ name: "Aprovação" });
+    expect(calls[1]?.body).toEqual({ name: "Entrada qualificada" });
+    expect(calls[2]?.body).toEqual({
+      stageIds: [
+        testPipelineStageIds[1],
+        testPipelineStageIds[0],
+        ...testPipelineStageIds.slice(2),
+      ],
+    });
+    expect(new URL(calls[3]?.request.url ?? "").pathname).toBe(
+      `/api/v1/pipelines/${testPipelineId}/stages/${testPipelineStageIds[0]}/archive`,
+    );
+    expect(calls[4]?.body).toMatchObject({
+      name: "Pós-venda",
+      stages: [{ name: "Onboarding" }, { name: "Acompanhamento" }],
+    });
+    expect(
+      (calls[4]?.body as { stages: Array<{ id: string }> }).stages.every(
+        ({ id }) => /^[0-9a-f-]{36}$/u.test(id),
+      ),
+    ).toBe(true);
+    restoreLocks();
+  });
+
+  it("traduz 403 de configuração sem repetir a escrita", async () => {
+    const restoreLocks = installWebLocks();
+    let calls = 0;
+    server.use(
+      ...createAuthHandlers(),
+      ...createLeadHandlers({
+        pipelineMutationStatus: 403,
+        onPipelineMutation: () => (calls += 1),
+      }),
+    );
+    const user = userEvent.setup();
+    await renderAppAt("/app/pipeline");
+    await screen.findAllByText("Lead Exemplo");
+    await user.click(screen.getByText("Configurar Pipelines"));
+    await user.click(screen.getByRole("button", { name: "Renomear" }));
+
+    expect(
+      await screen.findByText("Seu papel não permite alterar Pipelines."),
+    ).toBeVisible();
+    expect(calls).toBe(1);
     restoreLocks();
   });
 });

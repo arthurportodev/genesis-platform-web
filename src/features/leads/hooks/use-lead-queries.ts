@@ -82,3 +82,15 @@ export function useLeadAssigneesQuery(enabled: boolean) {
     enabled,
   });
 }
+
+export function usePipelinesQuery(enabled = true) {
+  const organization = useActiveOrganization();
+  const api = useLeadApi();
+  return useQuery({
+    queryKey: leadQueryKeys.pipelines(organization.id),
+    queryFn: ({ signal }) => api.pipelines(signal),
+    staleTime: 30_000,
+    refetchOnWindowFocus: true,
+    enabled,
+  });
+}

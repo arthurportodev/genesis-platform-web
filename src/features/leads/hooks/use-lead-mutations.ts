@@ -9,10 +9,7 @@ import type {
   LeadInformationInput,
   UpdateLeadInput,
 } from "@/features/leads/api/lead-contracts";
-import type {
-  LeadListItem,
-  LeadStage,
-} from "@/features/leads/api/lead-contracts";
+import type { LeadListItem } from "@/features/leads/api/lead-contracts";
 import {
   hasUncertainMutationOutcome,
   LeadIntentKeyRegistry,
@@ -105,6 +102,7 @@ export function useLeadMutations(leadId: string) {
         body.city !== current.lead.city ||
         body.serviceInterest !== current.lead.serviceInterest;
       const financialChanged =
+        current.lead.latestCycle !== null &&
         body.expectedValueMinor !== current.lead.latestCycle.expectedValueMinor;
       if (!commonChanged && !financialChanged) return { changed: false };
 
@@ -199,7 +197,9 @@ export interface LeadMoveFeedback {
 interface PreparedMove {
   name: string;
   card: LeadListItem;
-  targetStage: LeadStage;
+  targetStageId: string;
+  targetStageName: string;
+  pipelineId: string;
   current: LeadDetailSnapshot;
   intent: Extract<LeadIdempotentAction, { action: "move" }>;
   idempotencyKey: IdempotencyKey;
@@ -217,6 +217,8 @@ function compatibleMoveSnapshot(
     current.snapshot.revision === card.revision &&
     current.lead.status === "active" &&
     current.lead.stage === card.stage &&
+    current.lead.pipelineId === card.pipelineId &&
+    current.lead.pipelineStageId === card.pipelineStageId &&
     current.lead.responsibleMembershipId === card.responsibleMembershipId
   );
 }
@@ -228,7 +230,9 @@ export function useLeadPipelineMove() {
   const intentKeys = useRef(new LeadIntentKeyRegistry());
   const attempt = useRef<{
     card: LeadListItem;
-    targetStage: LeadStage;
+    targetStageId: string;
+    targetStageName: string;
+    pipelineId: string;
     focusTarget: HTMLElement | null;
   } | null>(null);
   const prepared = useRef<PreparedMove | null>(null);
@@ -248,7 +252,9 @@ export function useLeadPipelineMove() {
         | {
             mode: "new";
             card: LeadListItem;
-            targetStage: LeadStage;
+            targetStageId: string;
+            targetStageName: string;
+            pipelineId: string;
             focusTarget: HTMLElement | null;
           }
         | { mode: "retry"; prepared: PreparedMove },
@@ -265,7 +271,10 @@ export function useLeadPipelineMove() {
         );
       }
 
-      if (variables.targetStage === variables.card.stage)
+      if (
+        variables.targetStageId === variables.card.pipelineStageId ||
+        variables.card.pipelineId !== variables.pipelineId
+      )
         throw new AppError("validation", "Selecione uma etapa diferente.");
       setPhase("verifying");
       setFeedback({ kind: "status", message: "Verificando versão atual" });
@@ -286,7 +295,7 @@ export function useLeadPipelineMove() {
       }
       const intent = {
         action: "move",
-        body: { stage: variables.targetStage },
+        body: { pipelineStageId: variables.targetStageId },
       } as const;
       const name = `pipeline:${organization.id}:${variables.card.id}`;
       const idempotencyKey = intentKeys.current.keyFor(
@@ -297,7 +306,9 @@ export function useLeadPipelineMove() {
       prepared.current = {
         name,
         card: variables.card,
-        targetStage: variables.targetStage,
+        targetStageId: variables.targetStageId,
+        targetStageName: variables.targetStageName,
+        pipelineId: variables.pipelineId,
         current,
         intent,
         idempotencyKey,
@@ -358,7 +369,7 @@ export function useLeadPipelineMove() {
     globalThis.setTimeout(() => {
       const headings = Array.from(
         document.querySelectorAll<HTMLElement>(
-          `[data-pipeline-column-heading="${move.targetStage}"]`,
+          `[data-pipeline-column-heading="${move.targetStageId}"]`,
         ),
       );
       (
@@ -434,19 +445,29 @@ export function useLeadPipelineMove() {
 
   const confirmMove = async (
     card: LeadListItem,
-    targetStage: LeadStage,
+    targetStageId: string,
+    targetStageName: string,
+    pipelineId: string,
     focusTarget: HTMLElement | null,
   ) => {
     prepared.current = null;
     commandStarted.current = false;
-    attempt.current = { card, targetStage, focusTarget };
+    attempt.current = {
+      card,
+      targetStageId,
+      targetStageName,
+      pipelineId,
+      focusTarget,
+    };
     setBusyLeadId(card.id);
     setFeedback(null);
     try {
       await mutation.mutateAsync({
         mode: "new",
         card,
-        targetStage,
+        targetStageId,
+        targetStageName,
+        pipelineId,
         focusTarget,
       });
       const move = prepared.current;

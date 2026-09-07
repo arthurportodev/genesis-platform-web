@@ -30,6 +30,12 @@ export const leadCreateFormSchema = z
     instagram: optionalFormText(64),
     city: optionalFormText(120),
     serviceInterest: optionalFormText(160),
+    pipelineId: z
+      .string()
+      .refine(
+        (value) => value === "" || z.uuid().safeParse(value).success,
+        "Selecione um Pipeline válido.",
+      ),
     expectedValue: z.string().refine((value) => {
       try {
         parseBrlToMinorUnits(value);
@@ -73,6 +79,7 @@ export const defaultLeadCreateValues: LeadCreateFormValues = {
   instagram: "",
   city: "",
   serviceInterest: "",
+  pipelineId: "",
   expectedValue: "",
   source: "manual",
   sourceDetail: "",
@@ -93,7 +100,9 @@ export function buildCreateLeadInput(
   values: LeadCreateFormValues,
   canChooseResponsible: boolean,
 ): CreateLeadInput {
-  const expectedValueMinor = parseBrlToMinorUnits(values.expectedValue);
+  const expectedValueMinor = values.pipelineId
+    ? parseBrlToMinorUnits(values.expectedValue)
+    : null;
   const candidate = {
     displayName: values.displayName.trim(),
     primaryPhone: values.primaryPhone.trim(),
@@ -102,7 +111,11 @@ export function buildCreateLeadInput(
     instagram: optional(values.instagram),
     city: optional(values.city),
     serviceInterest: optional(values.serviceInterest),
-    expectedValueMinor: expectedValueMinor ?? undefined,
+    pipelineId: values.pipelineId || undefined,
+    expectedValueMinor:
+      values.pipelineId && expectedValueMinor !== null
+        ? expectedValueMinor
+        : undefined,
     source: values.source,
     sourceDetail:
       values.source === "other" ? optional(values.sourceDetail) : undefined,

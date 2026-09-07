@@ -677,7 +677,9 @@ test("Pipeline inicia a criação existente e retorna após resultado identifica
   ).toBeVisible();
   await expect(page.getByRole("button", { name: "Atualizar" })).toBeVisible();
   await page.getByRole("link", { name: "Nova oportunidade" }).click();
-  await expect(page).toHaveURL(/\/app\/leads\/new\?from=pipeline$/u);
+  await expect(page).toHaveURL(
+    /\/app\/leads\/new\?from=pipeline&pipelineId=00000000-0000-4000-8000-000000000101$/u,
+  );
   await expect(
     page.getByRole("heading", { name: "Nova oportunidade" }),
   ).toBeVisible();
@@ -686,7 +688,9 @@ test("Pipeline inicia a criação existente e retorna após resultado identifica
     .fill("Oportunidade Pipeline E2E");
   await page.getByRole("textbox", { name: /^Telefone/iu }).fill("62999999999");
   await page.getByRole("button", { name: "Criar Lead" }).click();
-  await expect(page).toHaveURL(/\/app\/pipeline$/u);
+  await expect(page).toHaveURL(
+    /\/app\/pipeline\?pipelineId=00000000-0000-4000-8000-000000000101$/u,
+  );
   await expect(page.getByText("Oportunidade criada.")).toBeVisible();
 });
 
@@ -700,7 +704,7 @@ test("conflito de versão preserva o rascunho", async ({ page }) => {
   await expect(note).toHaveValue("Rascunho E2E");
 });
 
-test("Pipeline desktop busca, pagina uma coluna e volta do detalhe", async ({
+test("Pipeline desktop usa colunas dinâmicas, pagina uma coluna e volta do detalhe", async ({
   page,
 }) => {
   await login(page, "owner@example.test", "/app/pipeline");
@@ -743,8 +747,6 @@ test("Pipeline desktop busca, pagina uma coluna e volta do detalhe", async ({
   await expect(page.getByText("1 de 2 carregados")).toBeVisible();
   await page.getByRole("button", { name: "Carregar mais" }).click();
   await expect(page.getByText("Lead Continuação")).toBeVisible();
-  await page.getByLabel("Buscar").fill("Lead Exemplo");
-  await expect(page.getByText("Lead Exemplo").first()).toBeVisible();
   const leadActions = page
     .getByRole("article", { name: "Lead Exemplo", exact: true })
     .getByRole("button", { name: "Ações de Lead Exemplo" });
@@ -756,7 +758,9 @@ test("Pipeline desktop busca, pagina uma coluna e volta do detalhe", async ({
   );
   await page.getByRole("link", { name: "Voltar para o Pipeline" }).click();
   await expect(page).toHaveURL(/\/app\/pipeline$/u);
-  await expect(page.getByLabel("Buscar")).toHaveValue("Lead Exemplo");
+  await expect(page.getByLabel("Pipeline atual", { exact: true })).toHaveValue(
+    "00000000-0000-4000-8000-000000000101",
+  );
   await page.getByRole("link", { name: "Leads", exact: true }).click();
   await expect(
     page.getByRole("heading", { name: "Inbox de Leads" }),
@@ -777,7 +781,7 @@ test("Pipeline move por pointer desktop e mantém scroll do board", async ({
     exact: true,
   });
   const target = page.locator(
-    '[aria-labelledby="pipeline-column-desktop-diagnosis"]',
+    '[aria-labelledby="pipeline-column-desktop-00000000-0000-4000-8000-000000000104"]',
   );
   await expect(source).toHaveAttribute("data-draggable", "true");
   await expect(board).toHaveCSS("overflow-x", "auto");
@@ -823,7 +827,7 @@ test("Pipeline ignora drops na mesma etapa e fora do board", async ({
     exact: true,
   });
   const sourceColumn = page.locator(
-    '[aria-labelledby="pipeline-column-desktop-qualification"]',
+    '[aria-labelledby="pipeline-column-desktop-00000000-0000-4000-8000-000000000103"]',
   );
   const sourceBox = await source.boundingBox();
   const columnBox = await sourceColumn.boundingBox();
@@ -895,7 +899,7 @@ test("Pipeline cancela drag por Escape e controles Radix não o ativam", async (
   expect(moveRequests).toBe(0);
 });
 
-test("Pipeline mobile mostra uma coluna, filtros em Sheet e touch targets", async ({
+test("Pipeline mobile mostra uma coluna, seletor e touch targets", async ({
   page,
 }) => {
   await page.setViewportSize({ width: 390, height: 844 });
@@ -903,9 +907,9 @@ test("Pipeline mobile mostra uma coluna, filtros em Sheet e touch targets", asyn
   await expect(page.getByTestId("pipeline-desktop-board")).toBeHidden();
   const stage = page.getByLabel("Etapa exibida");
   await expectTouchTarget(stage);
-  await stage.selectOption("qualification");
+  await stage.selectOption("00000000-0000-4000-8000-000000000103");
   let mobileColumn = page.locator(
-    '[aria-labelledby="pipeline-column-mobile-qualification"]',
+    '[aria-labelledby="pipeline-column-mobile-00000000-0000-4000-8000-000000000103"]',
   );
   await expect(mobileColumn.getByText("Lead Exemplo")).toBeVisible();
   await expect(mobileColumn.getByText("R$ 40.000,00")).toBeVisible();
@@ -914,27 +918,26 @@ test("Pipeline mobile mostra uma coluna, filtros em Sheet e touch targets", asyn
       .getByRole("article", { name: "Lead Exemplo", exact: true })
       .getByText("R$ 25.000,00"),
   ).toBeVisible();
-  await stage.selectOption("proposal");
+  await stage.selectOption("00000000-0000-4000-8000-000000000105");
   mobileColumn = page.locator(
-    '[aria-labelledby="pipeline-column-mobile-proposal"]',
+    '[aria-labelledby="pipeline-column-mobile-00000000-0000-4000-8000-000000000105"]',
   );
   await expect(
     mobileColumn
       .getByRole("article", { name: "Oportunidade Valor Zero" })
       .getByText("R$ 0,00"),
   ).toBeVisible();
-  await stage.selectOption("negotiation");
+  await stage.selectOption("00000000-0000-4000-8000-000000000106");
   mobileColumn = page.locator(
-    '[aria-labelledby="pipeline-column-mobile-negotiation"]',
+    '[aria-labelledby="pipeline-column-mobile-00000000-0000-4000-8000-000000000106"]',
   );
   await expect(
     mobileColumn
       .getByRole("article", { name: "Oportunidade Sem Valor" })
       .getByText("Valor não informado"),
   ).toBeVisible();
-  await stage.selectOption("qualification");
-  const filters = page.getByRole("button", { name: "Filtros" });
-  await expectTouchTarget(filters);
+  await stage.selectOption("00000000-0000-4000-8000-000000000103");
+  await expectTouchTarget(page.getByLabel("Pipeline atual", { exact: true }));
   await expectTouchTarget(page.getByRole("button", { name: "Atualizar" }));
   const leadActions = page.getByRole("button", {
     name: /Ações de Lead Exemplo/iu,
@@ -946,20 +949,6 @@ test("Pipeline mobile mostra uma coluna, filtros em Sheet e touch targets", asyn
   ).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(leadActions).toBeFocused();
-  await filters.click();
-  const sheet = page.getByRole("dialog", { name: "Filtros do Pipeline" });
-  await expect(sheet).toBeVisible();
-  for (const control of [
-    sheet.getByLabel("Buscar"),
-    sheet.getByLabel("Responsável"),
-    sheet.getByLabel("Origem"),
-    sheet.getByLabel("Próxima ação"),
-    sheet.getByRole("button", { name: "Limpar" }),
-    sheet.getByRole("button", { name: "Ver Pipeline" }),
-  ]) {
-    await expectTouchTarget(control);
-  }
-  await sheet.getByRole("button", { name: "Fechar menu" }).click();
   await page.getByRole("button", { name: "Abrir menu", exact: true }).click();
   const mainMenu = page.getByRole("dialog", { name: "Menu principal" });
   await expect(mainMenu).toBeVisible();
@@ -979,7 +968,9 @@ test("move server-confirmed por teclado e posiciona foco no destino", async ({
   await page.keyboard.press("Enter");
   await expect(page.getByText("Lead movido com sucesso.")).toBeVisible();
   await expect(
-    page.locator('[data-pipeline-column-heading="proposal"]:visible'),
+    page.locator(
+      '[data-pipeline-column-heading="00000000-0000-4000-8000-000000000105"]:visible',
+    ),
   ).toBeFocused();
   await expect(
     page.getByRole("button", { name: /Ações de Lead Exemplo/iu }),

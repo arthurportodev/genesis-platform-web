@@ -3,10 +3,9 @@ import { LoaderCircle, RefreshCw } from "lucide-react";
 
 import type {
   LeadListItem,
-  LeadStage,
   Member,
+  PipelineStage,
 } from "@/features/leads/api/lead-contracts";
-import { stageLabels } from "@/features/leads/api/lead-labels";
 import { LeadKanbanCard } from "@/features/leads/components/LeadKanbanCard";
 import type { LeadKanbanViewColumn } from "@/features/leads/model/lead-kanban";
 import { formatBrlMinorUnits } from "@/features/leads/model/lead-money";
@@ -18,12 +17,16 @@ function draggedLeadStage(value: unknown): string | null {
   if (typeof value !== "object" || value === null) return null;
   if (!("kind" in value) || value.kind !== "pipeline-lead") return null;
   if (!("lead" in value) || typeof value.lead !== "object") return null;
-  if (value.lead === null || !("stage" in value.lead)) return null;
-  return typeof value.lead.stage === "string" ? value.lead.stage : null;
+  if (value.lead === null || !("pipelineStageId" in value.lead)) return null;
+  return typeof value.lead.pipelineStageId === "string"
+    ? value.lead.pipelineStageId
+    : null;
 }
 
 export function LeadKanbanColumn({
   column,
+  pipelineId,
+  stages,
   instance,
   members,
   organization,
@@ -36,6 +39,8 @@ export function LeadKanbanColumn({
   onMove,
 }: {
   column: LeadKanbanViewColumn;
+  pipelineId: string;
+  stages: readonly Pick<PipelineStage, "id" | "name" | "position">[];
   instance: "mobile" | "desktop";
   members: readonly Member[];
   organization: ActiveOrganization;
@@ -47,22 +52,24 @@ export function LeadKanbanColumn({
   onRetry: () => void;
   onMove: (
     lead: LeadListItem,
-    targetStage: LeadStage,
+    targetStageId: string,
+    targetStageName: string,
     focusTarget: HTMLElement | null,
   ) => Promise<void>;
 }) {
-  const headingId = `pipeline-column-${instance}-${column.stage}`;
+  const headingId = `pipeline-column-${instance}-${column.stage.id}`;
   const droppableInput = {
-    id: `pipeline-stage-${instance}-${column.stage}`,
-    data: { kind: "pipeline-stage", stage: column.stage },
+    id: `pipeline-stage-${instance}-${column.stage.id}`,
+    data: { kind: "pipeline-stage", pipelineId, stage: column.stage },
     disabled: instance !== "desktop" || movesDisabled,
     accept: (source) => {
       const sourceStage = draggedLeadStage(source.data);
-      return sourceStage !== null && sourceStage !== column.stage;
+      return sourceStage !== null && sourceStage !== column.stage.id;
     },
   } as UseDroppableInput<{
     kind: "pipeline-stage";
-    stage: LeadStage;
+    pipelineId: string;
+    stage: Pick<PipelineStage, "id" | "name" | "position">;
   }>;
   const { ref: droppableRef, isDropTarget } = useDroppable(droppableInput);
   return (
@@ -79,11 +86,11 @@ export function LeadKanbanColumn({
         <div className="flex items-baseline justify-between gap-2">
           <h2
             id={headingId}
-            data-pipeline-column-heading={column.stage}
+            data-pipeline-column-heading={column.stage.id}
             tabIndex={-1}
             className="font-semibold outline-none"
           >
-            {stageLabels[column.stage]}
+            {column.stage.name}
           </h2>
           <span className="text-sm font-medium tabular-nums text-muted-foreground">
             {column.total}
@@ -111,6 +118,7 @@ export function LeadKanbanColumn({
               instance={instance}
               members={members}
               organization={organization}
+              stages={stages}
               processing={busyLeadId === lead.id}
               movesDisabled={movesDisabled}
               onMove={onMove}

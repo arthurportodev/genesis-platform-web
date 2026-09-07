@@ -96,6 +96,10 @@ export const leadListItemSchema = z.object({
   responsibleMembershipId: uuid.nullable(),
   status: z.enum(leadStatuses),
   stage: z.enum(leadStages),
+  pipelineId: uuid.nullable(),
+  pipelineStageId: uuid.nullable(),
+  pipelineName: z.string().nullable(),
+  pipelineStageName: z.string().nullable(),
   expectedValueMinor: minorUnits.nullable(),
   source: z.string(),
   lastEntryAt: timestamp,
@@ -130,7 +134,11 @@ export const leadViewSchema = z.object({
   responsibleMembershipId: uuid.nullable(),
   status: z.enum(leadStatuses),
   stage: z.enum(leadStages),
-  latestCycleNumber: revision,
+  pipelineId: uuid.nullable(),
+  pipelineStageId: uuid.nullable(),
+  pipelineName: z.string().nullable(),
+  pipelineStageName: z.string().nullable(),
+  latestCycleNumber: revision.nullable(),
   returnReviewPending: z.boolean(),
   revision,
   createdAt: timestamp,
@@ -160,6 +168,7 @@ export const createLeadInputSchema = z
     utmContent: optionalCreateText(255),
     utmTerm: optionalCreateText(255),
     responsibleMembershipId: uuid.optional(),
+    pipelineId: uuid.nullable().optional(),
     expectedValueMinor: minorUnits.nullable().optional(),
   })
   .strict()
@@ -185,12 +194,18 @@ const cycleSchema = z.object({
   cycleNumber: revision,
   openingReason: z.enum(["created", "reactivated"]),
   startingStage: z.enum(leadStages),
+  pipelineId: uuid,
+  pipelineStageId: uuid,
+  startingPipelineStageId: uuid,
+  startingStageName: z.string().min(1),
   openedByMembershipId: uuid.nullable(),
   openedAt: timestamp,
   closedByMembershipId: uuid.nullable(),
   closedAt: timestamp.nullable(),
   closingStatus: z.enum(["won", "lost", "archived"]).nullable(),
   stageAtClose: z.enum(leadStages).nullable(),
+  stageAtClosePipelineStageId: uuid.nullable(),
+  stageAtCloseName: z.string().nullable(),
   lostReason: z.enum(lostReasons).nullable(),
   archiveReason: z.enum(archiveReasons).nullable(),
   reasonNote: z.string().nullable(),
@@ -205,7 +220,7 @@ export const leadDetailSchema = leadViewSchema.extend({
     source: z.string(),
     receivedAt: timestamp,
   }),
-  latestCycle: cycleSchema,
+  latestCycle: cycleSchema.nullable(),
   pendingReturn: z
     .object({
       id: uuid,
@@ -256,6 +271,10 @@ export const timelineItemSchema = z.object({
   newStatus: z.enum(leadStatuses).nullable(),
   previousStage: z.enum(leadStages).nullable(),
   newStage: z.enum(leadStages).nullable(),
+  previousPipelineStageId: uuid.nullable(),
+  previousStageName: z.string().nullable(),
+  newPipelineStageId: uuid.nullable(),
+  newStageName: z.string().nullable(),
   lostReason: z.enum(lostReasons).nullable(),
   archiveReason: z.enum(archiveReasons).nullable(),
   activityId: uuid.nullable(),
@@ -406,6 +425,102 @@ export const leadKanbanResponseSchema = z
     }
   });
 
+export const pipelineStageSchema = z.object({
+  id: uuid,
+  name: z.string().min(1).max(120),
+  position: z.number().int().nonnegative(),
+  archivedAt: timestamp.nullable(),
+});
+
+export const pipelineSchema = z.object({
+  id: uuid,
+  name: z.string().min(1).max(160),
+  isDefault: z.boolean(),
+  revision,
+  createdAt: timestamp,
+  updatedAt: timestamp,
+  stages: z.array(pipelineStageSchema),
+});
+
+export const dynamicKanbanColumnSchema = z
+  .object({
+    stage: pipelineStageSchema.pick({ id: true, name: true, position: true }),
+    total: safeCount,
+    expectedValueTotalMinor: minorUnits,
+    withoutExpectedValue: safeCount,
+    items: z.array(leadListItemSchema),
+    page: z.object({
+      nextCursor: z.string().min(1).max(1024).nullable(),
+      limit: z.number().int().min(1).max(50),
+    }),
+  })
+  .superRefine((column, context) => {
+    for (const [index, item] of column.items.entries()) {
+      if (item.pipelineStageId !== column.stage.id) {
+        context.addIssue({
+          code: "custom",
+          path: ["items", index, "pipelineStageId"],
+          message: "O Lead não pertence à coluna informada.",
+        });
+      }
+      if (item.status !== "active") {
+        context.addIssue({
+          code: "custom",
+          path: ["items", index, "status"],
+          message: "O Kanban aceita somente Leads ativos.",
+        });
+      }
+    }
+  });
+
+export const dynamicKanbanResponseSchema = z
+  .object({
+    pipeline: pipelineSchema.pick({
+      id: true,
+      name: true,
+      isDefault: true,
+      revision: true,
+    }),
+    currency: z.literal("BRL"),
+    expectedValueTotalMinor: minorUnits,
+    withoutExpectedValue: safeCount,
+    columns: z.array(dynamicKanbanColumnSchema).min(1),
+  })
+  .superRefine((response, context) => {
+    const ids = response.columns.map(({ stage }) => stage.id);
+    if (new Set(ids).size !== ids.length) {
+      context.addIssue({
+        code: "custom",
+        path: ["columns"],
+        message: "O Kanban retornou uma etapa duplicada.",
+      });
+    }
+    if (
+      !response.columns.every(
+        (column, index) =>
+          index === 0 ||
+          column.stage.position > response.columns[index - 1].stage.position,
+      )
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["columns"],
+        message: "As colunas do Kanban estão fora de ordem.",
+      });
+    }
+    for (const [columnIndex, column] of response.columns.entries()) {
+      for (const [itemIndex, item] of column.items.entries()) {
+        if (item.pipelineId !== response.pipeline.id) {
+          context.addIssue({
+            code: "custom",
+            path: ["columns", columnIndex, "items", itemIndex, "pipelineId"],
+            message: "O Lead não pertence ao Pipeline informado.",
+          });
+        }
+      }
+    }
+  });
+
 export const timelineResponseSchema = z.object({
   items: z.array(timelineItemSchema),
   page: z.object({
@@ -540,6 +655,10 @@ export type LeadReturnReviewQueueResponse = z.infer<
 export type LeadNextActionSummary = z.infer<typeof nextActionSummarySchema>;
 export type LeadKanbanColumn = z.infer<typeof leadKanbanColumnSchema>;
 export type LeadKanbanResponse = z.infer<typeof leadKanbanResponseSchema>;
+export type PipelineStage = z.infer<typeof pipelineStageSchema>;
+export type Pipeline = z.infer<typeof pipelineSchema>;
+export type DynamicKanbanColumn = z.infer<typeof dynamicKanbanColumnSchema>;
+export type DynamicKanbanResponse = z.infer<typeof dynamicKanbanResponseSchema>;
 export type LeadDetail = z.infer<typeof leadDetailSchema>;
 export type LeadView = z.infer<typeof leadViewSchema>;
 export type CreateLeadInput = z.output<typeof createLeadInputSchema>;

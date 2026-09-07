@@ -3,6 +3,7 @@ import { z, type ZodType } from "zod";
 import {
   cyclesResponseSchema,
   createLeadInputSchema,
+  dynamicKanbanResponseSchema,
   leadStages,
   leadDetailSchema,
   leadKanbanResponseSchema,
@@ -14,6 +15,7 @@ import {
   membersResponseSchema,
   mutationCreatedSchema,
   nextActionResponseSchema,
+  pipelineSchema,
   timelineResponseSchema,
   type ActivityType,
   type ArchiveReason,
@@ -26,6 +28,7 @@ import {
   type LeadMyActionsFilters,
   type LeadReturnReviewFilters,
   type LeadStage,
+  type Pipeline,
   type LeadUnassignedFilters,
   type LostReason,
   type NextActionType,
@@ -52,6 +55,7 @@ import { AppError } from "@/shared/api/errors";
 import type { IdempotencyKey } from "@/shared/api/idempotency";
 
 const leadIdSchema = z.uuid();
+const pipelineIdSchema = z.uuid();
 
 function leadPath(leadId: string, suffix = ""): string {
   return `/api/v1/leads/${leadIdSchema.parse(leadId)}${suffix}`;
@@ -112,7 +116,8 @@ export type LeadIdempotentAction =
       body: { performedAt: string; outcome?: string };
     }
   | { action: "next-action-cancel"; body: { note?: string } }
-  | { action: "move"; body: { stage: LeadStage } }
+  | { action: "move"; body: { pipelineStageId: string } }
+  | { action: "start-cycle"; body: { pipelineId: string } }
   | { action: "win"; body: Record<string, never> }
   | {
       action: "lose";
@@ -135,6 +140,7 @@ const actionSuffix: Record<LeadIdempotentAction["action"], string> = {
   "next-action-complete": "/next-action/complete",
   "next-action-cancel": "/next-action/cancel",
   move: "/move",
+  "start-cycle": "/cycles",
   win: "/win",
   lose: "/lose",
   archive: "/archive",
@@ -154,6 +160,7 @@ export function createLeadApi(http: AuthenticatedHttpClient) {
         kind: "idempotent-mutation",
         method: "POST",
         idempotencyKey,
+        leadContract: "pipeline-v2",
         body: createLeadInputSchema.parse(input),
       });
       if (response.status === 204) {
@@ -211,6 +218,7 @@ export function createLeadApi(http: AuthenticatedHttpClient) {
         kind: "tenant-scoped",
         method: "GET",
         signal,
+        leadContract: "pipeline-v2",
       });
       return parse(leadListResponseSchema, response.data);
     },
@@ -224,6 +232,7 @@ export function createLeadApi(http: AuthenticatedHttpClient) {
         kind: "tenant-scoped",
         method: "GET",
         signal,
+        leadContract: "pipeline-v2",
       });
       const board = parse(leadKanbanResponseSchema, response.data);
       if (page.stage) {
@@ -256,7 +265,12 @@ export function createLeadApi(http: AuthenticatedHttpClient) {
     ) {
       const response = await http.request(
         buildLeadMyActionsPath(filters, cursor),
-        { kind: "tenant-scoped", method: "GET", signal },
+        {
+          kind: "tenant-scoped",
+          method: "GET",
+          signal,
+          leadContract: "pipeline-v2",
+        },
       );
       return parse(leadWorkListResponseSchema, response.data);
     },
@@ -268,7 +282,12 @@ export function createLeadApi(http: AuthenticatedHttpClient) {
     ) {
       const response = await http.request(
         buildLeadUnassignedPath(filters, cursor),
-        { kind: "tenant-scoped", method: "GET", signal },
+        {
+          kind: "tenant-scoped",
+          method: "GET",
+          signal,
+          leadContract: "pipeline-v2",
+        },
       );
       return parse(leadWorkListResponseSchema, response.data);
     },
@@ -280,7 +299,12 @@ export function createLeadApi(http: AuthenticatedHttpClient) {
     ) {
       const response = await http.request(
         buildLeadReturnReviewPath(filters, cursor),
-        { kind: "tenant-scoped", method: "GET", signal },
+        {
+          kind: "tenant-scoped",
+          method: "GET",
+          signal,
+          leadContract: "pipeline-v2",
+        },
       );
       return parse(leadReturnReviewQueueResponseSchema, response.data);
     },
@@ -293,6 +317,7 @@ export function createLeadApi(http: AuthenticatedHttpClient) {
         kind: "tenant-scoped",
         method: "GET",
         signal,
+        leadContract: "pipeline-v2",
       });
       const lead = parse(leadDetailSchema, response.data);
       return {
@@ -310,7 +335,12 @@ export function createLeadApi(http: AuthenticatedHttpClient) {
       if (cursor) search.set("cursor", cursor);
       const response = await http.request(
         `${leadPath(leadId, "/timeline")}?${search.toString()}`,
-        { kind: "tenant-scoped", method: "GET", signal },
+        {
+          kind: "tenant-scoped",
+          method: "GET",
+          signal,
+          leadContract: "pipeline-v2",
+        },
       );
       return parse(timelineResponseSchema, response.data);
     },
@@ -320,6 +350,7 @@ export function createLeadApi(http: AuthenticatedHttpClient) {
         kind: "tenant-scoped",
         method: "GET",
         signal,
+        leadContract: "pipeline-v2",
       });
       return parse(nextActionResponseSchema, response.data);
     },
@@ -329,7 +360,12 @@ export function createLeadApi(http: AuthenticatedHttpClient) {
       if (cursor) search.set("cursor", cursor);
       const response = await http.request(
         `${leadPath(leadId, "/cycles")}?${search.toString()}`,
-        { kind: "tenant-scoped", method: "GET", signal },
+        {
+          kind: "tenant-scoped",
+          method: "GET",
+          signal,
+          leadContract: "pipeline-v2",
+        },
       );
       return parse(cyclesResponseSchema, response.data);
     },
@@ -346,6 +382,105 @@ export function createLeadApi(http: AuthenticatedHttpClient) {
         },
       );
       return parse(membersResponseSchema, response.data);
+    },
+
+    async pipelines(signal?: AbortSignal): Promise<Pipeline[]> {
+      const response = await http.request("/api/v1/pipelines", {
+        kind: "tenant-scoped",
+        method: "GET",
+        signal,
+      });
+      return parse(z.array(pipelineSchema), response.data);
+    },
+
+    async dynamicKanban(
+      pipelineId: string,
+      page: { pipelineStageId?: string; cursor?: string; limit?: number } = {},
+      signal?: AbortSignal,
+    ) {
+      const id = pipelineIdSchema.parse(pipelineId);
+      const search = new URLSearchParams({ limit: String(page.limit ?? 20) });
+      if (page.pipelineStageId)
+        search.set(
+          "pipelineStageId",
+          pipelineIdSchema.parse(page.pipelineStageId),
+        );
+      if (page.cursor) search.set("cursor", page.cursor);
+      const response = await http.request(
+        `/api/v1/pipelines/${id}/kanban?${search.toString()}`,
+        { kind: "tenant-scoped", method: "GET", signal },
+      );
+      const board = parse(dynamicKanbanResponseSchema, response.data);
+      if (board.pipeline.id !== id)
+        throw new AppError("protocol", "A API retornou outro Pipeline.");
+      if (
+        page.pipelineStageId &&
+        (board.columns.length !== 1 ||
+          board.columns[0]?.stage.id !== page.pipelineStageId)
+      )
+        throw new AppError("protocol", "A API retornou outra etapa.");
+      return board;
+    },
+
+    async createPipeline(input: { name: string; stages: string[] }) {
+      const pipelineId = crypto.randomUUID();
+      const response = await http.request(`/api/v1/pipelines/${pipelineId}`, {
+        kind: "tenant-scoped",
+        method: "PUT",
+        body: {
+          name: input.name,
+          stages: input.stages.map((name) => ({
+            id: crypto.randomUUID(),
+            name,
+          })),
+        },
+      });
+      return parse(pipelineSchema, response.data);
+    },
+
+    async mutatePipeline(
+      current: Pipeline,
+      mutation:
+        | { kind: "rename"; name: string }
+        | { kind: "create-stage"; name: string }
+        | { kind: "rename-stage"; stageId: string; name: string }
+        | { kind: "reorder"; stageIds: string[] }
+        | { kind: "archive-stage"; stageId: string },
+    ) {
+      const pipelineId = pipelineIdSchema.parse(current.id);
+      const ifMatch = `"pipeline:${pipelineId}:${current.revision}"`;
+      let path = `/api/v1/pipelines/${pipelineId}`;
+      let method: "PATCH" | "PUT" | "POST" = "PATCH";
+      let body: unknown;
+      if (mutation.kind === "rename") body = { name: mutation.name };
+      if (mutation.kind === "create-stage") {
+        path += `/stages/${crypto.randomUUID()}`;
+        method = "PUT";
+        body = { name: mutation.name };
+      }
+      if (mutation.kind === "rename-stage") {
+        path += `/stages/${pipelineIdSchema.parse(mutation.stageId)}`;
+        body = { name: mutation.name };
+      }
+      if (mutation.kind === "reorder") {
+        path += "/stages/order";
+        method = "PUT";
+        body = {
+          stageIds: mutation.stageIds.map((id) => pipelineIdSchema.parse(id)),
+        };
+      }
+      if (mutation.kind === "archive-stage") {
+        path += `/stages/${pipelineIdSchema.parse(mutation.stageId)}/archive`;
+        method = "POST";
+        body = {};
+      }
+      const response = await http.request(path, {
+        kind: "conditional-mutation",
+        method,
+        ifMatch,
+        body,
+      });
+      return parse(pipelineSchema, response.data);
     },
 
     async update(
@@ -410,7 +545,11 @@ export function createLeadApi(http: AuthenticatedHttpClient) {
           body: intent.body,
         },
       );
-      if (response.status === 201) parse(mutationCreatedSchema, response.data);
+      if (
+        response.status === 201 &&
+        ["activity", "note", "next-action-create"].includes(intent.action)
+      )
+        parse(mutationCreatedSchema, response.data);
       if (intent.action === "information") parse(leadViewSchema, response.data);
       return {
         etag: requireEtag(response),

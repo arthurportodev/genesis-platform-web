@@ -3,6 +3,7 @@ import {
   createBaseHttpClient,
   GENESIS_IF_MATCH_HEADER,
 } from "@/shared/api/http-client";
+import { GENESIS_LEAD_CONTRACT_HEADER } from "@/shared/api/if-match-transport";
 import { AppError } from "@/shared/api/errors";
 
 function jsonResponse(body: unknown, init: ResponseInit = {}) {
@@ -85,6 +86,24 @@ describe("cliente HTTP base", () => {
     expect(headers.get("Idempotency-Key")).toBe(
       "00000000-0000-4000-8000-000000000002",
     );
+  });
+
+  it("transporta explicitamente o contrato Pipeline V2 de Leads", async () => {
+    const fetch = vi
+      .fn<typeof globalThis.fetch>()
+      .mockResolvedValue(jsonResponse({ items: [] }));
+    const client = createBaseHttpClient({ fetch });
+
+    await client.request("/api/v1/leads", {
+      kind: "tenant-scoped",
+      method: "GET",
+      accessToken: "synthetic-access-token",
+      organizationId: "00000000-0000-4000-8000-000000000001",
+      leadContract: "pipeline-v2",
+    });
+
+    const headers = new Headers(fetch.mock.calls[0][1]?.headers);
+    expect(headers.get(GENESIS_LEAD_CONTRACT_HEADER)).toBe("pipeline-v2");
   });
 
   it("retorna undefined em 204 e rejeita HTML ou paths absolutos", async () => {

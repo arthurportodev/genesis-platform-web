@@ -4,9 +4,8 @@ import { type ReactNode, useRef, useState } from "react";
 
 import type {
   LeadListItem,
-  LeadStage,
+  PipelineStage,
 } from "@/features/leads/api/lead-contracts";
-import { stageLabels } from "@/features/leads/api/lead-labels";
 import { leadMoveDestinations } from "@/features/leads/model/lead-kanban";
 import { Button } from "@/shared/ui/Button";
 import {
@@ -21,29 +20,38 @@ import {
   DropdownMenuTrigger,
 } from "@/shared/ui/DropdownMenu";
 
+type Stage = Pick<PipelineStage, "id" | "name" | "position">;
+
 export function LeadMoveControl({
   lead,
+  stages,
   canMove,
   moveDisabled,
   detailAction,
   onConfirm,
 }: {
   lead: LeadListItem;
+  stages: readonly Stage[];
   canMove: boolean;
   moveDisabled: boolean;
   detailAction: ReactNode;
   onConfirm: (
-    targetStage: LeadStage,
+    targetStageId: string,
+    targetStageName: string,
     focusTarget: HTMLElement | null,
   ) => Promise<void>;
 }) {
   const triggerRef = useRef<HTMLButtonElement>(null);
   const confirmRef = useRef<HTMLButtonElement>(null);
-  const pendingTargetStageRef = useRef<LeadStage | null>(null);
+  const pendingTargetRef = useRef<Stage | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
-  const [targetStage, setTargetStage] = useState<LeadStage | null>(null);
+  const [targetStage, setTargetStage] = useState<Stage | null>(null);
   const [confirmationOpen, setConfirmationOpen] = useState(false);
-  const destinations = leadMoveDestinations(lead.stage);
+  const destinations = leadMoveDestinations(stages, lead.pipelineStageId);
+  const currentStageName =
+    stages.find((stage) => stage.id === lead.pipelineStageId)?.name ??
+    lead.pipelineStageName ??
+    "etapa atual";
 
   return (
     <DialogPrimitive.Root
@@ -66,11 +74,11 @@ export function LeadMoveControl({
         <DropdownMenuContent
           align="end"
           onCloseAutoFocus={(event) => {
-            const pendingTargetStage = pendingTargetStageRef.current;
-            if (!pendingTargetStage) return;
+            const pending = pendingTargetRef.current;
+            if (!pending) return;
             event.preventDefault();
-            pendingTargetStageRef.current = null;
-            setTargetStage(pendingTargetStage);
+            pendingTargetRef.current = null;
+            setTargetStage(pending);
             setConfirmationOpen(true);
           }}
         >
@@ -78,7 +86,7 @@ export function LeadMoveControl({
           <DropdownMenuItem asChild className="min-h-11">
             {detailAction}
           </DropdownMenuItem>
-          {canMove ? (
+          {canMove && destinations.length > 0 ? (
             <>
               <DropdownMenuSeparator />
               <DropdownMenuSub>
@@ -93,15 +101,15 @@ export function LeadMoveControl({
                   <DropdownMenuLabel>Etapa de destino</DropdownMenuLabel>
                   {destinations.map((stage) => (
                     <DropdownMenuItem
-                      key={stage}
+                      key={stage.id}
                       className="min-h-11"
                       onSelect={() => {
-                        pendingTargetStageRef.current = stage;
+                        pendingTargetRef.current = stage;
                         setMenuOpen(false);
                       }}
                     >
                       <ArrowRight className="size-4" aria-hidden="true" />
-                      {stageLabels[stage]}
+                      {stage.name}
                     </DropdownMenuItem>
                   ))}
                 </DropdownMenuSubContent>
@@ -124,9 +132,9 @@ export function LeadMoveControl({
             Confirmar mudança de etapa
           </DialogPrimitive.Title>
           <DialogPrimitive.Description className="mt-2 text-sm leading-6 text-muted-foreground">
-            Mover {lead.displayName} de {stageLabels[lead.stage]} para{" "}
-            {targetStage ? stageLabels[targetStage] : "outra etapa"}? A versão
-            atual será verificada antes do comando.
+            Mover {lead.displayName} de {currentStageName} para{" "}
+            {targetStage?.name ?? "outra etapa"}? A versão atual será verificada
+            antes do comando.
           </DialogPrimitive.Description>
           <DialogPrimitive.Close className="absolute right-3 top-3 grid size-11 place-items-center rounded-lg hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
             <X className="size-4" aria-hidden="true" />
@@ -143,10 +151,13 @@ export function LeadMoveControl({
               className="min-h-11"
               disabled={!targetStage || moveDisabled}
               onClick={() => {
-                const target = targetStage;
-                if (!target) return;
+                if (!targetStage) return;
                 setConfirmationOpen(false);
-                void onConfirm(target, triggerRef.current);
+                void onConfirm(
+                  targetStage.id,
+                  targetStage.name,
+                  triggerRef.current,
+                );
               }}
             >
               Confirmar movimento

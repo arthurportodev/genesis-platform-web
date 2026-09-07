@@ -10,7 +10,10 @@ import type {
 import { LeadCreateFeedback } from "@/features/leads/components/LeadCreateFeedback";
 import { LeadCreateForm } from "@/features/leads/components/LeadCreateForm";
 import { useCreateLead } from "@/features/leads/hooks/use-create-lead";
-import { useLeadAssigneesQuery } from "@/features/leads/hooks/use-lead-queries";
+import {
+  useLeadAssigneesQuery,
+  usePipelinesQuery,
+} from "@/features/leads/hooks/use-lead-queries";
 import { useLeadNavigationState } from "@/features/leads/model/lead-navigation-state";
 import { PageHeader } from "@/shared/components/PageHeader";
 import { usePendingChangesRegistration } from "@/shared/navigation/pending-changes";
@@ -26,11 +29,30 @@ const uncertainDiscardWarning =
 export function LeadCreatePage() {
   const organization = useActiveOrganization();
   const search = useSearch({ from: "/app/leads/new" });
+  const pipelines = usePipelinesQuery();
+  const fixedPipeline = pipelines.data
+    ? (pipelines.data.find((pipeline) => pipeline.id === search.pipelineId) ??
+      (search.from === "pipeline" && !search.pipelineId
+        ? pipelines.data.find((pipeline) => pipeline.isDefault)
+        : undefined))
+    : undefined;
+  if (pipelines.isPending) return <p role="status">Carregando Pipelines…</p>;
+  if (pipelines.isError || (search.from === "pipeline" && !fixedPipeline))
+    return (
+      <p
+        role="alert"
+        className="rounded-lg border border-destructive/20 bg-destructive/5 p-4"
+      >
+        Não foi possível confirmar o Pipeline desta criação.
+      </p>
+    );
   return (
     <OrganizationLeadCreatePage
       key={`${organization.id}:${organization.membershipId}`}
       organization={organization}
       fromPipeline={search.from === "pipeline"}
+      pipelines={pipelines.data}
+      fixedPipeline={fixedPipeline}
     />
   );
 }
@@ -38,9 +60,13 @@ export function LeadCreatePage() {
 function OrganizationLeadCreatePage({
   organization,
   fromPipeline,
+  pipelines,
+  fixedPipeline,
 }: {
   organization: ActiveOrganization;
   fromPipeline: boolean;
+  pipelines: readonly import("@/features/leads/api/lead-contracts").Pipeline[];
+  fixedPipeline?: import("@/features/leads/api/lead-contracts").Pipeline;
 }) {
   const capabilities = leadCreationCapabilities(organization);
   const assignees = useLeadAssigneesQuery(capabilities.canChooseResponsible);
@@ -54,6 +80,9 @@ function OrganizationLeadCreatePage({
   const allowNavigation = useRef(false);
   const [pendingChanges, setPendingChanges] = useState(false);
   const returnTo = fromPipeline ? "/app/pipeline" : "/app/leads";
+  const returnSearch = fromPipeline
+    ? { pipelineId: fixedPipeline?.id }
+    : undefined;
   const shouldBlock = pendingChanges || creation.uncertain;
   usePendingChangesRegistration(
     shouldBlock,
@@ -88,7 +117,20 @@ function OrganizationLeadCreatePage({
             : "lead-existing-entry-recorded",
       );
       if (fromPipeline) {
-        await navigate({ to: "/app/pipeline", replace: true });
+        if (result.status === 200) {
+          navigation.markDetailOrigin("pipeline");
+          await navigate({
+            to: "/app/leads/$leadId",
+            params: { leadId: result.lead.id },
+            replace: true,
+          });
+          return;
+        }
+        await navigate({
+          to: "/app/pipeline",
+          search: { pipelineId: fixedPipeline?.id },
+          replace: true,
+        });
         return;
       }
       navigation.markDetailOrigin("inbox");
@@ -98,7 +140,7 @@ function OrganizationLeadCreatePage({
         replace: true,
       });
     },
-    [fromPipeline, navigate, navigation],
+    [fixedPipeline?.id, fromPipeline, navigate, navigation],
   );
 
   const submit = async (input: CreateLeadInput) => {
@@ -111,7 +153,7 @@ function OrganizationLeadCreatePage({
         type="button"
         variant="ghost"
         className="-ml-3 min-h-11"
-        onClick={() => void navigate({ to: returnTo })}
+        onClick={() => void navigate({ to: returnTo, search: returnSearch })}
       >
         <ArrowLeft className="size-4" aria-hidden="true" />
         {fromPipeline ? "Voltar para o Pipeline" : "Voltar para a Inbox"}
@@ -129,6 +171,8 @@ function OrganizationLeadCreatePage({
       />
       <LeadCreateForm
         key={organization.id}
+        pipelines={pipelines}
+        fixedPipeline={fixedPipeline}
         canChooseResponsible={capabilities.canChooseResponsible}
         members={members}
         directoryPending={assignees.isPending}
@@ -139,7 +183,7 @@ function OrganizationLeadCreatePage({
         uncertain={creation.uncertain}
         onLoadMoreMembers={() => void assignees.fetchNextPage()}
         onSubmit={submit}
-        onCancel={() => void navigate({ to: returnTo })}
+        onCancel={() => void navigate({ to: returnTo, search: returnSearch })}
         onPendingChanges={setPendingChanges}
       />
     </div>

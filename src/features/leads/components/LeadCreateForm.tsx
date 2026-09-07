@@ -10,6 +10,7 @@ import {
 import type {
   CreateLeadInput,
   Member,
+  Pipeline,
 } from "@/features/leads/api/lead-contracts";
 import {
   buildCreateLeadInput,
@@ -93,6 +94,8 @@ function FormField({
 }
 
 export function LeadCreateForm({
+  pipelines,
+  fixedPipeline,
   canChooseResponsible,
   members,
   directoryPending,
@@ -106,6 +109,8 @@ export function LeadCreateForm({
   onCancel,
   onPendingChanges,
 }: {
+  pipelines: readonly Pipeline[];
+  fixedPipeline?: Pipeline;
   canChooseResponsible: boolean;
   members: readonly Member[];
   directoryPending: boolean;
@@ -128,10 +133,14 @@ export function LeadCreateForm({
     formState: { errors, isDirty },
   } = useForm<LeadCreateFormValues>({
     resolver: zodResolver(leadCreateFormSchema),
-    defaultValues: defaultLeadCreateValues,
+    defaultValues: {
+      ...defaultLeadCreateValues,
+      pipelineId: fixedPipeline?.id ?? "",
+    },
     shouldFocusError: true,
   });
   const source = useWatch({ control, name: "source" });
+  const pipelineId = useWatch({ control, name: "pipelineId" });
   useEffect(() => {
     if (source !== "other" && getValues("sourceDetail") !== "")
       setValue("sourceDetail", "", {
@@ -143,6 +152,13 @@ export function LeadCreateForm({
     () => onPendingChanges(isDirty || uncertain),
     [isDirty, onPendingChanges, uncertain],
   );
+  useEffect(() => {
+    if (!pipelineId && getValues("expectedValue") !== "")
+      setValue("expectedValue", "", {
+        shouldDirty: true,
+        shouldValidate: true,
+      });
+  }, [getValues, pipelineId, setValue]);
   return (
     <form
       className="space-y-6"
@@ -237,12 +253,50 @@ export function LeadCreateForm({
             error={errors.serviceInterest}
             registration={register("serviceInterest")}
           />
+          <div className="space-y-2">
+            <Label htmlFor="lead-pipeline">Pipeline</Label>
+            {fixedPipeline ? (
+              <>
+                <Input
+                  id="lead-pipeline"
+                  value={fixedPipeline.name}
+                  readOnly
+                  aria-describedby="lead-pipeline-help"
+                />
+                <input type="hidden" {...register("pipelineId")} />
+              </>
+            ) : (
+              <Select
+                id="lead-pipeline"
+                className="min-h-11 text-base sm:text-sm"
+                aria-describedby="lead-pipeline-help"
+                {...register("pipelineId")}
+              >
+                <option value="">Nenhum pipeline</option>
+                {pipelines.map((pipeline) => (
+                  <option key={pipeline.id} value={pipeline.id}>
+                    {pipeline.name}
+                  </option>
+                ))}
+              </Select>
+            )}
+            <p
+              id="lead-pipeline-help"
+              className="text-xs leading-5 text-muted-foreground"
+            >
+              {fixedPipeline
+                ? "A oportunidade será iniciada no primeiro estágio ativo deste Pipeline."
+                : "Sem Pipeline, o Lead é criado sem ciclo comercial."}
+            </p>
+          </div>
           <FormField
             id="lead-expected-value"
             label="Valor da oportunidade"
             prefix="R$"
             placeholder="0,00"
             inputMode="decimal"
+            disabled={!pipelineId}
+            help="O valor pertence à oportunidade e fica disponível quando um Pipeline é escolhido."
             error={errors.expectedValue}
             registration={register("expectedValue")}
             onBlur={(event) => {

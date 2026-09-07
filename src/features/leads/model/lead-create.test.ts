@@ -69,9 +69,22 @@ describe("criação manual de Lead", () => {
       displayName: "Lead",
       primaryPhone: "11999999999",
       expectedValue,
+      pipelineId: "00000000-0000-4000-8000-000000000101",
     });
     const input = buildCreateLeadInput(values, true);
     expect(input.expectedValueMinor).toBe(minorUnits);
+  });
+
+  it("omite valor quando nenhum Pipeline foi selecionado", () => {
+    const values = leadCreateFormSchema.parse({
+      ...defaultLeadCreateValues,
+      displayName: "Lead",
+      primaryPhone: "11999999999",
+      expectedValue: "1.234,56",
+    });
+    expect(buildCreateLeadInput(values, true)).not.toHaveProperty(
+      "expectedValueMinor",
+    );
   });
 
   it("mantém internacional e aplica máscara brasileira não destrutiva", () => {

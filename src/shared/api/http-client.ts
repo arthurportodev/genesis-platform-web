@@ -6,7 +6,10 @@ import type {
   HttpResponse,
 } from "@/shared/api/contracts";
 import { AppError, createHttpError, toAppError } from "@/shared/api/errors";
-import { GENESIS_IF_MATCH_HEADER } from "@/shared/api/if-match-transport";
+import {
+  GENESIS_IF_MATCH_HEADER,
+  GENESIS_LEAD_CONTRACT_HEADER,
+} from "@/shared/api/if-match-transport";
 import { environment } from "@/shared/config/environment";
 
 const MAX_ERROR_BODY_BYTES = 16_384;
@@ -142,6 +145,11 @@ function assertRequestOptions(options: HttpRequestOptions): void {
     throw new AppError("protocol", "Bearer incompatível com a chamada.");
   if (options.organizationId && !tenantScoped)
     throw new AppError("protocol", "Organization incompatível com a chamada.");
+  if (options.leadContract && !tenantScoped)
+    throw new AppError(
+      "protocol",
+      "Contrato de Lead incompatível com a chamada.",
+    );
   if (options.csrfToken && kind !== "auth-cookie-mutation")
     throw new AppError("protocol", "CSRF incompatível com a chamada.");
   if (
@@ -215,6 +223,8 @@ export function createBaseHttpClient(
         headers.set(GENESIS_IF_MATCH_HEADER, options.ifMatch);
       if (options.idempotencyKey)
         headers.set("Idempotency-Key", options.idempotencyKey);
+      if (options.leadContract)
+        headers.set(GENESIS_LEAD_CONTRACT_HEADER, options.leadContract);
 
       const combined = combineAbortSignals(options.signal, timeoutMs);
       try {

@@ -1,19 +1,16 @@
 import { createContext, useContext } from "react";
 
-import type {
-  LeadKanbanFilters,
-  LeadStage,
-} from "@/features/leads/api/lead-contracts";
+import type { LeadKanbanFilters } from "@/features/leads/api/lead-contracts";
 import type { LeadPipelineMoveController } from "@/features/leads/hooks/use-lead-mutations";
 
 export interface LeadPipelineState {
   search: string;
   filters: LeadKanbanFilters;
-  mobileStage: LeadStage;
+  mobileStage: string | null;
   move: LeadPipelineMoveController;
   setSearch: (value: string) => void;
   setFilters: (value: LeadKanbanFilters) => void;
-  setMobileStage: (value: LeadStage) => void;
+  setMobileStage: (value: string | null) => void;
 }
 
 export const LeadPipelineStateContext = createContext<LeadPipelineState | null>(

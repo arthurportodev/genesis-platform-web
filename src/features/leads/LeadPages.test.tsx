@@ -1,4 +1,4 @@
-import { act, screen, waitFor } from "@testing-library/react";
+import { act, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import { renderAppAt } from "@/test/renderApp";
@@ -12,6 +12,8 @@ import {
   testLead,
   testLeadId,
   testMemberId,
+  testPipelineId,
+  testPipelineStageIds,
 } from "@/test/msw/lead-handlers";
 import { server } from "@/test/msw/server";
 import { createLeadSnapshot } from "@/features/leads/api/lead-snapshot";
@@ -80,6 +82,26 @@ describe("Inbox e detalhe do Lead", () => {
       await screen.findByText("Valor da oportunidade alterado"),
     ).toBeVisible();
     expect(screen.getByText("R$ 25.000,00 → R$ 30.000,00")).toBeVisible();
+    restoreLocks();
+  });
+
+  it("exibe snapshots históricos sem reconstruir nomes atuais", async () => {
+    const restoreLocks = installWebLocks();
+    server.use(
+      ...createAuthHandlers(),
+      ...createLeadHandlers({
+        timelineStageNames: {
+          previous: "Triagem histórica",
+          next: "Diagnóstico histórico",
+        },
+      }),
+    );
+    await renderAppAt(`/app/leads/${testLeadId}`);
+
+    expect(await screen.findByText("Etapa alterada")).toBeVisible();
+    expect(
+      screen.getByText("Triagem histórica → Diagnóstico histórico"),
+    ).toBeVisible();
     restoreLocks();
   });
 
@@ -323,6 +345,22 @@ describe("Inbox e detalhe do Lead", () => {
         pageParams: [undefined],
       },
     );
+    queryClient.setQueryData(
+      leadQueryKeys.nextAction(testOrganizations[0].id, secondLeadId),
+      { item: null, temporalState: "none", leadRevision: "3" },
+    );
+    queryClient.setQueryData(
+      leadQueryKeys.cycles(testOrganizations[0].id, secondLeadId),
+      {
+        pages: [
+          {
+            items: secondLead.latestCycle ? [secondLead.latestCycle] : [],
+            page: { nextCursor: null, limit: 25 },
+          },
+        ],
+        pageParams: [undefined],
+      },
+    );
 
     await act(async () => {
       await router.navigate({
@@ -342,16 +380,16 @@ describe("Inbox e detalhe do Lead", () => {
     const restoreLocks = installWebLocks();
     server.use(
       ...createAuthHandlers(),
-      ...createLeadHandlers({ moveDelayMs: 100 }),
+      ...createLeadHandlers({ moveDelayMs: 500 }),
     );
     const user = userEvent.setup();
     await renderAppAt(`/app/leads/${testLeadId}`);
 
     const stage = await screen.findByLabelText("Etapa");
-    await user.selectOptions(stage, "proposal");
+    await user.selectOptions(stage, testPipelineStageIds[3]);
     expect(screen.getByText("Salvando etapa...")).toBeVisible();
     expect(await screen.findByText("Etapa atualizada.")).toBeVisible();
-    expect(screen.getByLabelText("Etapa")).toHaveValue("proposal");
+    expect(screen.getByLabelText("Etapa")).toHaveValue(testPipelineStageIds[3]);
     expect(screen.queryByRole("button", { name: "Mover Lead" })).toBeNull();
     restoreLocks();
   });
@@ -366,11 +404,11 @@ describe("Inbox e detalhe do Lead", () => {
     await renderAppAt(`/app/leads/${testLeadId}`);
 
     const stage = await screen.findByLabelText("Etapa");
-    await user.selectOptions(stage, "proposal");
+    await user.selectOptions(stage, testPipelineStageIds[3]);
     expect(
       await screen.findByText(/não foi confirmada como salva/iu),
     ).toBeVisible();
-    expect(stage).toHaveValue("qualification");
+    expect(stage).toHaveValue(testPipelineStageIds[1]);
     expect(screen.queryByText(/Etapa salva:/iu)).toBeNull();
     restoreLocks();
   });
@@ -470,7 +508,10 @@ describe("Inbox e detalhe do Lead", () => {
     );
     expect(await screen.findByText("Próxima ação criada.")).toBeVisible();
 
-    await user.selectOptions(screen.getByLabelText("Etapa"), "proposal");
+    await user.selectOptions(
+      screen.getByLabelText("Etapa"),
+      testPipelineStageIds[3],
+    );
     expect(await screen.findByText("Etapa atualizada.")).toBeVisible();
 
     await user.click(screen.getByRole("button", { name: "Marcar como ganho" }));
@@ -490,4 +531,67 @@ describe("Inbox e detalhe do Lead", () => {
     expect(new Set(idempotentKeys).size).toBe(idempotentKeys.length);
     restoreLocks();
   }, 20_000);
+
+  it("mantém Lead sem ciclo editável e inicia o Pipeline somente por ação explícita", async () => {
+    const restoreLocks = installWebLocks();
+    const calls: Array<{
+      path: string;
+      ifMatch: string | null;
+      key: string | null;
+      body: Promise<unknown>;
+    }> = [];
+    server.use(
+      ...createAuthHandlers(),
+      ...createLeadHandlers({
+        cyclesEmpty: true,
+        detailOverrides: {
+          pipelineId: null,
+          pipelineStageId: null,
+          pipelineName: null,
+          pipelineStageName: null,
+          latestCycleNumber: null,
+          latestCycle: null,
+        },
+        onMutation: (request) => {
+          if (new URL(request.url).pathname.endsWith("/cycles"))
+            calls.push({
+              path: new URL(request.url).pathname,
+              ifMatch: request.headers.get("x-genesis-if-match"),
+              key: request.headers.get("idempotency-key"),
+              body: request.clone().json(),
+            });
+        },
+      }),
+    );
+    const user = userEvent.setup();
+    await renderAppAt(`/app/leads/${testLeadId}`);
+
+    expect(await screen.findByText("Sem Pipeline")).toBeVisible();
+    expect(screen.getByLabelText("Nome")).toBeEnabled();
+    expect(screen.getByLabelText("Valor da oportunidade")).toBeDisabled();
+    expect(screen.queryByLabelText("Conteúdo da nota")).not.toBeInTheDocument();
+    await user.click(
+      screen.getByRole("button", { name: "Adicionar ao Pipeline" }),
+    );
+    const dialog = await screen.findByRole("dialog", {
+      name: "Adicionar ao Pipeline",
+    });
+    expect(within(dialog).getByLabelText("Pipeline")).toHaveValue(
+      testPipelineId,
+    );
+    await user.click(within(dialog).getByRole("button", { name: "Confirmar" }));
+
+    await waitFor(() => expect(calls).toHaveLength(1));
+    expect(calls[0]).toMatchObject({
+      path: `/api/v1/leads/${testLeadId}/cycles`,
+      ifMatch: `"lead:${testLeadId}:3"`,
+    });
+    expect(calls[0]?.key).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u,
+    );
+    await expect(calls[0]?.body).resolves.toEqual({
+      pipelineId: testPipelineId,
+    });
+    restoreLocks();
+  });
 });
