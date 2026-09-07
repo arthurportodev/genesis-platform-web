@@ -157,7 +157,7 @@ export function AdminShell() {
 
   return (
     <div className="min-h-screen bg-background">
-      <aside className="fixed inset-y-0 left-0 z-[var(--layer-navigation)] hidden w-[var(--sidebar-width)] border-r border-border bg-surface p-5 lg:block">
+      <aside className="admin-sidebar-theme fixed inset-y-0 left-0 z-[var(--layer-navigation)] hidden w-[var(--sidebar-width)] border-r border-border bg-surface p-5 text-foreground lg:block">
         <Brand />
         <div className="mt-8">
           <p className="mb-2 px-3 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
@@ -182,7 +182,7 @@ export function AdminShell() {
                   <Menu className="size-5" aria-hidden="true" />
                 </Button>
               </SheetTrigger>
-              <SheetContent>
+              <SheetContent className="admin-sidebar-theme text-foreground">
                 <SheetTitle className="sr-only">Menu principal</SheetTitle>
                 <SheetDescription className="sr-only">
                   Navegação da área administrativa.

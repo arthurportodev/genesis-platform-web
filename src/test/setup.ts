@@ -8,6 +8,14 @@ import { disposeTestRuntimes } from "@/test/runtimeRegistry";
 
 window.scrollTo = () => undefined;
 
+class TestResizeObserver implements ResizeObserver {
+  disconnect() {}
+  observe() {}
+  unobserve() {}
+}
+
+globalThis.ResizeObserver = TestResizeObserver;
+
 beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
 afterEach(() => {
   cleanup();

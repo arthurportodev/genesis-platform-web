@@ -60,6 +60,18 @@
   --layer-overlay: 50;
 }
 
+.admin-sidebar-theme {
+  color-scheme: dark;
+  --surface: #111827;
+  --foreground: #f8fafc;
+  --muted: #1f2937;
+  --muted-foreground: #a8b3c4;
+  --border: #334155;
+  --primary: #91a7ff;
+  --primary-foreground: #0f172a;
+  --ring: #91a7ff;
+}
+
 * {
   border-color: var(--border);
 }

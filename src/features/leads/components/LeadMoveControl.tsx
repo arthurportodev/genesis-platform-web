@@ -1,6 +1,6 @@
 import * as DialogPrimitive from "@radix-ui/react-dialog";
-import { ArrowRight, ChevronDown, X } from "lucide-react";
-import { useRef, useState } from "react";
+import { ArrowRight, MoreVertical, X } from "lucide-react";
+import { type ReactNode, useRef, useState } from "react";
 
 import type {
   LeadListItem,
@@ -14,16 +14,24 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/shared/ui/DropdownMenu";
 
 export function LeadMoveControl({
   lead,
-  disabled,
+  canMove,
+  moveDisabled,
+  detailAction,
   onConfirm,
 }: {
   lead: LeadListItem;
-  disabled: boolean;
+  canMove: boolean;
+  moveDisabled: boolean;
+  detailAction: ReactNode;
   onConfirm: (
     targetStage: LeadStage,
     focusTarget: HTMLElement | null,
@@ -31,43 +39,78 @@ export function LeadMoveControl({
 }) {
   const triggerRef = useRef<HTMLButtonElement>(null);
   const confirmRef = useRef<HTMLButtonElement>(null);
+  const pendingTargetStageRef = useRef<LeadStage | null>(null);
+  const [menuOpen, setMenuOpen] = useState(false);
   const [targetStage, setTargetStage] = useState<LeadStage | null>(null);
   const [confirmationOpen, setConfirmationOpen] = useState(false);
   const destinations = leadMoveDestinations(lead.stage);
+
   return (
     <DialogPrimitive.Root
       open={confirmationOpen}
       onOpenChange={setConfirmationOpen}
     >
-      <DropdownMenu>
+      <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
         <DropdownMenuTrigger asChild>
           <Button
             ref={triggerRef}
-            variant="secondary"
-            className="min-h-11"
-            disabled={disabled}
-            aria-label={`Mover ${lead.displayName} para outra etapa`}
+            variant="ghost"
+            size="icon"
+            className="min-h-11 min-w-11 shrink-0"
+            aria-label={`Ações de ${lead.displayName}`}
+            data-no-drag
           >
-            Mover para <ChevronDown className="size-4" aria-hidden="true" />
+            <MoreVertical className="size-4" aria-hidden="true" />
           </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end">
-          <DropdownMenuLabel>Escolha a etapa de destino</DropdownMenuLabel>
-          {destinations.map((stage) => (
-            <DropdownMenuItem
-              key={stage}
-              className="min-h-11"
-              onSelect={() => {
-                setTargetStage(stage);
-                setConfirmationOpen(true);
-              }}
-            >
-              <ArrowRight className="size-4" aria-hidden="true" />
-              {stageLabels[stage]}
-            </DropdownMenuItem>
-          ))}
+        <DropdownMenuContent
+          align="end"
+          onCloseAutoFocus={(event) => {
+            const pendingTargetStage = pendingTargetStageRef.current;
+            if (!pendingTargetStage) return;
+            event.preventDefault();
+            pendingTargetStageRef.current = null;
+            setTargetStage(pendingTargetStage);
+            setConfirmationOpen(true);
+          }}
+        >
+          <DropdownMenuLabel>Ações do Lead</DropdownMenuLabel>
+          <DropdownMenuItem asChild className="min-h-11">
+            {detailAction}
+          </DropdownMenuItem>
+          {canMove ? (
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuSub>
+                <DropdownMenuSubTrigger
+                  className="min-h-11 gap-2"
+                  disabled={moveDisabled}
+                >
+                  <ArrowRight className="size-4" aria-hidden="true" />
+                  Mover para
+                </DropdownMenuSubTrigger>
+                <DropdownMenuSubContent>
+                  <DropdownMenuLabel>Etapa de destino</DropdownMenuLabel>
+                  {destinations.map((stage) => (
+                    <DropdownMenuItem
+                      key={stage}
+                      className="min-h-11"
+                      onSelect={() => {
+                        pendingTargetStageRef.current = stage;
+                        setMenuOpen(false);
+                      }}
+                    >
+                      <ArrowRight className="size-4" aria-hidden="true" />
+                      {stageLabels[stage]}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuSubContent>
+              </DropdownMenuSub>
+            </>
+          ) : null}
         </DropdownMenuContent>
       </DropdownMenu>
+
       <DialogPrimitive.Portal>
         <DialogPrimitive.Overlay className="fixed inset-0 z-[var(--layer-overlay)] bg-foreground/35 backdrop-blur-[var(--overlay-blur)] data-[state=closed]:animate-out data-[state=open]:animate-in motion-reduce:animate-none" />
         <DialogPrimitive.Content
@@ -98,7 +141,7 @@ export function LeadMoveControl({
             <Button
               ref={confirmRef}
               className="min-h-11"
-              disabled={!targetStage || disabled}
+              disabled={!targetStage || moveDisabled}
               onClick={() => {
                 const target = targetStage;
                 if (!target) return;
