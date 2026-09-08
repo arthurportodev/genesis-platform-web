@@ -19,7 +19,7 @@ Product Task
 → Pull Request / merge
 → immutable candidate
 → Production Gate
-→ promotion
+→ routing/promotion
 → Production Health
 → Manual Product Acceptance
 → KEEP / ROLLBACK
@@ -28,6 +28,14 @@ Product Task
 
 Automated Feature Validation e checkpoints adicionais entram somente quando o
 risco da tarefa os exigir.
+
+No Web, `PREVIEW_VALIDATION_ONLY` e `STAGED_PRODUCTION_CANDIDATE` são papéis
+distintos. Preview permite validação isolada, mas seu deployment ID não é a
+autoridade de identidade exata em Production. Quando a release exigir essa
+identidade, o candidato imutável é um deployment criado no environment
+Production, ainda não Current no custom domain. “Staged Production” descreve
+esse estado do deployment; não cria um ambiente de staging ou nova
+infraestrutura.
 
 ## Classifique a superfície
 
@@ -56,8 +64,9 @@ continuam autoridades do fluxo API.
 
 1. O que será deployado e qual é a superfície?
 2. Há migration? Qual Level e qual pending exato?
-3. Quais são os candidate SHAs/digests/deployments imutáveis?
-4. Quais são as versões previous factuais?
+3. Qual é o tipo do candidate Web e quais são os SHAs, digests e deployment IDs
+   imutáveis aplicáveis?
+4. Quais são as versões previous factuais e sua elegibilidade para rollback?
 5. A CI pertence aos candidates exatos?
 6. Quais sinais compõem o Production Health?
 7. O risco exige validação automatizada adicional ou observação longa? Qual?
@@ -67,17 +76,57 @@ continuam autoridades do fluxo API.
 
 ## Rotina Web
 
-Antes da promotion:
+O fluxo Web é:
+
+```text
+source aprovado
+→ Preview validation opcional quando exigida pelo risco
+→ staged Production candidate
+→ Production Gate
+→ staged Production deployment → Current por routing/promotion
+→ Production Health
+→ Manual Product Acceptance
+→ KEEP ou Instant Rollback
+```
+
+Preview é `PREVIEW_VALIDATION_ONLY`: serve para validação visual, build
+verification, generated-host/fail-closed checks e outras verificações isoladas.
+Ele não é a autoridade de exact Production deployment identity, não é
+obrigatório e seu deployment ID não precisa sobreviver à criação de um
+deployment Production.
+
+Quando a release exigir exact deployment identity, prepare um
+`STAGED_PRODUCTION_CANDIDATE`: deployment do projeto correto, criado no
+environment Production, `READY`, ainda não Current no custom domain e
+factualmente elegível para routing. Antes do Gate de Production, registre seu
+deployment ID e source SHA exatos.
+
+Antes do routing/promotion:
 
 - confirme `git.deploymentEnabled=false`; merge continua diferente de deploy;
-- identifique candidate imutável e `PREVIOUS_WEB_DEPLOYMENT`;
-- comprove mesmo projeto, estado `READY` e elegibilidade de ambos;
-- valide o generated host sem credenciais;
+- identifique o candidate Web pelo papel
+  `PREVIEW_VALIDATION_ONLY | STAGED_PRODUCTION_CANDIDATE`;
+- quando houver Preview, valide o generated host sem credenciais;
+- para exact identity, comprove no staged Production candidate o deployment ID,
+  source SHA, projeto, environment Production, estado `READY` e elegibilidade
+  para tornar-se Current;
+- registre `PREVIOUS_PRODUCTION_DEPLOYMENT_ID` e
+  `PREVIOUS_PRODUCTION_SOURCE_SHA`; comprove mesmo projeto, environment
+  Production, estado `READY`, disponibilidade e elegibilidade factual para
+  routing/Instant Rollback;
 - classifique se o risco exige browser, feature smoke ou observação longa e,
   somente quando exigir, congele o menor comando e os checkpoints necessários;
-- obtenha Gate de Production vinculado às identidades exatas.
+- obtenha Gate de Production vinculado ao source SHA, staged Production
+  deployment ID, projeto, environment, estado `READY` e previous Production
+  deployment ID.
 
-Depois de uma única promotion manual:
+Torne o staged Production candidate Current por uma única operação manual de
+routing/promotion que não reconstrua o deployment. Quando o contrato exigir
+exact identity, `CURRENT_DEPLOYMENT_ID` deve ser exatamente igual a
+`STAGED_PRODUCTION_DEPLOYMENT_ID`; equivalência apenas por source SHA não
+substitui essa prova.
+
+Depois do routing/promotion:
 
 1. comprove o Production Health: deployment `READY`, candidate/source correto,
    custom domain correto, Web pública HTTP 200 e API health HTTP 200;
@@ -186,12 +235,21 @@ permanecem bloqueados.
 
 ## Rollback Web
 
-Se qualquer gate obrigatório falhar após promotion:
+Se qualquer gate obrigatório falhar após routing/promotion:
 
-`PREVIOUS_WEB_DEPLOYMENT → promote → Production Health → STOP`
+```text
+PREVIOUS_PRODUCTION_DEPLOYMENT
+→ routing / Instant Rollback
+→ Current
+→ Production Health
+→ STOP
+```
 
-Não ajuste Production, não tente a feature novamente e não faça uma segunda
-promotion automática do candidate.
+O rollback torna Current o deployment Production anterior, imutável e elegível,
+sem rebuild. Se ele não puder ser restaurado por routing/Instant Rollback,
+registre `STOP` e investigue; não improvise um novo build. Não ajuste
+Production, não tente a feature novamente e não faça uma segunda promotion
+automática do candidate.
 
 ## Observação
 
@@ -204,6 +262,7 @@ do ADR-020 em `T+0/T+30/T+120` no Level 1 e `T+0/T+60/T+300` no Level 2.
 
 - `KEEP`: Production Health, Manual Product Acceptance e qualquer validação
   adicional exigida pelo risco passaram.
-- `ROLLBACK`: previous foi restaurado após falha pós-promotion.
+- `ROLLBACK`: previous Production deployment foi restaurado por routing/Instant
+  Rollback, sem rebuild, após falha pós-promotion.
 - `STOP`: identidade, preflight, autorização, validação ou rollback não pôde
   ser comprovado.

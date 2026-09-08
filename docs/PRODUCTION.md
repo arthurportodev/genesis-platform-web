@@ -15,7 +15,8 @@ memória canônica da API; este contrato não declara DNS, deploy ou
 disponibilidade live.
 
 Preview não recebe o destino de produção e falha fechado para `/api/v1`. O
-fallback da SPA nunca pode capturar paths de API.
+fallback da SPA nunca pode capturar paths de API. Preview serve para validação
+isolada e não é a autoridade de exact Production deployment identity.
 
 Deployments automáticos originados pelo Git permanecem globalmente desativados
 por `git.deploymentEnabled=false`. A proteção não impede um deployment manual
@@ -82,29 +83,44 @@ da plataforma nem observação desta mitigação em produção.
   mesma política compartilhada que traduz `X-Genesis-If-Match` validado em um
   único `If-Match` upstream; sem target, permanece `503` fail-closed.
 - **Preview:** interface isolada, `/api/v1` fail-closed e sem acesso à produção.
+- **Staged Production candidate:** deployment criado no environment Production,
+  `READY` e ainda não Current no custom domain. Ele pode ser preparado como
+  candidato imutável de Production sem criar um ambiente de staging.
 - **Production:** Vercel com proxy same-origin para uma origem protegida.
 - **Staging:** somente mediante decisão posterior explícita.
 
 Por essa fronteira, Preview valida a interface e o comportamento fail-closed,
-mas não valida o fluxo autenticado completo contra a API de produção. Quando o
-risco exigir browser ou feature smoke, a validação same-origin ponta a ponta
-pertence exclusivamente ao domínio aprovado após uma promoção autorizada.
+mas não valida o fluxo autenticado completo contra a API de produção e seu
+deployment ID não precisa ser preservado ao criar Production. Quando a release
+exigir exact deployment identity, o staged Production candidate é a autoridade:
+uma operação autorizada de routing/promotion torna esse mesmo deployment
+Current sem rebuild. Quando o risco exigir browser ou feature smoke, a validação
+same-origin ponta a ponta pertence exclusivamente ao domínio aprovado após uma
+promoção autorizada.
 
 ## Gates de publicação e abertura
 
 Publicação técnica exige candidato imutável, CI no head aprovado, proxy, API,
-banco, TLS, domínio e health verificados. Dados reais exigem ainda restore
-testado, smoke sintético, teste adversarial cross-tenant, alertas, origem
-protegida, portas internas bloqueadas, rotação da credencial inicial e aprovação
-humana específica. A autoridade da API registra a satisfação ou pendência
-desses gates; este contrato não declara seu resultado.
+banco, TLS, domínio e health verificados. Quando o contrato exigir exact
+deployment identity, o Gate vincula source SHA, staged Production deployment
+ID, projeto, environment Production, estado `READY` e previous Production
+deployment ID. Depois do routing, o deployment Current deve ter exatamente o ID
+do staged Production candidate; equivalência apenas por source SHA não substitui
+essa prova. Dados reais exigem ainda restore testado, smoke sintético, teste
+adversarial cross-tenant, alertas, origem protegida, portas internas bloqueadas,
+rotação da credencial inicial e aprovação humana específica. A autoridade da
+API registra a satisfação ou pendência desses gates; este contrato não declara
+seu resultado.
 
 ## Rollback
 
-Toda promoção preserva o deployment anterior e é seguida imediatamente pelo
-Production Health. Validações de autenticação, proxy ou feature entram quando o
-risco da tarefa as exigir. O rollback do frontend promove a versão Vercel
-anterior, validada e imutável.
+Toda operação de routing/promotion preserva o deployment anterior e é seguida
+imediatamente pelo Production Health. Validações de autenticação, proxy ou
+feature entram quando o risco da tarefa as exigir. O rollback torna novamente
+Current um deployment Production anterior, validado, imutável e factual elegível
+por routing/Instant Rollback, sem rebuild. Se esse deployment não puder ser
+restaurado por routing, a operação interrompe para investigação em vez de criar
+uma nova versão.
 Mudanças de domínio/DNS têm rollback próprio. Se origem ou proxy não estiverem
 seguros, `/api/v1` falha fechado. A sequência operacional, o candidato anterior
 e a evidência de recuperação devem estar identificados antes da publicação.

@@ -19,9 +19,19 @@ Preencha somente os fatos variáveis. O procedimento está no
 
 ## Web — quando aplicável
 
+- Web candidate type:
+  `PREVIEW_VALIDATION_ONLY | STAGED_PRODUCTION_CANDIDATE`
+- Preview deployment: `<id | N/A>`
+- Staged Production candidate: `<id | N/A>`
 - Source SHA:
-- Candidate deployment:
-- Previous deployment:
+- Project:
+- Candidate environment: `Production | N/A`
+- Candidate state: `READY | N/A`
+- Previous Production deployment:
+- Previous Production source SHA:
+- Previous Production eligibility for routing/Instant Rollback:
+- Current expected after promotion:
+- Rollback target:
 
 ## Validation
 
@@ -41,7 +51,8 @@ Preencha somente os fatos variáveis. O procedimento está no
 ## Authorization
 
 - Production Gate:
-- Exact candidate identities:
+- Exact candidate identities, including staged Production deployment ID when
+  applicable:
 
 ## Results
 
