@@ -41,4 +41,33 @@ describe("taxonomia de erros", () => {
       false,
     );
   });
+
+  it("preserva somente código conhecido e continuação estrita", () => {
+    expect(
+      createHttpError(403, {
+        statusCode: 403,
+        message: "Email verification is required.",
+        code: "EMAIL_VERIFICATION_REQUIRED",
+        continuation: {
+          challengeId: "10000000-0000-4000-8000-000000000001",
+          expiresAt: "2030-01-01T00:10:00.000Z",
+          resendAvailableAt: "2030-01-01T00:01:00.000Z",
+        },
+        password: "discarded",
+      }),
+    ).toMatchObject({
+      kind: "forbidden",
+      code: "EMAIL_VERIFICATION_REQUIRED",
+      continuation: {
+        challengeId: "10000000-0000-4000-8000-000000000001",
+      },
+    });
+    expect(
+      createHttpError(403, {
+        statusCode: 403,
+        message: "Nope",
+        code: "UNTRUSTED_CODE",
+      }),
+    ).toMatchObject({ code: undefined, continuation: undefined });
+  });
 });

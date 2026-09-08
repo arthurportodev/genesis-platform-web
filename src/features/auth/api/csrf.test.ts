@@ -44,4 +44,18 @@ describe("CSRF", () => {
     });
     expect(mutation).toHaveBeenCalledTimes(2);
   });
+
+  it("preserva 403 funcional sem renovar CSRF", async () => {
+    const csrf = {
+      getToken: vi.fn().mockResolvedValue(token),
+      invalidate: vi.fn(),
+    };
+    const functional = new AppError("forbidden", "verify", {
+      code: "EMAIL_VERIFICATION_REQUIRED",
+    });
+    const mutation = vi.fn().mockRejectedValue(functional);
+    await expect(runCsrfMutation(csrf, mutation)).rejects.toBe(functional);
+    expect(mutation).toHaveBeenCalledOnce();
+    expect(csrf.invalidate).not.toHaveBeenCalled();
+  });
 });

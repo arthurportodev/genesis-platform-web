@@ -44,6 +44,9 @@ function createHarness(
     close: vi.fn(),
   };
   const authApi = {
+    register: vi.fn(),
+    resendEmailVerification: vi.fn(),
+    verifyEmail: vi.fn(),
     login: vi.fn().mockResolvedValue(response),
     refresh: vi.fn().mockResolvedValue(response),
     logout: vi.fn().mockResolvedValue(undefined),
@@ -103,6 +106,32 @@ function createHarness(
 }
 
 describe("SessionCoordinator", () => {
+  it("não persiste alerta de acesso negado quando login exige verificação", async () => {
+    const harness = createHarness();
+    harness.authApi.login.mockRejectedValueOnce(
+      new AppError("forbidden", "Você não possui acesso a este recurso.", {
+        status: 403,
+        code: "EMAIL_VERIFICATION_REQUIRED",
+        continuation: {
+          challengeId: "10000000-0000-4000-8000-000000000001",
+          expiresAt: "2030-01-01T00:10:00.000Z",
+          resendAvailableAt: "2030-01-01T00:01:00.000Z",
+        },
+      }),
+    );
+
+    await expect(
+      harness.coordinator.login({
+        email: "pessoa@example.test",
+        password: "senha-fictícia",
+      }),
+    ).rejects.toMatchObject({ code: "EMAIL_VERIFICATION_REQUIRED" });
+    expect(harness.coordinator.getSnapshot()).toEqual({
+      status: "anonymous",
+      message: undefined,
+    });
+  });
+
   it("restaura por refresh, mantém access privado e resolve Organization única", async () => {
     const harness = createHarness();
     await harness.coordinator.initialize();
@@ -418,6 +447,9 @@ describe("SessionCoordinator", () => {
       },
     };
     const authApi = {
+      register: vi.fn(),
+      resendEmailVerification: vi.fn(),
+      verifyEmail: vi.fn(),
       login: vi.fn().mockResolvedValue(response),
       refresh: vi.fn().mockResolvedValue(response),
       logout: vi.fn().mockResolvedValue(undefined),

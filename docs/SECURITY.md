@@ -7,8 +7,9 @@
   lido, persistido ou enviado em body/header/query pelo frontend.
 - Cookies CSRF reconhecidos possuem fonte única e são validados como base64url;
   duplicidade ou divergência body/cookie falha fechada.
-- Login, refresh, logout e logout-all usam `X-CSRF-Token`, com uma única
-  renovação após `403`. O frontend nunca define `Origin`.
+- Login, cadastro, reenvio/confirmação de e-mail, refresh, logout e logout-all
+  usam `X-CSRF-Token`, com uma única renovação após `403`. O frontend nunca
+  define `Origin`.
 - Web Locks serializam emissão de CSRF e rotação de refresh. Timeout não permite
   operação concorrente.
 - BroadcastChannel valida versão, UUIDs, geração e payload. Access trafega apenas
@@ -19,7 +20,11 @@
 
 - Bootstrap autenticado é a fonte única de user, Organizations, membership e
   role; nenhum desses dados é derivado do JWT.
-- Somente `genesis.activeOrganizationId.v1`, contendo UUID, pode ser persistido.
+- `localStorage` persiste somente `genesis.activeOrganizationId.v1`, contendo
+  UUID. Durante a verificação, `sessionStorage` pode persistir apenas o contexto
+  estritamente validado `genesis.emailVerification.v1`: versão, challenge UUID,
+  expiração, cooldown e estado de entrega. Senha, OTP, e-mail, access token e
+  refresh token nunca entram nesse storage.
 - A preferência nunca concede autorização e sempre é confrontada com bootstrap.
 - Cache autenticado é segmentado e removido em troca, logout ou expiração.
 - `returnTo` aceita somente `/app` e `/app/**`, sem URL absoluta, esquema,

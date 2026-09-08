@@ -61,14 +61,18 @@ export async function runCsrfMutation<T>(
     return await mutation(token);
   } catch (error) {
     const normalized = toAppError(error);
-    if (normalized.kind !== "forbidden") throw normalized;
+    if (normalized.kind !== "forbidden" || normalized.code !== undefined)
+      throw normalized;
     csrf.invalidate();
     token = await csrf.getToken();
     try {
       return await mutation(token);
     } catch (retryError) {
       const retryNormalized = toAppError(retryError);
-      if (retryNormalized.kind === "forbidden") {
+      if (
+        retryNormalized.kind === "forbidden" &&
+        retryNormalized.code === undefined
+      ) {
         throw new AppError(
           "protocol",
           "Não foi possível validar a proteção da sessão.",

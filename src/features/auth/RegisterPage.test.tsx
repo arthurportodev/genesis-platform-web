@@ -1,0 +1,53 @@
+import { screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+
+import { renderAppAt } from "@/test/renderApp";
+import { createAuthHandlers } from "@/test/msw/auth-handlers";
+import { server } from "@/test/msw/server";
+
+describe("RegisterPage", () => {
+  beforeEach(() => window.sessionStorage.clear());
+
+  it("valida os quatro campos sem enviar credenciais", async () => {
+    const user = userEvent.setup();
+    await renderAppAt("/register");
+    await user.click(screen.getByRole("button", { name: "Criar conta" }));
+    expect(await screen.findByText("Informe seu nome.")).toBeVisible();
+    expect(screen.getByText("Informe seu sobrenome.")).toBeVisible();
+    expect(screen.getByText("Informe seu e-mail.")).toBeVisible();
+    expect(screen.getByText("Use pelo menos 10 caracteres.")).toBeVisible();
+  });
+
+  it("cria a conta, limpa a senha e segue para o código", async () => {
+    server.use(...createAuthHandlers());
+    const user = userEvent.setup();
+    const { router } = await renderAppAt("/register");
+    await user.type(screen.getByLabelText("Nome"), "Pessoa");
+    await user.type(screen.getByLabelText("Sobrenome"), "Teste");
+    await user.type(screen.getByLabelText("E-mail"), "pessoa@example.test");
+    await user.type(screen.getByLabelText("Senha"), "senha-segura-local");
+    await user.click(screen.getByRole("button", { name: "Criar conta" }));
+    expect(
+      await screen.findByRole("heading", { name: "Confirme seu e-mail" }),
+    ).toBeVisible();
+    expect(router.state.location.pathname).toBe("/verify-email");
+    expect(
+      window.sessionStorage.getItem("genesis.emailVerification.v1"),
+    ).not.toContain("senha-segura-local");
+  });
+
+  it("explica conflito sem preservar a senha", async () => {
+    server.use(...createAuthHandlers({ registerStatus: 409 }));
+    const user = userEvent.setup();
+    await renderAppAt("/register");
+    await user.type(screen.getByLabelText("Nome"), "Pessoa");
+    await user.type(screen.getByLabelText("Sobrenome"), "Teste");
+    await user.type(screen.getByLabelText("E-mail"), "pessoa@example.test");
+    await user.type(screen.getByLabelText("Senha"), "senha-segura-local");
+    await user.click(screen.getByRole("button", { name: "Criar conta" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Já existe uma conta com este e-mail.",
+    );
+    expect(screen.getByLabelText("Senha")).toHaveValue("");
+  });
+});

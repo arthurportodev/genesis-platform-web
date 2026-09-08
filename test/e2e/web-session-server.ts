@@ -23,6 +23,11 @@ interface Session {
 const sessionsByRefresh = new Map<string, Session>();
 const sessionsByAccess = new Map<string, Session>();
 const retiredRefreshFamilies = new Map<string, string>();
+const registrationsByEmail = new Map<
+  string,
+  { challengeId: string; verified: boolean }
+>();
+const registrationEmailByChallenge = new Map<string, string>();
 let refreshCount = 0;
 let sequence = 0;
 let leadRevision = 3;
@@ -249,6 +254,9 @@ async function handleApi(
   if (
     [
       "/api/v1/auth/login",
+      "/api/v1/auth/register",
+      "/api/v1/auth/email-verification/resend",
+      "/api/v1/auth/email-verification/verify",
       "/api/v1/auth/refresh",
       "/api/v1/auth/logout",
       "/api/v1/auth/logout-all",
@@ -258,6 +266,94 @@ async function handleApi(
     authError(response, 403, "CSRF validation failed.");
     return;
   }
+  if (pathname === "/api/v1/auth/register" && request.method === "POST") {
+    const body = (await readJson(request)) as {
+      email?: string;
+      password?: string;
+    };
+    if (!body.email?.endsWith(".test") || body.password !== "correct-horse") {
+      authError(response, 400, "Invalid registration.");
+      return;
+    }
+    const email = body.email.trim().toLowerCase();
+    if (registrationsByEmail.has(email)) {
+      json(response, 409, {
+        statusCode: 409,
+        message: "E-mail already registered.",
+        error: "Conflict",
+        code: "AUTH_EMAIL_ALREADY_REGISTERED",
+      });
+      return;
+    }
+    const challengeId = randomUUID();
+    registrationsByEmail.set(email, { challengeId, verified: false });
+    registrationEmailByChallenge.set(challengeId, email);
+    const now = Date.now();
+    json(response, 201, {
+      status: "verification_required",
+      delivery: "sent",
+      challengeId,
+      expiresAt: new Date(now + 600_000).toISOString(),
+      resendAvailableAt: new Date(now).toISOString(),
+    });
+    return;
+  }
+  if (
+    pathname === "/api/v1/auth/email-verification/resend" &&
+    request.method === "POST"
+  ) {
+    const body = (await readJson(request)) as { challengeId?: string };
+    const email = body.challengeId
+      ? registrationEmailByChallenge.get(body.challengeId)
+      : undefined;
+    const registration = email ? registrationsByEmail.get(email) : undefined;
+    if (!email || !registration || registration.verified) {
+      json(response, 404, {
+        statusCode: 404,
+        message: "Email verification challenge is unavailable.",
+        code: "AUTH_EMAIL_VERIFICATION_UNAVAILABLE",
+      });
+      return;
+    }
+    registrationEmailByChallenge.delete(registration.challengeId);
+    const challengeId = randomUUID();
+    registration.challengeId = challengeId;
+    registrationEmailByChallenge.set(challengeId, email);
+    const now = Date.now();
+    json(response, 200, {
+      status: "verification_required",
+      delivery: "sent",
+      challengeId,
+      expiresAt: new Date(now + 600_000).toISOString(),
+      resendAvailableAt: new Date(now + 60_000).toISOString(),
+    });
+    return;
+  }
+  if (
+    pathname === "/api/v1/auth/email-verification/verify" &&
+    request.method === "POST"
+  ) {
+    const body = (await readJson(request)) as {
+      challengeId?: string;
+      code?: string;
+    };
+    const email = body.challengeId
+      ? registrationEmailByChallenge.get(body.challengeId)
+      : undefined;
+    const registration = email ? registrationsByEmail.get(email) : undefined;
+    if (!registration || body.code !== "123456") {
+      json(response, 400, {
+        statusCode: 400,
+        message: "Invalid verification code.",
+        error: "Bad Request",
+        code: "AUTH_EMAIL_VERIFICATION_INVALID",
+      });
+      return;
+    }
+    registration.verified = true;
+    json(response, 200, { status: "email_verified" });
+    return;
+  }
   if (pathname === "/api/v1/auth/login" && request.method === "POST") {
     const body = (await readJson(request)) as {
       email?: string;
@@ -265,6 +361,22 @@ async function handleApi(
     };
     if (!body.email?.endsWith(".test") || body.password !== "correct-horse") {
       authError(response, 401, "Invalid email or password.");
+      return;
+    }
+    const registration = registrationsByEmail.get(body.email);
+    if (registration && !registration.verified) {
+      const now = Date.now();
+      json(response, 403, {
+        statusCode: 403,
+        message: "Email verification required.",
+        error: "Forbidden",
+        code: "EMAIL_VERIFICATION_REQUIRED",
+        continuation: {
+          challengeId: registration.challengeId,
+          expiresAt: new Date(now + 600_000).toISOString(),
+          resendAvailableAt: new Date(now).toISOString(),
+        },
+      });
       return;
     }
     const session = issueSession(body.email);
@@ -1166,6 +1278,8 @@ export async function startWebSessionServer() {
         sessionsByRefresh.clear();
         sessionsByAccess.clear();
         retiredRefreshFamilies.clear();
+        registrationsByEmail.clear();
+        registrationEmailByChallenge.clear();
         refreshCount = 0;
         sequence = 0;
         leadRevision = 3;

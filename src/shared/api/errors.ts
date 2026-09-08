@@ -27,6 +27,28 @@ const backendErrorSchema = z
     error: z.string().optional(),
     path: z.string().optional(),
     timestamp: z.string().optional(),
+    code: z
+      .enum([
+        "EMAIL_VERIFICATION_REQUIRED",
+        "AUTH_EMAIL_ALREADY_REGISTERED",
+        "AUTH_EMAIL_VERIFICATION_INVALID",
+        "AUTH_EMAIL_VERIFICATION_UNAVAILABLE",
+        "AUTH_EMAIL_VERIFICATION_RATE_LIMITED",
+        "AUTH_REGISTRATION_RATE_LIMITED",
+        "AUTH_PASSWORD_HASH_CAPACITY_EXCEEDED",
+        "AUTH_REGISTRATION_INVALID",
+        "AUTH_REGISTRATION_UNAVAILABLE",
+        "AUTH_OTP_PUBLIC_FLOWS_DISABLED",
+      ])
+      .optional(),
+    continuation: z
+      .object({
+        challengeId: z.uuidv4(),
+        expiresAt: z.iso.datetime({ offset: true }),
+        resendAvailableAt: z.iso.datetime({ offset: true }),
+      })
+      .strict()
+      .optional(),
   })
   .passthrough();
 
@@ -34,6 +56,8 @@ export class AppError extends Error {
   readonly kind: AppErrorKind;
   readonly status?: number;
   readonly details?: readonly string[];
+  readonly code?: z.infer<typeof backendErrorSchema>["code"];
+  readonly continuation?: z.infer<typeof backendErrorSchema>["continuation"];
 
   constructor(
     kind: AppErrorKind,
@@ -42,6 +66,8 @@ export class AppError extends Error {
       cause?: unknown;
       status?: number;
       details?: readonly string[];
+      code?: z.infer<typeof backendErrorSchema>["code"];
+      continuation?: z.infer<typeof backendErrorSchema>["continuation"];
     } = {},
   ) {
     super(message, { cause: options.cause });
@@ -49,6 +75,8 @@ export class AppError extends Error {
     this.kind = kind;
     this.status = options.status;
     this.details = options.details;
+    this.code = options.code;
+    this.continuation = options.continuation;
   }
 }
 
@@ -75,7 +103,12 @@ export function createHttpError(status: number, body: unknown): AppError {
   return new AppError(
     appErrorKindForStatus(status),
     safeMessageForKind(appErrorKindForStatus(status)),
-    { status, details: messages },
+    {
+      status,
+      details: messages,
+      code: parsed.success ? parsed.data.code : undefined,
+      continuation: parsed.success ? parsed.data.continuation : undefined,
+    },
   );
 }
 

@@ -19,16 +19,26 @@ const tokenResponse = {
 };
 
 describe("AuthApi", () => {
-  it("mantém os seis endpoints sem Organization e distingue Bearer", async () => {
+  it("mantém os endpoints de autenticação sem Organization e distingue Bearer", async () => {
     const calls: Array<{ path: string; options: HttpRequestOptions }> = [];
     const httpClient: BaseHttpClient = {
       request<T>(path: string, options: HttpRequestOptions = {}) {
         calls.push({ path, options });
         const data = path.endsWith("bootstrap")
           ? { user, organizations: [] }
-          : path.endsWith("logout") || path.endsWith("logout-all")
-            ? undefined
-            : tokenResponse;
+          : path.endsWith("register") || path.endsWith("resend")
+            ? {
+                status: "verification_required",
+                challengeId: "10000000-0000-4000-8000-000000000001",
+                expiresAt: "2030-01-01T00:10:00.000Z",
+                resendAvailableAt: "2030-01-01T00:01:00.000Z",
+                delivery: "sent",
+              }
+            : path.endsWith("verify")
+              ? { status: "email_verified" }
+              : path.endsWith("logout") || path.endsWith("logout-all")
+                ? undefined
+                : tokenResponse;
         return Promise.resolve({
           data: data as T,
           status:
@@ -42,6 +52,19 @@ describe("AuthApi", () => {
     });
 
     await api.login({ email: user.email, password: "not-a-real-secret" });
+    await api.register({
+      firstName: "Pessoa",
+      lastName: "Teste",
+      email: user.email,
+      password: "not-a-real-secret",
+    });
+    await api.resendEmailVerification({
+      challengeId: "10000000-0000-4000-8000-000000000001",
+    });
+    await api.verifyEmail({
+      challengeId: "10000000-0000-4000-8000-000000000001",
+      code: "123456",
+    });
     await api.refresh();
     await api.logout();
     await api.logoutAll("memory-access");
@@ -58,6 +81,34 @@ describe("AuthApi", () => {
     )?.options;
     expect(logoutOptions?.accessToken).toBeUndefined();
     expect(logoutAllOptions?.accessToken).toBe("memory-access");
+  });
+
+  it("rejeita campos adicionais no contexto público de verificação", async () => {
+    const httpClient: BaseHttpClient = {
+      request: vi.fn().mockResolvedValue({
+        data: {
+          status: "verification_required",
+          challengeId: "10000000-0000-4000-8000-000000000001",
+          expiresAt: "2030-01-01T00:10:00.000Z",
+          resendAvailableAt: "2030-01-01T00:01:00.000Z",
+          delivery: "sent",
+          email: "must-not-cross-boundary@example.test",
+        },
+        status: 201,
+      }),
+    };
+    const api = createAuthApi(httpClient, {
+      getToken: vi.fn().mockResolvedValue("a".repeat(43)),
+      invalidate: vi.fn(),
+    });
+    await expect(
+      api.register({
+        firstName: "Pessoa",
+        lastName: "Teste",
+        email: user.email,
+        password: "senha-fictícia",
+      }),
+    ).rejects.toMatchObject({ kind: "protocol" });
   });
 
   it("rejeita campos de credencial não previstos na resposta", async () => {

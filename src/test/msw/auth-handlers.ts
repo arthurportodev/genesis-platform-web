@@ -28,6 +28,11 @@ export const testOrganizations: Organization[] = [
 
 const csrfToken = "a".repeat(43);
 const fakeAccessToken = ["ey", "test", "access"].join(".");
+export const testChallenge = {
+  challengeId: "10000000-0000-4000-8000-000000000001",
+  expiresAt: "2030-01-01T00:10:00.000Z",
+  resendAvailableAt: "2000-01-01T00:00:00.000Z",
+};
 
 export function installWebLocks(): () => void {
   const original = navigator.locks;
@@ -54,6 +59,9 @@ export function createAuthHandlers(
     organizations?: readonly Organization[];
     refreshStatus?: number;
     loginStatus?: number;
+    loginVerificationRequired?: boolean;
+    registerStatus?: number;
+    delivery?: "sent" | "delivery_unavailable";
     onRefresh?: () => void;
   } = {},
 ) {
@@ -73,6 +81,17 @@ export function createAuthHandlers(
       );
     }),
     http.post("/api/v1/auth/login", async ({ request }) => {
+      if (options.loginVerificationRequired) {
+        return HttpResponse.json(
+          {
+            statusCode: 403,
+            code: "EMAIL_VERIFICATION_REQUIRED",
+            message: "Email verification is required.",
+            continuation: testChallenge,
+          },
+          { status: 403 },
+        );
+      }
       if (options.loginStatus && options.loginStatus !== 200) {
         return HttpResponse.json(
           {
@@ -98,6 +117,62 @@ export function createAuthHandlers(
         );
       }
       return HttpResponse.json(tokenResponse);
+    }),
+    http.post("/api/v1/auth/register", async ({ request }) => {
+      if (options.registerStatus && options.registerStatus !== 201) {
+        return HttpResponse.json(
+          {
+            statusCode: options.registerStatus,
+            code:
+              options.registerStatus === 409
+                ? "AUTH_EMAIL_ALREADY_REGISTERED"
+                : "AUTH_REGISTRATION_UNAVAILABLE",
+            message: "Registration unavailable.",
+          },
+          { status: options.registerStatus },
+        );
+      }
+      const body = (await request.json()) as Record<string, unknown>;
+      if (
+        request.headers.get("x-csrf-token") !== csrfToken ||
+        Object.keys(body).sort().join(",") !==
+          "email,firstName,lastName,password"
+      ) {
+        return HttpResponse.json(
+          { statusCode: 400, message: "Invalid request." },
+          { status: 400 },
+        );
+      }
+      return HttpResponse.json(
+        {
+          status: "verification_required",
+          ...testChallenge,
+          delivery: options.delivery ?? "sent",
+        },
+        { status: 201 },
+      );
+    }),
+    http.post("/api/v1/auth/email-verification/resend", () =>
+      HttpResponse.json({
+        status: "verification_required",
+        ...testChallenge,
+        challengeId: "20000000-0000-4000-8000-000000000002",
+        delivery: options.delivery ?? "sent",
+      }),
+    ),
+    http.post("/api/v1/auth/email-verification/verify", async ({ request }) => {
+      const body = (await request.json()) as { code?: string };
+      if (body.code !== "123456") {
+        return HttpResponse.json(
+          {
+            statusCode: 400,
+            code: "AUTH_EMAIL_VERIFICATION_INVALID",
+            message: "Invalid or expired verification code.",
+          },
+          { status: 400 },
+        );
+      }
+      return HttpResponse.json({ status: "email_verified" });
     }),
     http.post("/api/v1/auth/refresh", ({ request }) => {
       options.onRefresh?.();
