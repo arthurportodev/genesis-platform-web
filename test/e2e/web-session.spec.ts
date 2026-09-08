@@ -89,6 +89,83 @@ test.beforeEach(async ({ page }) => {
   await resetServer(page);
 });
 
+test("cadastro, verificação e login preservam a fronteira de sessão", async ({
+  page,
+}) => {
+  const email = "new-user@example.test";
+  await page.goto("/register");
+  await page.getByLabel("Nome", { exact: true }).fill("Pessoa");
+  await page.getByLabel("Sobrenome", { exact: true }).fill("Nova");
+  await page.getByLabel("E-mail").fill(email);
+  await page.getByLabel("Senha").fill("correct-horse");
+  await page.getByRole("button", { name: "Criar conta" }).click();
+
+  await expect(page).toHaveURL(/\/verify-email$/u);
+  await expect(
+    page.getByRole("heading", { name: "Confirme seu e-mail" }),
+  ).toBeVisible();
+  const storedValues = await page.evaluate(() =>
+    Object.values(
+      (globalThis as unknown as { sessionStorage: Record<string, string> })
+        .sessionStorage,
+    ),
+  );
+  expect(storedValues).toHaveLength(1);
+  expect(storedValues[0]).not.toContain(email);
+  expect(storedValues[0]).not.toContain("correct-horse");
+  expect(storedValues[0]).not.toContain("123456");
+
+  await page.goto("/login");
+  await page.getByLabel("E-mail").fill(email);
+  await page.getByLabel("Senha").fill("correct-horse");
+  await page.getByRole("button", { name: "Entrar" }).click();
+  await expect(page).toHaveURL(/\/verify-email$/u);
+
+  await page.getByLabel("Código de verificação").fill("000000");
+  await page.getByRole("button", { name: "Verificar e-mail" }).click();
+  await expect(page.getByRole("status")).toContainText(
+    "Código inválido ou expirado.",
+  );
+  const continuationBeforeResend = await page.evaluate(() =>
+    sessionStorage.getItem("genesis.emailVerification.v1"),
+  );
+  await page.getByRole("button", { name: "Reenviar código" }).click();
+  await expect(page.getByRole("status")).toContainText(
+    "Um novo código foi enviado.",
+  );
+  const continuationAfterResend = await page.evaluate(() =>
+    sessionStorage.getItem("genesis.emailVerification.v1"),
+  );
+  expect(continuationAfterResend).not.toBe(continuationBeforeResend);
+
+  await page.getByLabel("Código de verificação").fill("123456");
+  await page.getByRole("button", { name: "Verificar e-mail" }).click();
+  await expect(page).toHaveURL(/\/login\?verified=true$/u);
+  await expect(
+    page.getByText("E-mail confirmado. Entre com sua senha para continuar."),
+  ).toBeVisible();
+  await expect(
+    page.getByText("Você não possui acesso a este recurso."),
+  ).toHaveCount(0);
+  expect(
+    await page.evaluate(() =>
+      (
+        globalThis as unknown as {
+          sessionStorage: { getItem(key: string): string | null };
+        }
+      ).sessionStorage.getItem("genesis.emailVerification.v1"),
+    ),
+  ).toBeNull();
+
+  await page.getByLabel("E-mail").fill(email);
+  await page.getByLabel("Senha").fill("correct-horse");
+  await page.getByRole("button", { name: "Entrar" }).click();
+  await expect(page).toHaveURL(/\/app$/u);
+  await expect(
+    page.getByRole("heading", { name: "Visão geral" }),
+  ).toBeVisible();
+});
+
 test("login real protege deep link sem flash do shell", async ({ page }) => {
   await page.goto("/app/pipeline");
   await expect(

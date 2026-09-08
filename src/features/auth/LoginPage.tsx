@@ -1,5 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useLocation, useNavigate } from "@tanstack/react-router";
+import { Link, useLocation, useNavigate } from "@tanstack/react-router";
 import { LockKeyhole, Mail } from "lucide-react";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
@@ -20,6 +20,7 @@ import { Label } from "@/shared/ui/Label";
 import { useSession } from "@/features/auth/session/useSession";
 import { safeReturnTo } from "@/shared/lib/safe-return-to";
 import { toAppError } from "@/shared/api/errors";
+import { writeVerificationContinuation } from "@/features/auth/email-verification-storage";
 
 const loginSchema = z.object({
   email: z
@@ -43,6 +44,8 @@ export function LoginPage() {
     state.status === "anonymous" || state.status === "session-expired"
       ? state.message
       : undefined;
+  const verificationCompleted =
+    new URLSearchParams(search).get("verified") === "true";
   const {
     register,
     handleSubmit,
@@ -78,10 +81,20 @@ export function LoginPage() {
       const normalized = toAppError(error);
       if (normalized.kind !== "network" && normalized.kind !== "timeout")
         setValue("password", "");
+      if (
+        normalized.code === "EMAIL_VERIFICATION_REQUIRED" &&
+        normalized.continuation
+      ) {
+        writeVerificationContinuation(normalized.continuation);
+        await navigate({ to: "/verify-email", replace: true });
+        return;
+      }
       setSubmissionMessage(
-        normalized.kind === "unauthorized"
-          ? "E-mail ou senha inválidos."
-          : normalized.message,
+        normalized.code === "EMAIL_VERIFICATION_REQUIRED"
+          ? "Seu e-mail ainda precisa ser confirmado. Solicite um novo código pelo cadastro."
+          : normalized.kind === "unauthorized"
+            ? "E-mail ou senha inválidos."
+            : normalized.message,
       );
     }
   };
@@ -173,6 +186,24 @@ export function LoginPage() {
                 {submissionMessage ?? sessionMessage}
               </div>
             ) : null}
+            {verificationCompleted ? (
+              <div
+                className="mt-4 rounded-lg border border-primary/20 bg-primary/5 p-3 text-sm leading-5"
+                role="status"
+                aria-live="polite"
+              >
+                E-mail confirmado. Entre com sua senha para continuar.
+              </div>
+            ) : null}
+            <p className="mt-5 text-center text-sm text-muted-foreground">
+              Ainda não tem uma conta?{" "}
+              <Link
+                className="font-semibold text-primary hover:underline"
+                to="/register"
+              >
+                Criar conta
+              </Link>
+            </p>
           </CardContent>
         </Card>
       </div>

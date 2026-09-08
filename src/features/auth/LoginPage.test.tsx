@@ -57,4 +57,21 @@ describe("LoginPage", () => {
     );
     expect(screen.getByLabelText("Senha")).toHaveValue("");
   });
+
+  it("encaminha senha correta de conta não verificada sem criar sessão", async () => {
+    window.sessionStorage.clear();
+    server.use(...createAuthHandlers({ loginVerificationRequired: true }));
+    const user = userEvent.setup();
+    const { router } = await renderAppAt("/login");
+    await user.type(screen.getByLabelText("E-mail"), testUser.email);
+    await user.type(screen.getByLabelText("Senha"), "senha-de-teste");
+    await user.click(screen.getByRole("button", { name: "Entrar" }));
+    expect(
+      await screen.findByRole("heading", { name: "Confirme seu e-mail" }),
+    ).toBeVisible();
+    expect(router.state.location.pathname).toBe("/verify-email");
+    expect(
+      window.sessionStorage.getItem("genesis.emailVerification.v1"),
+    ).not.toContain("senha-de-teste");
+  });
 });

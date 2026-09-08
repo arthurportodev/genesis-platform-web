@@ -1,7 +1,9 @@
 import type { AuthApi } from "@/features/auth/api/auth-api";
 import type {
   BootstrapResponse,
+  EmailVerifiedResponse,
   TokenResponse,
+  VerificationRequiredResponse,
 } from "@/features/auth/api/auth-contracts";
 import type { AuthCookieLock } from "@/features/auth/session/auth-cookie-lock";
 import {
@@ -46,6 +48,19 @@ export interface SessionCoordinator {
   initialize(): Promise<void>;
   retry(): Promise<void>;
   login(credentials: { email: string; password: string }): Promise<void>;
+  register(input: {
+    firstName: string;
+    lastName: string;
+    email: string;
+    password: string;
+  }): Promise<VerificationRequiredResponse>;
+  resendEmailVerification(
+    challengeId: string,
+  ): Promise<VerificationRequiredResponse>;
+  verifyEmail(
+    challengeId: string,
+    code: string,
+  ): Promise<EmailVerifiedResponse>;
   logout(): Promise<void>;
   logoutAll(): Promise<{ globallyRevoked: boolean }>;
   selectOrganization(organizationId: string): Promise<void>;
@@ -593,12 +608,29 @@ export function createSessionCoordinator(
         dispatch({
           type: "ANONYMOUS",
           message:
-            normalized.kind === "unauthorized"
-              ? "E-mail ou senha inválidos."
-              : normalized.message,
+            normalized.code === "EMAIL_VERIFICATION_REQUIRED"
+              ? undefined
+              : normalized.kind === "unauthorized"
+                ? "E-mail ou senha inválidos."
+                : normalized.message,
         });
         throw normalized;
       }
+    },
+    register(input) {
+      return explicitCookieOperation(() =>
+        dependencies.authApi.register(input),
+      );
+    },
+    resendEmailVerification(challengeId) {
+      return explicitCookieOperation(() =>
+        dependencies.authApi.resendEmailVerification({ challengeId }),
+      );
+    },
+    verifyEmail(challengeId, code) {
+      return explicitCookieOperation(() =>
+        dependencies.authApi.verifyEmail({ challengeId, code }),
+      );
     },
     async logout() {
       if (!isAuthenticatedState(state)) return;

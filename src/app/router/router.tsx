@@ -12,6 +12,8 @@ import {
 import { AccessDeniedPage } from "@/features/errors/AccessDeniedPage";
 import { NotFoundPage } from "@/features/errors/NotFoundPage";
 import { LoginPage } from "@/features/auth/LoginPage";
+import { RegisterPage } from "@/features/auth/RegisterPage";
+import { VerifyEmailPage } from "@/features/auth/VerifyEmailPage";
 import { SelectOrganizationPage } from "@/features/organizations/SelectOrganizationPage";
 import { OverviewPage } from "@/features/dashboard/OverviewPage";
 import { LeadsPage } from "@/features/leads/LeadsPage";
@@ -68,9 +70,14 @@ function protectedReturnTo(location: {
 const loginRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/login",
-  validateSearch: (search: Record<string, unknown>) => ({
-    returnTo: safeReturnTo(search.returnTo),
-  }),
+  validateSearch: (search: Record<string, unknown>) => {
+    const returnTo = safeReturnTo(search.returnTo);
+    const verified = search.verified === true || search.verified === "true";
+    return {
+      ...(returnTo ? { returnTo } : {}),
+      ...(verified ? { verified: true as const } : {}),
+    };
+  },
   beforeLoad: async ({ context }) => {
     const state = await resolvedState(context.session);
     if (isAuthenticatedState(state)) {
@@ -81,6 +88,36 @@ const loginRoute = createRoute({
     }
   },
   component: LoginPage,
+});
+
+const registerRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/register",
+  beforeLoad: async ({ context }) => {
+    const state = await resolvedState(context.session);
+    if (isAuthenticatedState(state)) {
+      throw redirect({
+        to: state.activeOrganization ? "/app" : "/select-organization",
+        replace: true,
+      });
+    }
+  },
+  component: RegisterPage,
+});
+
+const verifyEmailRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/verify-email",
+  beforeLoad: async ({ context }) => {
+    const state = await resolvedState(context.session);
+    if (isAuthenticatedState(state)) {
+      throw redirect({
+        to: state.activeOrganization ? "/app" : "/select-organization",
+        replace: true,
+      });
+    }
+  },
+  component: VerifyEmailPage,
 });
 
 const selectOrganizationRoute = createRoute({
@@ -199,6 +236,8 @@ const appChildren = [
 const routeTree = rootRoute.addChildren([
   indexRoute,
   loginRoute,
+  registerRoute,
+  verifyEmailRoute,
   selectOrganizationRoute,
   accessDeniedRoute,
   appRoute.addChildren(appChildren),

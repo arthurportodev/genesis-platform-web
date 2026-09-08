@@ -41,7 +41,33 @@ export const csrfResponseSchema = z
   })
   .strict();
 
+export const verificationContinuationSchema = z
+  .object({
+    challengeId: z.uuidv4(),
+    expiresAt: z.iso.datetime({ offset: true }),
+    resendAvailableAt: z.iso.datetime({ offset: true }),
+  })
+  .strict();
+
+export const verificationRequiredResponseSchema = verificationContinuationSchema
+  .extend({
+    status: z.literal("verification_required"),
+    delivery: z.enum(["sent", "delivery_unavailable"]),
+  })
+  .strict();
+
+export const emailVerifiedResponseSchema = z
+  .object({ status: z.literal("email_verified") })
+  .strict();
+
 export type PublicUser = z.infer<typeof publicUserSchema>;
 export type Organization = z.infer<typeof organizationSchema>;
 export type TokenResponse = z.infer<typeof tokenResponseSchema>;
 export type BootstrapResponse = z.infer<typeof bootstrapResponseSchema>;
+export type VerificationContinuation = z.infer<
+  typeof verificationContinuationSchema
+>;
+export type VerificationRequiredResponse = z.infer<
+  typeof verificationRequiredResponseSchema
+>;
+export type EmailVerifiedResponse = z.infer<typeof emailVerifiedResponseSchema>;

@@ -18,8 +18,14 @@ autenticado recebe token, refresh e Organization por injeção na composição d
 
 O coordenador mantém access token e geração em closure privada. O snapshot React
 expõe somente status discriminado, user seguro, Organizations, Organization
-ativa e operações. Login, refresh, logout e logout-all usam CSRF cookie-to-header;
-refresh nunca é lido pelo JavaScript.
+ativa e operações. Login, cadastro, reenvio/confirmação de e-mail, refresh,
+logout e logout-all usam CSRF cookie-to-header; refresh nunca é lido pelo
+JavaScript.
+
+O fluxo público de verificação persiste em `sessionStorage` somente o contexto
+validado da mesma aba: versão, challenge UUID, expiração, cooldown e estado de
+entrega. Senha, OTP, e-mail e tokens não são persistidos. A confirmação limpa o
+contexto e retorna ao login sem criar sessão.
 
 A inicialização pede token válido aos peers, usa Web Lock
 `genesis.auth-cookie.v1` antes de qualquer refresh e publica access efêmero no
