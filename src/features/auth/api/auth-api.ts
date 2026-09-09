@@ -1,11 +1,15 @@
 import {
   bootstrapResponseSchema,
   emailVerifiedResponseSchema,
+  passwordResetAcceptedResponseSchema,
+  passwordResetCompletedResponseSchema,
   tokenResponseSchema,
   verificationRequiredResponseSchema,
   type BootstrapResponse,
   type TokenResponse,
   type EmailVerifiedResponse,
+  type PasswordResetAcceptedResponse,
+  type PasswordResetCompletedResponse,
   type VerificationRequiredResponse,
 } from "@/features/auth/api/auth-contracts";
 import { runCsrfMutation, type CsrfManager } from "@/features/auth/api/csrf";
@@ -14,6 +18,14 @@ import { AppError } from "@/shared/api/errors";
 import { environment } from "@/shared/config/environment";
 
 export interface AuthApi {
+  requestPasswordReset(input: {
+    email: string;
+  }): Promise<PasswordResetAcceptedResponse>;
+  completePasswordReset(input: {
+    email: string;
+    code: string;
+    password: string;
+  }): Promise<PasswordResetCompletedResponse>;
   register(input: {
     firstName: string;
     lastName: string;
@@ -79,6 +91,30 @@ function parseEmailVerifiedResponse(value: unknown): EmailVerifiedResponse {
   return parsed.data;
 }
 
+function parsePasswordResetAcceptedResponse(
+  value: unknown,
+): PasswordResetAcceptedResponse {
+  const parsed = passwordResetAcceptedResponseSchema.safeParse(value);
+  if (!parsed.success) {
+    throw new AppError("protocol", "Resposta de recuperação inválida.", {
+      cause: parsed.error,
+    });
+  }
+  return parsed.data;
+}
+
+function parsePasswordResetCompletedResponse(
+  value: unknown,
+): PasswordResetCompletedResponse {
+  const parsed = passwordResetCompletedResponseSchema.safeParse(value);
+  if (!parsed.success) {
+    throw new AppError("protocol", "Resposta de recuperação inválida.", {
+      cause: parsed.error,
+    });
+  }
+  return parsed.data;
+}
+
 export function createAuthApi(
   http: BaseHttpClient,
   csrf: CsrfManager,
@@ -104,6 +140,16 @@ export function createAuthApi(
     });
 
   return {
+    async requestPasswordReset(input) {
+      return parsePasswordResetAcceptedResponse(
+        await csrfMutation<unknown>("password-reset/request", { body: input }),
+      );
+    },
+    async completePasswordReset(input) {
+      return parsePasswordResetCompletedResponse(
+        await csrfMutation<unknown>("password-reset/complete", { body: input }),
+      );
+    },
     async register(input) {
       return parseVerificationRequiredResponse(
         await csrfMutation<unknown>("register", { body: input }),

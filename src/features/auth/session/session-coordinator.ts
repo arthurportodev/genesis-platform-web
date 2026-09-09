@@ -2,6 +2,8 @@ import type { AuthApi } from "@/features/auth/api/auth-api";
 import type {
   BootstrapResponse,
   EmailVerifiedResponse,
+  PasswordResetAcceptedResponse,
+  PasswordResetCompletedResponse,
   TokenResponse,
   VerificationRequiredResponse,
 } from "@/features/auth/api/auth-contracts";
@@ -61,6 +63,12 @@ export interface SessionCoordinator {
     challengeId: string,
     code: string,
   ): Promise<EmailVerifiedResponse>;
+  requestPasswordReset(email: string): Promise<PasswordResetAcceptedResponse>;
+  completePasswordReset(input: {
+    email: string;
+    code: string;
+    password: string;
+  }): Promise<PasswordResetCompletedResponse>;
   logout(): Promise<void>;
   logoutAll(): Promise<{ globallyRevoked: boolean }>;
   selectOrganization(organizationId: string): Promise<void>;
@@ -631,6 +639,21 @@ export function createSessionCoordinator(
       return explicitCookieOperation(() =>
         dependencies.authApi.verifyEmail({ challengeId, code }),
       );
+    },
+    requestPasswordReset(email) {
+      return explicitCookieOperation(() =>
+        dependencies.authApi.requestPasswordReset({ email }),
+      );
+    },
+    async completePasswordReset(input) {
+      const response = await explicitCookieOperation(() =>
+        dependencies.authApi.completePasswordReset(input),
+      );
+      await clearAuthenticatedMaterial();
+      post({ type: "logout", generation: observedGeneration });
+      dispatch({ type: "ANONYMOUS" }, true);
+      retryAction = null;
+      return response;
     },
     async logout() {
       if (!isAuthenticatedState(state)) return;

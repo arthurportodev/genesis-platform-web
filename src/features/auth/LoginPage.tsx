@@ -1,6 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Link, useLocation, useNavigate } from "@tanstack/react-router";
-import { LockKeyhole, Mail } from "lucide-react";
+import { Link, useNavigate, useSearch } from "@tanstack/react-router";
+import { Mail } from "lucide-react";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
@@ -21,6 +21,7 @@ import { useSession } from "@/features/auth/session/useSession";
 import { safeReturnTo } from "@/shared/lib/safe-return-to";
 import { toAppError } from "@/shared/api/errors";
 import { writeVerificationContinuation } from "@/features/auth/email-verification-storage";
+import { PasswordField } from "@/features/auth/components/PasswordField";
 
 const loginSchema = z.object({
   email: z
@@ -36,7 +37,7 @@ type LoginValues = z.infer<typeof loginSchema>;
 export function LoginPage() {
   const { session, state } = useSession();
   const navigate = useNavigate();
-  const search = useLocation({ select: (location) => location.searchStr });
+  const search = useSearch({ from: "/login" });
   const [submissionMessage, setSubmissionMessage] = useState<string | null>(
     null,
   );
@@ -44,8 +45,8 @@ export function LoginPage() {
     state.status === "anonymous" || state.status === "session-expired"
       ? state.message
       : undefined;
-  const verificationCompleted =
-    new URLSearchParams(search).get("verified") === "true";
+  const verificationCompleted = search.verified === true;
+  const passwordResetCompleted = search.passwordReset === true;
   const {
     register,
     handleSubmit,
@@ -67,9 +68,7 @@ export function LoginPage() {
         "activeOrganization" in nextState &&
         nextState.activeOrganization !== null
       ) {
-        const returnTo = safeReturnTo(
-          new URLSearchParams(search).get("returnTo"),
-        );
+        const returnTo = safeReturnTo(search.returnTo);
         await navigate({
           to: (returnTo ?? "/app") as "/app",
           replace: true,
@@ -148,28 +147,29 @@ export function LoginPage() {
 
               <div className="space-y-2">
                 <Label htmlFor="password">Senha</Label>
-                <div className="relative">
-                  <LockKeyhole
-                    className="pointer-events-none absolute left-3 top-3 size-4 text-muted-foreground"
-                    aria-hidden="true"
-                  />
-                  <Input
-                    id="password"
-                    type="password"
-                    autoComplete="current-password"
-                    className="pl-9"
-                    aria-invalid={Boolean(errors.password)}
-                    aria-describedby={
-                      errors.password ? "password-error" : undefined
-                    }
-                    {...register("password")}
-                  />
-                </div>
+                <PasswordField
+                  id="password"
+                  autoComplete="current-password"
+                  aria-invalid={Boolean(errors.password)}
+                  aria-describedby={
+                    errors.password ? "password-error" : undefined
+                  }
+                  {...register("password")}
+                />
                 {errors.password ? (
                   <p id="password-error" className="text-sm text-destructive">
                     {errors.password.message}
                   </p>
                 ) : null}
+              </div>
+
+              <div className="text-right text-sm">
+                <Link
+                  className="font-semibold text-primary hover:underline"
+                  to="/forgot-password"
+                >
+                  Esqueci minha senha
+                </Link>
               </div>
 
               <Button className="w-full" type="submit" disabled={isSubmitting}>
@@ -193,6 +193,15 @@ export function LoginPage() {
                 aria-live="polite"
               >
                 E-mail confirmado. Entre com sua senha para continuar.
+              </div>
+            ) : null}
+            {passwordResetCompleted ? (
+              <div
+                className="mt-4 rounded-lg border border-primary/20 bg-primary/5 p-3 text-sm leading-5"
+                role="status"
+                aria-live="polite"
+              >
+                Senha alterada com sucesso.
               </div>
             ) : null}
             <p className="mt-5 text-center text-sm text-muted-foreground">

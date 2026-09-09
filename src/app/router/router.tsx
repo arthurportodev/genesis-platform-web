@@ -12,6 +12,7 @@ import {
 import { AccessDeniedPage } from "@/features/errors/AccessDeniedPage";
 import { NotFoundPage } from "@/features/errors/NotFoundPage";
 import { LoginPage } from "@/features/auth/LoginPage";
+import { ForgotPasswordPage } from "@/features/auth/ForgotPasswordPage";
 import { RegisterPage } from "@/features/auth/RegisterPage";
 import { VerifyEmailPage } from "@/features/auth/VerifyEmailPage";
 import { SelectOrganizationPage } from "@/features/organizations/SelectOrganizationPage";
@@ -73,9 +74,12 @@ const loginRoute = createRoute({
   validateSearch: (search: Record<string, unknown>) => {
     const returnTo = safeReturnTo(search.returnTo);
     const verified = search.verified === true || search.verified === "true";
+    const passwordReset =
+      search.passwordReset === true || search.passwordReset === "true";
     return {
       ...(returnTo ? { returnTo } : {}),
       ...(verified ? { verified: true as const } : {}),
+      ...(passwordReset ? { passwordReset: true as const } : {}),
     };
   },
   beforeLoad: async ({ context }) => {
@@ -103,6 +107,21 @@ const registerRoute = createRoute({
     }
   },
   component: RegisterPage,
+});
+
+const forgotPasswordRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/forgot-password",
+  beforeLoad: async ({ context }) => {
+    const state = await resolvedState(context.session);
+    if (isAuthenticatedState(state)) {
+      throw redirect({
+        to: state.activeOrganization ? "/app" : "/select-organization",
+        replace: true,
+      });
+    }
+  },
+  component: ForgotPasswordPage,
 });
 
 const verifyEmailRoute = createRoute({
@@ -237,6 +256,7 @@ const routeTree = rootRoute.addChildren([
   indexRoute,
   loginRoute,
   registerRoute,
+  forgotPasswordRoute,
   verifyEmailRoute,
   selectOrganizationRoute,
   accessDeniedRoute,

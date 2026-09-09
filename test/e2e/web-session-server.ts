@@ -28,6 +28,7 @@ const registrationsByEmail = new Map<
   { challengeId: string; verified: boolean }
 >();
 const registrationEmailByChallenge = new Map<string, string>();
+const passwordByEmail = new Map<string, string>();
 let refreshCount = 0;
 let sequence = 0;
 let leadRevision = 3;
@@ -257,6 +258,8 @@ async function handleApi(
       "/api/v1/auth/register",
       "/api/v1/auth/email-verification/resend",
       "/api/v1/auth/email-verification/verify",
+      "/api/v1/auth/password-reset/request",
+      "/api/v1/auth/password-reset/complete",
       "/api/v1/auth/refresh",
       "/api/v1/auth/logout",
       "/api/v1/auth/logout-all",
@@ -264,6 +267,65 @@ async function handleApi(
     !csrfValid(request)
   ) {
     authError(response, 403, "CSRF validation failed.");
+    return;
+  }
+  if (
+    pathname === "/api/v1/auth/password-reset/request" &&
+    request.method === "POST"
+  ) {
+    const body = (await readJson(request)) as { email?: string };
+    if (!body.email?.endsWith(".test")) {
+      authError(response, 400, "Invalid request.");
+      return;
+    }
+    const now = Date.now();
+    json(response, 202, {
+      status: "accepted",
+      expiresAt: new Date(now + 600_000).toISOString(),
+      resendAvailableAt: new Date(now).toISOString(),
+    });
+    return;
+  }
+  if (
+    pathname === "/api/v1/auth/password-reset/complete" &&
+    request.method === "POST"
+  ) {
+    const body = (await readJson(request)) as {
+      email?: string;
+      code?: string;
+      password?: string;
+    };
+    if (
+      !body.email?.endsWith(".test") ||
+      body.code !== "123456" ||
+      !body.password
+    ) {
+      json(response, 400, {
+        statusCode: 400,
+        message: "Invalid password reset.",
+        error: "Bad Request",
+        code: "AUTH_PASSWORD_RESET_INVALID",
+      });
+      return;
+    }
+    passwordByEmail.set(body.email, body.password);
+    for (const [token, session] of sessionsByRefresh) {
+      if (session.userEmail === body.email) sessionsByRefresh.delete(token);
+    }
+    for (const [token, session] of sessionsByAccess) {
+      if (session.userEmail === body.email) sessionsByAccess.delete(token);
+    }
+    json(
+      response,
+      200,
+      { status: "password_reset" },
+      {
+        "Set-Cookie": [
+          "genesis_refresh_dev=; Max-Age=0; HttpOnly; SameSite=Lax; Path=/",
+          "genesis_csrf_dev=; Max-Age=0; SameSite=Lax; Path=/",
+        ],
+      },
+    );
     return;
   }
   if (pathname === "/api/v1/auth/register" && request.method === "POST") {
@@ -359,7 +421,10 @@ async function handleApi(
       email?: string;
       password?: string;
     };
-    if (!body.email?.endsWith(".test") || body.password !== "correct-horse") {
+    if (
+      !body.email?.endsWith(".test") ||
+      body.password !== (passwordByEmail.get(body.email) ?? "correct-horse")
+    ) {
       authError(response, 401, "Invalid email or password.");
       return;
     }
@@ -1280,6 +1345,7 @@ export async function startWebSessionServer() {
         retiredRefreshFamilies.clear();
         registrationsByEmail.clear();
         registrationEmailByChallenge.clear();
+        passwordByEmail.clear();
         refreshCount = 0;
         sequence = 0;
         leadRevision = 3;

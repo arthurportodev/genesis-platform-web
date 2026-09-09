@@ -18,6 +18,21 @@ describe("RegisterPage", () => {
     expect(screen.getByText("Use pelo menos 10 caracteres.")).toBeVisible();
   });
 
+  it("bloqueia senhas diferentes antes da chamada HTTP", async () => {
+    const user = userEvent.setup();
+    await renderAppAt("/register");
+    await user.type(screen.getByLabelText("Nome"), "Pessoa");
+    await user.type(screen.getByLabelText("Sobrenome"), "Teste");
+    await user.type(screen.getByLabelText("E-mail"), "pessoa@example.test");
+    await user.type(screen.getByLabelText("Senha"), "senha-segura-local");
+    await user.type(
+      screen.getByLabelText("Confirmar senha"),
+      "senha-diferente",
+    );
+    await user.click(screen.getByRole("button", { name: "Criar conta" }));
+    expect(await screen.findByText("As senhas não coincidem.")).toBeVisible();
+  });
+
   it("cria a conta, limpa a senha e segue para o código", async () => {
     server.use(...createAuthHandlers());
     const user = userEvent.setup();
@@ -26,6 +41,10 @@ describe("RegisterPage", () => {
     await user.type(screen.getByLabelText("Sobrenome"), "Teste");
     await user.type(screen.getByLabelText("E-mail"), "pessoa@example.test");
     await user.type(screen.getByLabelText("Senha"), "senha-segura-local");
+    await user.type(
+      screen.getByLabelText("Confirmar senha"),
+      "senha-segura-local",
+    );
     await user.click(screen.getByRole("button", { name: "Criar conta" }));
     expect(
       await screen.findByRole("heading", { name: "Confirme seu e-mail" }),
@@ -44,10 +63,15 @@ describe("RegisterPage", () => {
     await user.type(screen.getByLabelText("Sobrenome"), "Teste");
     await user.type(screen.getByLabelText("E-mail"), "pessoa@example.test");
     await user.type(screen.getByLabelText("Senha"), "senha-segura-local");
+    await user.type(
+      screen.getByLabelText("Confirmar senha"),
+      "senha-segura-local",
+    );
     await user.click(screen.getByRole("button", { name: "Criar conta" }));
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "Já existe uma conta com este e-mail.",
     );
     expect(screen.getByLabelText("Senha")).toHaveValue("");
+    expect(screen.getByLabelText("Confirmar senha")).toHaveValue("");
   });
 });

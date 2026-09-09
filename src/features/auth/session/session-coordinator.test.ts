@@ -34,9 +34,10 @@ function createHarness(
   } = {},
 ) {
   const listeners = new Set<(message: SessionMessage) => void>();
+  const channelPost = vi.fn();
   const channel: SessionChannel = {
     available: false,
-    post: vi.fn(),
+    post: channelPost,
     subscribe: vi.fn((listener: (message: SessionMessage) => void) => {
       listeners.add(listener);
       return () => listeners.delete(listener);
@@ -44,6 +45,14 @@ function createHarness(
     close: vi.fn(),
   };
   const authApi = {
+    requestPasswordReset: vi.fn().mockResolvedValue({
+      status: "accepted",
+      expiresAt: "2030-01-01T00:10:00.000Z",
+      resendAvailableAt: "2030-01-01T00:01:00.000Z",
+    }),
+    completePasswordReset: vi
+      .fn()
+      .mockResolvedValue({ status: "password_reset" }),
     register: vi.fn(),
     resendEmailVerification: vi.fn(),
     verifyEmail: vi.fn(),
@@ -92,6 +101,8 @@ function createHarness(
     coordinator,
     authApi,
     cache,
+    channel,
+    channelPost,
     advance: (milliseconds: number) => {
       currentTime += milliseconds;
     },
@@ -106,6 +117,31 @@ function createHarness(
 }
 
 describe("SessionCoordinator", () => {
+  it("limpa material local e publica logout depois do reset confirmado", async () => {
+    const harness = createHarness();
+    await harness.coordinator.initialize();
+
+    await expect(
+      harness.coordinator.completePasswordReset({
+        email: user.email,
+        code: "123456",
+        password: "new-password-value",
+      }),
+    ).resolves.toEqual({ status: "password_reset" });
+
+    expect(harness.cache.cancelAndClearAuthenticated).toHaveBeenCalled();
+    expect(harness.coordinator.getAccessToken()).toBeNull();
+    expect(harness.coordinator.getSnapshot().status).toBe("anonymous");
+    expect(harness.authApi.completePasswordReset).toHaveBeenCalledWith({
+      email: user.email,
+      code: "123456",
+      password: "new-password-value",
+    });
+    expect(harness.channelPost).toHaveBeenCalledWith(
+      expect.objectContaining({ type: "logout" }),
+    );
+  });
+
   it("não persiste alerta de acesso negado quando login exige verificação", async () => {
     const harness = createHarness();
     harness.authApi.login.mockRejectedValueOnce(
@@ -447,6 +483,14 @@ describe("SessionCoordinator", () => {
       },
     };
     const authApi = {
+      requestPasswordReset: vi.fn().mockResolvedValue({
+        status: "accepted",
+        expiresAt: "2030-01-01T00:10:00.000Z",
+        resendAvailableAt: "2030-01-01T00:01:00.000Z",
+      }),
+      completePasswordReset: vi
+        .fn()
+        .mockResolvedValue({ status: "password_reset" }),
       register: vi.fn(),
       resendEmailVerification: vi.fn(),
       verifyEmail: vi.fn(),

@@ -61,6 +61,7 @@ export function createAuthHandlers(
     loginStatus?: number;
     loginVerificationRequired?: boolean;
     registerStatus?: number;
+    passwordResetCompleteStatus?: number;
     delivery?: "sent" | "delivery_unavailable";
     onRefresh?: () => void;
   } = {},
@@ -151,6 +152,50 @@ export function createAuthHandlers(
         },
         { status: 201 },
       );
+    }),
+    http.post("/api/v1/auth/password-reset/request", async ({ request }) => {
+      const body = (await request.json()) as Record<string, unknown>;
+      if (
+        request.headers.get("x-csrf-token") !== csrfToken ||
+        Object.keys(body).join(",") !== "email"
+      ) {
+        return HttpResponse.json(
+          { statusCode: 400, message: "Invalid request." },
+          { status: 400 },
+        );
+      }
+      return HttpResponse.json(
+        {
+          status: "accepted",
+          expiresAt: "2030-01-01T00:10:00.000Z",
+          resendAvailableAt: "2000-01-01T00:00:00.000Z",
+        },
+        { status: 202 },
+      );
+    }),
+    http.post("/api/v1/auth/password-reset/complete", async ({ request }) => {
+      const status = options.passwordResetCompleteStatus ?? 200;
+      if (status !== 200) {
+        return HttpResponse.json(
+          {
+            statusCode: status,
+            code: "AUTH_PASSWORD_RESET_INVALID",
+            message: "Invalid password reset.",
+          },
+          { status },
+        );
+      }
+      const body = (await request.json()) as Record<string, unknown>;
+      if (
+        request.headers.get("x-csrf-token") !== csrfToken ||
+        Object.keys(body).sort().join(",") !== "code,email,password"
+      ) {
+        return HttpResponse.json(
+          { statusCode: 400, message: "Invalid request." },
+          { status: 400 },
+        );
+      }
+      return HttpResponse.json({ status: "password_reset" });
     }),
     http.post("/api/v1/auth/email-verification/resend", () =>
       HttpResponse.json({

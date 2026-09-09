@@ -26,6 +26,25 @@ describe("LoginPage", () => {
     expect(await screen.findByText("E-mail inválido.")).toBeVisible();
   });
 
+  it("oferece recuperação e alterna a visibilidade da senha", async () => {
+    const user = userEvent.setup();
+    await renderAppAt("/login");
+    const password = screen.getByLabelText("Senha");
+    expect(password).toHaveAttribute("type", "password");
+    await user.click(screen.getByRole("button", { name: "Mostrar senha" }));
+    expect(password).toHaveAttribute("type", "text");
+    expect(
+      screen.getByRole("link", { name: "Esqueci minha senha" }),
+    ).toHaveAttribute("href", "/forgot-password");
+  });
+
+  it("mostra sucesso somente para o search param validado", async () => {
+    await renderAppAt("/login?passwordReset=true");
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Senha alterada com sucesso.",
+    );
+  });
+
   it("faz login real, limpa senha e entra no shell protegido", async () => {
     server.use(...createAuthHandlers());
     const user = userEvent.setup();
