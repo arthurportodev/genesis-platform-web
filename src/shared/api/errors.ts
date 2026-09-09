@@ -39,6 +39,10 @@ const backendErrorSchema = z
         "AUTH_REGISTRATION_INVALID",
         "AUTH_REGISTRATION_UNAVAILABLE",
         "AUTH_OTP_PUBLIC_FLOWS_DISABLED",
+        "AUTH_PASSWORD_RESET_INVALID",
+        "AUTH_PASSWORD_RESET_PUBLIC_FLOW_DISABLED",
+        "AUTH_PASSWORD_RESET_RATE_LIMITED",
+        "AUTH_PASSWORD_RESET_UNAVAILABLE",
       ])
       .optional(),
     continuation: z

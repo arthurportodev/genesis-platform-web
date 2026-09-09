@@ -58,7 +58,7 @@ async function login(
     returnTo ? `/login?returnTo=${encodeURIComponent(returnTo)}` : "/login",
   );
   await page.getByLabel("E-mail").fill(email);
-  await page.getByLabel("Senha").fill("correct-horse");
+  await page.getByLabel("Senha", { exact: true }).fill("correct-horse");
   await page.getByRole("button", { name: "Entrar" }).click();
 }
 
@@ -89,6 +89,42 @@ test.beforeEach(async ({ page }) => {
   await resetServer(page);
 });
 
+test("recuperação mantém segredos em memória e exige novo login", async ({
+  page,
+}) => {
+  const email = "owner@example.test";
+  await page.goto("/forgot-password");
+  await page.getByLabel("E-mail").fill(email);
+  await page.getByRole("button", { name: "Enviar código" }).click();
+  await expect(page.getByRole("status")).toContainText(
+    "Se existir uma conta ativa",
+  );
+  const storage = await page.evaluate(() => ({
+    local: Object.values(localStorage),
+    session: Object.values(sessionStorage),
+  }));
+  expect(JSON.stringify(storage)).not.toContain(email);
+
+  await page.getByLabel("Código").fill("123456");
+  await page
+    .getByLabel("Nova senha", { exact: true })
+    .fill("new-correct-horse");
+  await page.getByLabel("Confirmar nova senha").fill("new-correct-horse");
+  await page.getByRole("button", { name: "Alterar senha" }).click();
+  await expect(page).toHaveURL(/\/login\?passwordReset=true$/u);
+  await expect(page.getByText("Senha alterada com sucesso.")).toBeVisible();
+
+  await page.getByLabel("E-mail").fill(email);
+  await page.getByLabel("Senha", { exact: true }).fill("correct-horse");
+  await page.getByRole("button", { name: "Entrar" }).click();
+  await expect(page.getByRole("alert")).toContainText(
+    "E-mail ou senha inválidos.",
+  );
+  await page.getByLabel("Senha", { exact: true }).fill("new-correct-horse");
+  await page.getByRole("button", { name: "Entrar" }).click();
+  await expect(page).toHaveURL(/\/app$/u);
+});
+
 test("cadastro, verificação e login preservam a fronteira de sessão", async ({
   page,
 }) => {
@@ -97,7 +133,8 @@ test("cadastro, verificação e login preservam a fronteira de sessão", async (
   await page.getByLabel("Nome", { exact: true }).fill("Pessoa");
   await page.getByLabel("Sobrenome", { exact: true }).fill("Nova");
   await page.getByLabel("E-mail").fill(email);
-  await page.getByLabel("Senha").fill("correct-horse");
+  await page.getByLabel("Senha", { exact: true }).fill("correct-horse");
+  await page.getByLabel("Confirmar senha").fill("correct-horse");
   await page.getByRole("button", { name: "Criar conta" }).click();
 
   await expect(page).toHaveURL(/\/verify-email$/u);
@@ -117,7 +154,7 @@ test("cadastro, verificação e login preservam a fronteira de sessão", async (
 
   await page.goto("/login");
   await page.getByLabel("E-mail").fill(email);
-  await page.getByLabel("Senha").fill("correct-horse");
+  await page.getByLabel("Senha", { exact: true }).fill("correct-horse");
   await page.getByRole("button", { name: "Entrar" }).click();
   await expect(page).toHaveURL(/\/verify-email$/u);
 
@@ -158,7 +195,7 @@ test("cadastro, verificação e login preservam a fronteira de sessão", async (
   ).toBeNull();
 
   await page.getByLabel("E-mail").fill(email);
-  await page.getByLabel("Senha").fill("correct-horse");
+  await page.getByLabel("Senha", { exact: true }).fill("correct-horse");
   await page.getByRole("button", { name: "Entrar" }).click();
   await expect(page).toHaveURL(/\/app$/u);
   await expect(
@@ -175,7 +212,7 @@ test("login real protege deep link sem flash do shell", async ({ page }) => {
     page.getByRole("navigation", { name: "Navegação principal" }),
   ).toHaveCount(0);
   await page.getByLabel("E-mail").fill("owner@example.test");
-  await page.getByLabel("Senha").fill("correct-horse");
+  await page.getByLabel("Senha", { exact: true }).fill("correct-horse");
   await page.getByRole("button", { name: "Entrar" }).click();
   await expect(page).toHaveURL(/\/app\/pipeline$/u);
   await expect(
@@ -207,7 +244,7 @@ test("duas páginas sem token compartilham uma única rotação", async ({
   const seed = await context.newPage();
   await seed.goto("/login");
   await seed.getByLabel("E-mail").fill("owner@example.test");
-  await seed.getByLabel("Senha").fill("correct-horse");
+  await seed.getByLabel("Senha", { exact: true }).fill("correct-horse");
   await seed.getByRole("button", { name: "Entrar" }).click();
   await expect(seed).toHaveURL(/\/app$/u);
   await seed.close();

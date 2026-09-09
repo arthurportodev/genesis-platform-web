@@ -60,6 +60,18 @@ export const emailVerifiedResponseSchema = z
   .object({ status: z.literal("email_verified") })
   .strict();
 
+export const passwordResetAcceptedResponseSchema = z
+  .object({
+    status: z.literal("accepted"),
+    expiresAt: z.iso.datetime({ offset: true }),
+    resendAvailableAt: z.iso.datetime({ offset: true }),
+  })
+  .strict();
+
+export const passwordResetCompletedResponseSchema = z
+  .object({ status: z.literal("password_reset") })
+  .strict();
+
 export type PublicUser = z.infer<typeof publicUserSchema>;
 export type Organization = z.infer<typeof organizationSchema>;
 export type TokenResponse = z.infer<typeof tokenResponseSchema>;
@@ -71,3 +83,9 @@ export type VerificationRequiredResponse = z.infer<
   typeof verificationRequiredResponseSchema
 >;
 export type EmailVerifiedResponse = z.infer<typeof emailVerifiedResponseSchema>;
+export type PasswordResetAcceptedResponse = z.infer<
+  typeof passwordResetAcceptedResponseSchema
+>;
+export type PasswordResetCompletedResponse = z.infer<
+  typeof passwordResetCompletedResponseSchema
+>;

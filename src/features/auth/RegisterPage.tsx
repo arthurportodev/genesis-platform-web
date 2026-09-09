@@ -1,11 +1,12 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Link, useNavigate } from "@tanstack/react-router";
-import { LockKeyhole, Mail, UserRound } from "lucide-react";
+import { Mail, UserRound } from "lucide-react";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 
 import { writeVerificationContinuation } from "@/features/auth/email-verification-storage";
+import { PasswordField } from "@/features/auth/components/PasswordField";
 import { useSession } from "@/features/auth/session/useSession";
 import { Brand } from "@/shared/components/Brand";
 import { toAppError } from "@/shared/api/errors";
@@ -35,11 +36,25 @@ const registrationSchema = z
       .min(10, "Use pelo menos 10 caracteres.")
       .max(128, "Use no máximo 128 caracteres.")
       .regex(/\S/u, "A senha precisa conter um caractere visível."),
+    confirmPassword: z.string(),
   })
-  .refine(
-    ({ firstName, lastName }) =>
-      Array.from(`${firstName.trim()} ${lastName.trim()}`).length <= 160,
-    { path: ["lastName"], message: "Nome completo muito longo." },
+  .superRefine(
+    ({ firstName, lastName, password, confirmPassword }, context) => {
+      if (Array.from(`${firstName.trim()} ${lastName.trim()}`).length > 160) {
+        context.addIssue({
+          code: "custom",
+          path: ["lastName"],
+          message: "Nome completo muito longo.",
+        });
+      }
+      if (password !== confirmPassword) {
+        context.addIssue({
+          code: "custom",
+          path: ["confirmPassword"],
+          message: "As senhas não coincidem.",
+        });
+      }
+    },
   );
 
 type RegistrationValues = z.infer<typeof registrationSchema>;
@@ -57,35 +72,46 @@ export function RegisterPage() {
     formState: { errors, isSubmitting },
   } = useForm<RegistrationValues>({
     resolver: zodResolver(registrationSchema),
-    defaultValues: { firstName: "", lastName: "", email: "", password: "" },
+    defaultValues: {
+      firstName: "",
+      lastName: "",
+      email: "",
+      password: "",
+      confirmPassword: "",
+    },
   });
 
   const onSubmit = async (values: RegistrationValues) => {
     setSubmissionMessage(null);
     try {
-      const response = await session.register(values);
+      const response = await session.register({
+        firstName: values.firstName,
+        lastName: values.lastName,
+        email: values.email,
+        password: values.password,
+      });
       writeVerificationContinuation(response, response.delivery);
-      setValue("password", "");
       await navigate({ to: "/verify-email", replace: true });
     } catch (error) {
       const normalized = toAppError(error);
-      setValue("password", "");
       setSubmissionMessage(
         normalized.code === "AUTH_EMAIL_ALREADY_REGISTERED"
           ? "Já existe uma conta com este e-mail. Entre ou verifique seu e-mail."
           : normalized.message,
       );
+    } finally {
+      setValue("password", "");
+      setValue("confirmPassword", "");
     }
   };
 
   const field = (
-    id: "firstName" | "lastName" | "email" | "password",
+    id: "firstName" | "lastName" | "email",
     label: string,
     input: React.ComponentProps<typeof Input>,
   ) => {
     const error = errors[id];
-    const Icon =
-      id === "email" ? Mail : id === "password" ? LockKeyhole : UserRound;
+    const Icon = id === "email" ? Mail : UserRound;
     return (
       <div className="space-y-2">
         <Label htmlFor={id}>{label}</Label>
@@ -140,10 +166,45 @@ export function RegisterPage() {
                 type: "email",
                 autoComplete: "email",
               })}
-              {field("password", "Senha", {
-                type: "password",
-                autoComplete: "new-password",
-              })}
+              <div className="space-y-2">
+                <Label htmlFor="password">Senha</Label>
+                <PasswordField
+                  id="password"
+                  autoComplete="new-password"
+                  aria-invalid={Boolean(errors.password)}
+                  aria-describedby={
+                    errors.password ? "password-error" : undefined
+                  }
+                  {...register("password")}
+                />
+                {errors.password ? (
+                  <p id="password-error" className="text-sm text-destructive">
+                    {errors.password.message}
+                  </p>
+                ) : null}
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="confirmPassword">Confirmar senha</Label>
+                <PasswordField
+                  id="confirmPassword"
+                  autoComplete="new-password"
+                  aria-invalid={Boolean(errors.confirmPassword)}
+                  aria-describedby={
+                    errors.confirmPassword
+                      ? "confirm-password-error"
+                      : undefined
+                  }
+                  {...register("confirmPassword")}
+                />
+                {errors.confirmPassword ? (
+                  <p
+                    id="confirm-password-error"
+                    className="text-sm text-destructive"
+                  >
+                    {errors.confirmPassword.message}
+                  </p>
+                ) : null}
+              </div>
               <p className="text-xs leading-5 text-muted-foreground">
                 Use entre 10 e 128 caracteres.
               </p>

@@ -26,19 +26,27 @@ describe("AuthApi", () => {
         calls.push({ path, options });
         const data = path.endsWith("bootstrap")
           ? { user, organizations: [] }
-          : path.endsWith("register") || path.endsWith("resend")
+          : path.endsWith("password-reset/request")
             ? {
-                status: "verification_required",
-                challengeId: "10000000-0000-4000-8000-000000000001",
+                status: "accepted",
                 expiresAt: "2030-01-01T00:10:00.000Z",
                 resendAvailableAt: "2030-01-01T00:01:00.000Z",
-                delivery: "sent",
               }
-            : path.endsWith("verify")
-              ? { status: "email_verified" }
-              : path.endsWith("logout") || path.endsWith("logout-all")
-                ? undefined
-                : tokenResponse;
+            : path.endsWith("password-reset/complete")
+              ? { status: "password_reset" }
+              : path.endsWith("register") || path.endsWith("resend")
+                ? {
+                    status: "verification_required",
+                    challengeId: "10000000-0000-4000-8000-000000000001",
+                    expiresAt: "2030-01-01T00:10:00.000Z",
+                    resendAvailableAt: "2030-01-01T00:01:00.000Z",
+                    delivery: "sent",
+                  }
+                : path.endsWith("verify")
+                  ? { status: "email_verified" }
+                  : path.endsWith("logout") || path.endsWith("logout-all")
+                    ? undefined
+                    : tokenResponse;
         return Promise.resolve({
           data: data as T,
           status:
@@ -52,6 +60,12 @@ describe("AuthApi", () => {
     });
 
     await api.login({ email: user.email, password: "not-a-real-secret" });
+    await api.requestPasswordReset({ email: user.email });
+    await api.completePasswordReset({
+      email: user.email,
+      code: "123456",
+      password: "new-not-a-real-secret",
+    });
     await api.register({
       firstName: "Pessoa",
       lastName: "Teste",

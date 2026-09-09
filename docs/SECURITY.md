@@ -7,9 +7,9 @@
   lido, persistido ou enviado em body/header/query pelo frontend.
 - Cookies CSRF reconhecidos possuem fonte única e são validados como base64url;
   duplicidade ou divergência body/cookie falha fechada.
-- Login, cadastro, reenvio/confirmação de e-mail, refresh, logout e logout-all
-  usam `X-CSRF-Token`, com uma única renovação após `403`. O frontend nunca
-  define `Origin`.
+- Login, cadastro, reenvio/confirmação de e-mail, recuperação de senha, refresh,
+  logout e logout-all usam `X-CSRF-Token`, com uma única renovação após `403`.
+  O frontend nunca define `Origin`.
 - Web Locks serializam emissão de CSRF e rotação de refresh. Timeout não permite
   operação concorrente.
 - BroadcastChannel valida versão, UUIDs, geração e payload. Access trafega apenas
@@ -27,6 +27,10 @@
   refresh token nunca entram nesse storage.
 - A preferência nunca concede autorização e sempre é confrontada com bootstrap.
 - Cache autenticado é segmentado e removido em troca, logout ou expiração.
+- A recuperação de senha mantém email, OTP, senha e confirmação somente no
+  estado React da página. O sucesso limpa material autenticado e preferências,
+  publica logout entre abas e volta ao login; nenhum desses valores entra em
+  `localStorage`, `sessionStorage` ou URL.
 - `returnTo` aceita somente `/app` e `/app/**`, sem URL absoluta, esquema,
   host, barra invertida ou controle.
 - Shell e not found administrativo permanecem protegidos sem flash.

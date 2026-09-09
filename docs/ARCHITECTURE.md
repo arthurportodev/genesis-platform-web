@@ -22,6 +22,11 @@ ativa e operações. Login, cadastro, reenvio/confirmação de e-mail, refresh,
 logout e logout-all usam CSRF cookie-to-header; refresh nunca é lido pelo
 JavaScript.
 
+`/forgot-password` é uma rota anônima progressiva. A primeira etapa mantém o
+email em memória e recebe somente o contrato público opaco; a segunda envia
+email, OTP e nova senha. A conclusão não adota token: o coordenador limpa cache,
+preferência e credencial efêmera, publica o logout existente e retorna ao login.
+
 O fluxo público de verificação persiste em `sessionStorage` somente o contexto
 validado da mesma aba: versão, challenge UUID, expiração, cooldown e estado de
 entrega. Senha, OTP, e-mail e tokens não são persistidos. A confirmação limpa o
@@ -210,8 +215,10 @@ hidratado.
 `/app/**`, inclusive not found aninhado, aguardam a restauração antes do shell.
 A raiz `/` encaminha para `/app`. Anônimo segue para `/login` com `returnTo`
 interno validado para `/app`; depois da autenticação, o retorno entra no CRM.
-Múltiplas Organizations exigem `/select-organization`. Redirects usam replace e
-as rotas `/app` e `/login` não redirecionam de volta à raiz, evitando ciclos.
+Múltiplas Organizations exigem `/select-organization`. `/register`,
+`/verify-email` e `/forgot-password` são anonymous-only. O login valida os flags
+de sucesso antes de renderizá-los. Redirects usam replace e as rotas `/app` e
+`/login` não redirecionam de volta à raiz, evitando ciclos.
 
 ## Limites
 
