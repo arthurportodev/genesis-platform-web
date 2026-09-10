@@ -72,6 +72,21 @@ export const passwordResetCompletedResponseSchema = z
   .object({ status: z.literal("password_reset") })
   .strict();
 
+export const googleConfigResponseSchema = z.discriminatedUnion("enabled", [
+  z.object({ enabled: z.literal(false), clientId: z.null() }).strict(),
+  z
+    .object({ enabled: z.literal(true), clientId: z.string().min(1).max(512) })
+    .strict(),
+]);
+
+export const googleChallengeResponseSchema = z
+  .object({
+    challengeToken: z.string().regex(/^[A-Za-z0-9_-]{43}$/u),
+    nonce: z.string().regex(/^[A-Za-z0-9_-]{43}$/u),
+    expiresAt: z.iso.datetime({ offset: true }),
+  })
+  .strict();
+
 export type PublicUser = z.infer<typeof publicUserSchema>;
 export type Organization = z.infer<typeof organizationSchema>;
 export type TokenResponse = z.infer<typeof tokenResponseSchema>;
@@ -88,4 +103,8 @@ export type PasswordResetAcceptedResponse = z.infer<
 >;
 export type PasswordResetCompletedResponse = z.infer<
   typeof passwordResetCompletedResponseSchema
+>;
+export type GoogleConfigResponse = z.infer<typeof googleConfigResponseSchema>;
+export type GoogleChallengeResponse = z.infer<
+  typeof googleChallengeResponseSchema
 >;

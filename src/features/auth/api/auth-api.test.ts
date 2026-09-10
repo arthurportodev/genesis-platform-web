@@ -140,4 +140,56 @@ describe("AuthApi", () => {
       api.login({ email: user.email, password: "senha-fictícia" }),
     ).rejects.toMatchObject({ kind: "protocol" });
   });
+
+  it("mantém a credencial Google somente no corpo HTTPS e valida contratos públicos", async () => {
+    const calls: Array<{ path: string; options: HttpRequestOptions }> = [];
+    const challengeToken = "c".repeat(43);
+    const nonce = "n".repeat(43);
+    const credential = ["signed", "google", "assertion"].join(".");
+    const httpClient: BaseHttpClient = {
+      request<T>(path: string, options: HttpRequestOptions = {}) {
+        calls.push({ path, options });
+        const data = path.endsWith("/google/config")
+          ? { enabled: true, clientId: "public.apps.googleusercontent.com" }
+          : path.endsWith("/google/challenge")
+            ? { challengeToken, nonce, expiresAt: "2030-01-01T00:05:00.000Z" }
+            : tokenResponse;
+        return Promise.resolve({ data: data as T, status: 200 });
+      },
+    };
+    const api = createAuthApi(httpClient, {
+      getToken: vi.fn().mockResolvedValue("a".repeat(43)),
+      invalidate: vi.fn(),
+    });
+    await expect(api.getGoogleConfig()).resolves.toEqual({
+      enabled: true,
+      clientId: "public.apps.googleusercontent.com",
+    });
+    await expect(api.issueGoogleChallenge()).resolves.toMatchObject({
+      challengeToken,
+      nonce,
+    });
+    await api.authenticateWithGoogle({ challengeToken, credential });
+    await api.completeGoogleProfile({
+      challengeToken,
+      firstName: "Pessoa",
+      lastName: "Teste",
+    });
+    await api.linkGoogleIdentity({
+      challengeToken,
+      password: "local-only-password",
+    });
+    const assertionCall = calls.find(
+      ({ path }) => path.endsWith("/google") && !path.endsWith("/challenge"),
+    );
+    expect(assertionCall?.path).not.toContain(credential);
+    expect(assertionCall?.options.body).toEqual({ challengeToken, credential });
+    expect(
+      JSON.stringify(
+        calls
+          .filter(({ path }) => path !== assertionCall?.path)
+          .map(({ path }) => path),
+      ),
+    ).not.toContain(credential);
+  });
 });

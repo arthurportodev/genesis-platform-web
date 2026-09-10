@@ -7,6 +7,7 @@ import { z } from "zod";
 
 import { writeVerificationContinuation } from "@/features/auth/email-verification-storage";
 import { PasswordField } from "@/features/auth/components/PasswordField";
+import { GoogleAuthPanel } from "@/features/auth/google/GoogleAuthPanel";
 import { useSession } from "@/features/auth/session/useSession";
 import { Brand } from "@/shared/components/Brand";
 import { toAppError } from "@/shared/api/errors";
@@ -103,6 +104,18 @@ export function RegisterPage() {
       setValue("password", "");
       setValue("confirmPassword", "");
     }
+  };
+
+  const continueAfterGoogleAuthentication = async () => {
+    const nextState = session.getSnapshot();
+    await navigate({
+      to:
+        "activeOrganization" in nextState &&
+        nextState.activeOrganization !== null
+          ? "/app"
+          : "/select-organization",
+      replace: true,
+    });
   };
 
   const field = (
@@ -212,6 +225,12 @@ export function RegisterPage() {
                 {isSubmitting ? "Criando conta…" : "Criar conta"}
               </Button>
             </form>
+            <GoogleAuthPanel
+              onAuthenticated={continueAfterGoogleAuthentication}
+              onVerificationRequired={() =>
+                navigate({ to: "/verify-email", replace: true })
+              }
+            />
             {submissionMessage ? (
               <div
                 className="mt-4 rounded-lg border border-destructive/20 bg-destructive/5 p-3 text-sm"

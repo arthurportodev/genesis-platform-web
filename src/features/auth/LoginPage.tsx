@@ -22,6 +22,7 @@ import { safeReturnTo } from "@/shared/lib/safe-return-to";
 import { toAppError } from "@/shared/api/errors";
 import { writeVerificationContinuation } from "@/features/auth/email-verification-storage";
 import { PasswordField } from "@/features/auth/components/PasswordField";
+import { GoogleAuthPanel } from "@/features/auth/google/GoogleAuthPanel";
 
 const loginSchema = z.object({
   email: z
@@ -63,19 +64,7 @@ export function LoginPage() {
     try {
       await session.login(values);
       reset();
-      const nextState = session.getSnapshot();
-      if (
-        "activeOrganization" in nextState &&
-        nextState.activeOrganization !== null
-      ) {
-        const returnTo = safeReturnTo(search.returnTo);
-        await navigate({
-          to: (returnTo ?? "/app") as "/app",
-          replace: true,
-        });
-      } else {
-        await navigate({ to: "/select-organization", replace: true });
-      }
+      await continueAfterAuthentication();
     } catch (error) {
       const normalized = toAppError(error);
       if (normalized.kind !== "network" && normalized.kind !== "timeout")
@@ -95,6 +84,19 @@ export function LoginPage() {
             ? "E-mail ou senha inválidos."
             : normalized.message,
       );
+    }
+  };
+
+  const continueAfterAuthentication = async () => {
+    const nextState = session.getSnapshot();
+    if (
+      "activeOrganization" in nextState &&
+      nextState.activeOrganization !== null
+    ) {
+      const returnTo = safeReturnTo(search.returnTo);
+      await navigate({ to: (returnTo ?? "/app") as "/app", replace: true });
+    } else {
+      await navigate({ to: "/select-organization", replace: true });
     }
   };
 
@@ -176,6 +178,12 @@ export function LoginPage() {
                 Entrar
               </Button>
             </form>
+            <GoogleAuthPanel
+              onAuthenticated={continueAfterAuthentication}
+              onVerificationRequired={() =>
+                navigate({ to: "/verify-email", replace: true })
+              }
+            />
 
             {submissionMessage || sessionMessage ? (
               <div

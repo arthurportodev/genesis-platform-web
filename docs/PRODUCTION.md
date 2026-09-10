@@ -148,3 +148,15 @@ autoridade universal de Production. Automated Feature Validation e checkpoints
 como `T+30`/`T+120` são exigidos somente quando o risco for declarado. O host
 gerado pela Vercel pode ser verificado separadamente, sem credenciais Genesis,
 por `npm run smoke:web:generated-host`.
+
+## Google Identity Services
+
+A Web carrega o Google Identity Services somente quando
+`GET /api/v1/auth/google/config` retorna `enabled: true`. O client ID público
+vem dessa resposta; credential, nonce e challenge token permanecem apenas na
+memória da cerimônia e um reload reinicia o fluxo. Os headers versionados
+limitam as origens GIS e usam `Cross-Origin-Opener-Policy:
+same-origin-allow-popups` para o popup.
+
+`GOOGLE_IOS_REDIRECT_SUPPORT: NOT_IMPLEMENTED_IN_AUTH_V2_04_MVP`. O login por
+senha continua disponível no iOS; esta versão não adiciona callback redirect.

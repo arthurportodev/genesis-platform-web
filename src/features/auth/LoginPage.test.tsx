@@ -1,11 +1,42 @@
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { http, HttpResponse } from "msw";
 
 import { renderAppAt } from "@/test/renderApp";
 import { server } from "@/test/msw/server";
 import { createAuthHandlers, testUser } from "@/test/msw/auth-handlers";
 
 describe("LoginPage", () => {
+  beforeEach(() => {
+    server.use(...createAuthHandlers());
+  });
+
+  it("renders the official Google button when public config is enabled", async () => {
+    installGoogleButton();
+    server.use(
+      http.get("/api/v1/auth/google/config", () =>
+        HttpResponse.json({
+          enabled: true,
+          clientId: "public.apps.googleusercontent.com",
+        }),
+      ),
+      http.post("/api/v1/auth/google/challenge", () =>
+        HttpResponse.json(
+          {
+            challengeToken: "c".repeat(43),
+            nonce: "n".repeat(43),
+            expiresAt: "2030-01-01T00:05:00.000Z",
+          },
+          { status: 201 },
+        ),
+      ),
+    );
+    await renderAppAt("/login");
+    expect(
+      await screen.findByRole("button", { name: "Continuar com Google" }),
+    ).toBeVisible();
+  });
+
   it("valida os campos e foca o primeiro erro", async () => {
     const user = userEvent.setup();
     await renderAppAt("/login");
@@ -94,3 +125,18 @@ describe("LoginPage", () => {
     ).not.toContain("senha-de-teste");
   });
 });
+
+function installGoogleButton() {
+  window.google = {
+    accounts: {
+      id: {
+        initialize: vi.fn(),
+        renderButton: vi.fn((parent: HTMLElement) => {
+          const button = document.createElement("button");
+          button.textContent = "Continuar com Google";
+          parent.append(button);
+        }),
+      },
+    },
+  };
+}
