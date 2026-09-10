@@ -43,6 +43,13 @@ const backendErrorSchema = z
         "AUTH_PASSWORD_RESET_PUBLIC_FLOW_DISABLED",
         "AUTH_PASSWORD_RESET_RATE_LIMITED",
         "AUTH_PASSWORD_RESET_UNAVAILABLE",
+        "AUTH_GOOGLE_LINK_REQUIRED",
+        "AUTH_GOOGLE_PROFILE_REQUIRED",
+        "AUTH_GOOGLE_PROFILE_INVALID",
+        "AUTH_GOOGLE_INVALID",
+        "AUTH_GOOGLE_UNAVAILABLE",
+        "AUTH_GOOGLE_RATE_LIMITED",
+        "AUTH_GOOGLE_RETRY",
       ])
       .optional(),
     continuation: z
@@ -50,6 +57,13 @@ const backendErrorSchema = z
         challengeId: z.uuidv4(),
         expiresAt: z.iso.datetime({ offset: true }),
         resendAvailableAt: z.iso.datetime({ offset: true }),
+      })
+      .strict()
+      .optional(),
+    googleContinuation: z
+      .object({
+        challengeToken: z.string().regex(/^[A-Za-z0-9_-]{43}$/u),
+        expiresAt: z.iso.datetime({ offset: true }),
       })
       .strict()
       .optional(),
@@ -62,6 +76,9 @@ export class AppError extends Error {
   readonly details?: readonly string[];
   readonly code?: z.infer<typeof backendErrorSchema>["code"];
   readonly continuation?: z.infer<typeof backendErrorSchema>["continuation"];
+  readonly googleContinuation?: z.infer<
+    typeof backendErrorSchema
+  >["googleContinuation"];
 
   constructor(
     kind: AppErrorKind,
@@ -72,6 +89,9 @@ export class AppError extends Error {
       details?: readonly string[];
       code?: z.infer<typeof backendErrorSchema>["code"];
       continuation?: z.infer<typeof backendErrorSchema>["continuation"];
+      googleContinuation?: z.infer<
+        typeof backendErrorSchema
+      >["googleContinuation"];
     } = {},
   ) {
     super(message, { cause: options.cause });
@@ -81,6 +101,7 @@ export class AppError extends Error {
     this.details = options.details;
     this.code = options.code;
     this.continuation = options.continuation;
+    this.googleContinuation = options.googleContinuation;
   }
 }
 
@@ -112,6 +133,9 @@ export function createHttpError(status: number, body: unknown): AppError {
       details: messages,
       code: parsed.success ? parsed.data.code : undefined,
       continuation: parsed.success ? parsed.data.continuation : undefined,
+      googleContinuation: parsed.success
+        ? parsed.data.googleContinuation
+        : undefined,
     },
   );
 }

@@ -45,6 +45,13 @@ function createHarness(
     close: vi.fn(),
   };
   const authApi = {
+    getGoogleConfig: vi
+      .fn()
+      .mockResolvedValue({ enabled: false, clientId: null }),
+    issueGoogleChallenge: vi.fn(),
+    authenticateWithGoogle: vi.fn().mockResolvedValue(response),
+    completeGoogleProfile: vi.fn().mockResolvedValue(response),
+    linkGoogleIdentity: vi.fn().mockResolvedValue(response),
     requestPasswordReset: vi.fn().mockResolvedValue({
       status: "accepted",
       expiresAt: "2030-01-01T00:10:00.000Z",
@@ -117,6 +124,26 @@ function createHarness(
 }
 
 describe("SessionCoordinator", () => {
+  it("adopts a Google session, bootstraps once, and keeps the access token private", async () => {
+    const harness = createHarness({ organizations: [] });
+    const input = {
+      challengeToken: "c".repeat(43),
+      credential: "signed.google.credential",
+    };
+    await harness.coordinator.authenticateWithGoogle(input);
+    expect(harness.authApi.authenticateWithGoogle).toHaveBeenCalledWith(input);
+    expect(harness.authApi.bootstrap).toHaveBeenCalledOnce();
+    expect(harness.coordinator.getSnapshot()).toMatchObject({
+      status: "authenticated-without-organization",
+      organizations: [],
+      activeOrganization: null,
+    });
+    expect(JSON.stringify(harness.coordinator.getSnapshot())).not.toContain(
+      fakeAccessToken,
+    );
+    expect(harness.coordinator.getAccessToken()).toBe(fakeAccessToken);
+  });
+
   it("limpa material local e publica logout depois do reset confirmado", async () => {
     const harness = createHarness();
     await harness.coordinator.initialize();
@@ -483,6 +510,13 @@ describe("SessionCoordinator", () => {
       },
     };
     const authApi = {
+      getGoogleConfig: vi
+        .fn()
+        .mockResolvedValue({ enabled: false, clientId: null }),
+      issueGoogleChallenge: vi.fn(),
+      authenticateWithGoogle: vi.fn().mockResolvedValue(response),
+      completeGoogleProfile: vi.fn().mockResolvedValue(response),
+      linkGoogleIdentity: vi.fn().mockResolvedValue(response),
       requestPasswordReset: vi.fn().mockResolvedValue({
         status: "accepted",
         expiresAt: "2030-01-01T00:10:00.000Z",

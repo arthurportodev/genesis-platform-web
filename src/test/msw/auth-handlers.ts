@@ -74,6 +74,9 @@ export function createAuthHandlers(
     user: testUser,
   };
   return [
+    http.get("/api/v1/auth/google/config", () =>
+      HttpResponse.json({ enabled: false, clientId: null }),
+    ),
     http.get("/api/v1/auth/csrf", () => {
       document.cookie = `genesis_csrf_dev=${csrfToken}; Path=/; SameSite=Lax`;
       return HttpResponse.json(

@@ -5,12 +5,16 @@ import {
   passwordResetCompletedResponseSchema,
   tokenResponseSchema,
   verificationRequiredResponseSchema,
+  googleConfigResponseSchema,
+  googleChallengeResponseSchema,
   type BootstrapResponse,
   type TokenResponse,
   type EmailVerifiedResponse,
   type PasswordResetAcceptedResponse,
   type PasswordResetCompletedResponse,
   type VerificationRequiredResponse,
+  type GoogleConfigResponse,
+  type GoogleChallengeResponse,
 } from "@/features/auth/api/auth-contracts";
 import { runCsrfMutation, type CsrfManager } from "@/features/auth/api/csrf";
 import type { BaseHttpClient } from "@/shared/api/contracts";
@@ -18,6 +22,21 @@ import { AppError } from "@/shared/api/errors";
 import { environment } from "@/shared/config/environment";
 
 export interface AuthApi {
+  getGoogleConfig(): Promise<GoogleConfigResponse>;
+  issueGoogleChallenge(): Promise<GoogleChallengeResponse>;
+  authenticateWithGoogle(input: {
+    challengeToken: string;
+    credential: string;
+  }): Promise<TokenResponse>;
+  completeGoogleProfile(input: {
+    challengeToken: string;
+    firstName: string;
+    lastName: string;
+  }): Promise<TokenResponse>;
+  linkGoogleIdentity(input: {
+    challengeToken: string;
+    password: string;
+  }): Promise<TokenResponse>;
   requestPasswordReset(input: {
     email: string;
   }): Promise<PasswordResetAcceptedResponse>;
@@ -140,6 +159,42 @@ export function createAuthApi(
     });
 
   return {
+    async getGoogleConfig() {
+      const response = await http.request<unknown>(authPath("google/config"), {
+        kind: "public",
+      });
+      const parsed = googleConfigResponseSchema.safeParse(response.data);
+      if (!parsed.success)
+        throw new AppError("protocol", "Configuração Google inválida.", {
+          cause: parsed.error,
+        });
+      return parsed.data;
+    },
+    async issueGoogleChallenge() {
+      const parsed = googleChallengeResponseSchema.safeParse(
+        await csrfMutation<unknown>("google/challenge"),
+      );
+      if (!parsed.success)
+        throw new AppError("protocol", "Desafio Google inválido.", {
+          cause: parsed.error,
+        });
+      return parsed.data;
+    },
+    async authenticateWithGoogle(input) {
+      return parseTokenResponse(
+        await csrfMutation<unknown>("google", { body: input }),
+      );
+    },
+    async completeGoogleProfile(input) {
+      return parseTokenResponse(
+        await csrfMutation<unknown>("google/profile", { body: input }),
+      );
+    },
+    async linkGoogleIdentity(input) {
+      return parseTokenResponse(
+        await csrfMutation<unknown>("google/link", { body: input }),
+      );
+    },
     async requestPasswordReset(input) {
       return parsePasswordResetAcceptedResponse(
         await csrfMutation<unknown>("password-reset/request", { body: input }),

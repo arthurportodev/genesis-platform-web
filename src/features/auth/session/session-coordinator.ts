@@ -6,6 +6,8 @@ import type {
   PasswordResetCompletedResponse,
   TokenResponse,
   VerificationRequiredResponse,
+  GoogleConfigResponse,
+  GoogleChallengeResponse,
 } from "@/features/auth/api/auth-contracts";
 import type { AuthCookieLock } from "@/features/auth/session/auth-cookie-lock";
 import {
@@ -50,6 +52,21 @@ export interface SessionCoordinator {
   initialize(): Promise<void>;
   retry(): Promise<void>;
   login(credentials: { email: string; password: string }): Promise<void>;
+  getGoogleConfig(): Promise<GoogleConfigResponse>;
+  issueGoogleChallenge(): Promise<GoogleChallengeResponse>;
+  authenticateWithGoogle(input: {
+    challengeToken: string;
+    credential: string;
+  }): Promise<void>;
+  completeGoogleProfile(input: {
+    challengeToken: string;
+    firstName: string;
+    lastName: string;
+  }): Promise<void>;
+  linkGoogleIdentity(input: {
+    challengeToken: string;
+    password: string;
+  }): Promise<void>;
   register(input: {
     firstName: string;
     lastName: string;
@@ -432,6 +449,23 @@ export function createSessionCoordinator(
     return initializePromise;
   };
 
+  const acceptExternalAuthentication = async (
+    operation: () => Promise<TokenResponse>,
+  ): Promise<void> => {
+    dispatch({ type: "LOGIN" });
+    try {
+      const response = await explicitCookieOperation(operation);
+      acceptTokenResponse(response);
+      await bootstrap(false);
+      retryAction = null;
+    } catch (error) {
+      const normalized = toAppError(error);
+      credential = null;
+      dispatch({ type: "ANONYMOUS" });
+      throw normalized;
+    }
+  };
+
   const unsubscribeChannel = dependencies.channel.subscribe((message) => {
     if (message.tabId === tabId) return;
     if (message.type === "token-request") {
@@ -624,6 +658,29 @@ export function createSessionCoordinator(
         });
         throw normalized;
       }
+    },
+    getGoogleConfig() {
+      return dependencies.authApi.getGoogleConfig();
+    },
+    issueGoogleChallenge() {
+      return explicitCookieOperation(() =>
+        dependencies.authApi.issueGoogleChallenge(),
+      );
+    },
+    authenticateWithGoogle(input) {
+      return acceptExternalAuthentication(() =>
+        dependencies.authApi.authenticateWithGoogle(input),
+      );
+    },
+    completeGoogleProfile(input) {
+      return acceptExternalAuthentication(() =>
+        dependencies.authApi.completeGoogleProfile(input),
+      );
+    },
+    linkGoogleIdentity(input) {
+      return acceptExternalAuthentication(() =>
+        dependencies.authApi.linkGoogleIdentity(input),
+      );
     },
     register(input) {
       return explicitCookieOperation(() =>
