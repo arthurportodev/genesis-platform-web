@@ -140,7 +140,10 @@ function assertRequestOptions(options: HttpRequestOptions): void {
     kind === "idempotent-mutation" ||
     kind === "conditional-idempotent-mutation";
   const bearerAllowed =
-    tenantScoped || kind === "authenticated" || kind === "auth-cookie-mutation";
+    tenantScoped ||
+    kind === "authenticated" ||
+    kind === "authenticated-idempotent-mutation" ||
+    kind === "auth-cookie-mutation";
   if (options.accessToken && !bearerAllowed)
     throw new AppError("protocol", "Bearer incompatível com a chamada.");
   if (options.organizationId && !tenantScoped)
@@ -160,6 +163,7 @@ function assertRequestOptions(options: HttpRequestOptions): void {
     throw new AppError("protocol", "If-Match incompatível com a chamada.");
   if (
     options.idempotencyKey &&
+    kind !== "authenticated-idempotent-mutation" &&
     kind !== "idempotent-mutation" &&
     kind !== "conditional-idempotent-mutation"
   )
@@ -170,6 +174,11 @@ function assertRequestOptions(options: HttpRequestOptions): void {
   if (kind === "conditional-mutation" && !options.ifMatch)
     throw new AppError("protocol", "If-Match é obrigatório nesta chamada.");
   if (kind === "idempotent-mutation" && !options.idempotencyKey)
+    throw new AppError(
+      "protocol",
+      "Idempotency-Key é obrigatória nesta chamada.",
+    );
+  if (kind === "authenticated-idempotent-mutation" && !options.idempotencyKey)
     throw new AppError(
       "protocol",
       "Idempotency-Key é obrigatória nesta chamada.",
@@ -329,7 +338,7 @@ export function createAuthenticatedHttpClient(
         base.request<T>(path, {
           ...options,
           accessToken: token,
-          organizationId: organizationId ?? undefined,
+          ...(organizationId ? { organizationId } : {}),
         });
 
       try {
