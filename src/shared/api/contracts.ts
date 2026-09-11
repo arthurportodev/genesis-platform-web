@@ -1,6 +1,7 @@
 export type HttpCallKind =
   | "public"
   | "authenticated"
+  | "authenticated-idempotent-mutation"
   | "tenant-scoped"
   | "auth-cookie-mutation"
   | "conditional-mutation"
@@ -43,6 +44,7 @@ export interface AuthenticatedRequestOptions extends Omit<
 > {
   kind:
     | "authenticated"
+    | "authenticated-idempotent-mutation"
     | "tenant-scoped"
     | "conditional-mutation"
     | "idempotent-mutation"

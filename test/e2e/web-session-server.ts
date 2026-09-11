@@ -29,6 +29,14 @@ const registrationsByEmail = new Map<
 >();
 const registrationEmailByChallenge = new Map<string, string>();
 const passwordByEmail = new Map<string, string>();
+const createdOrganizationByEmail = new Map<
+  string,
+  ReturnType<typeof selfServiceOrganization>
+>();
+const completedOrganizationCreates = new Map<
+  string,
+  ReturnType<typeof selfServiceOrganization>
+>();
 let refreshCount = 0;
 let sequence = 0;
 let leadRevision = 3;
@@ -189,8 +197,21 @@ function publicUser(email: string) {
   };
 }
 
+function selfServiceOrganization(name: string) {
+  return {
+    id: "10000000-0000-4000-8000-000000000001",
+    name,
+    slug: "agencia-e2e",
+    membershipId: "10000000-0000-4000-8000-000000000002",
+    role: "owner",
+  };
+}
+
 function organizations(email: string) {
-  if (email.startsWith("zero")) return [];
+  if (email.startsWith("zero")) {
+    const created = createdOrganizationByEmail.get(email);
+    return created ? [created] : [];
+  }
   const first = {
     id: "00000000-0000-4000-8000-000000000002",
     name: "Genesis Teste",
@@ -532,6 +553,47 @@ async function handleApi(
     return;
   }
   const tenant = tenantRequest(request);
+  if (pathname === "/api/v1/organizations" && request.method === "POST") {
+    if (!tenant.session) {
+      authError(response, 401, "Unauthorized");
+      return;
+    }
+    if (tenant.organizationId) {
+      authError(response, 400, "Organization header is not allowed.");
+      return;
+    }
+    const key = request.headers["idempotency-key"];
+    if (
+      typeof key !== "string" ||
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu.test(
+        key,
+      )
+    ) {
+      authError(response, 400, "Invalid Idempotency-Key.");
+      return;
+    }
+    const body = (await readJson(request)) as Record<string, unknown>;
+    if (
+      Object.keys(body).join(",") !== "name" ||
+      typeof body.name !== "string" ||
+      body.name.length === 0
+    ) {
+      authError(response, 400, "Invalid organization input.");
+      return;
+    }
+    const intentKey = `${tenant.session.userEmail}:${key}`;
+    const replay = completedOrganizationCreates.get(intentKey);
+    const organization = replay ?? selfServiceOrganization(body.name);
+    if (!replay) {
+      completedOrganizationCreates.set(intentKey, organization);
+      createdOrganizationByEmail.set(tenant.session.userEmail, organization);
+    }
+    json(response, 201, organization, {
+      Location: `/api/v1/organizations/${organization.id}`,
+      ...(replay ? { "Idempotency-Replayed": "true" } : {}),
+    });
+    return;
+  }
   if (
     pathname.startsWith("/api/v1/leads") ||
     pathname.startsWith("/api/v1/pipelines") ||
@@ -1346,6 +1408,8 @@ export async function startWebSessionServer() {
         registrationsByEmail.clear();
         registrationEmailByChallenge.clear();
         passwordByEmail.clear();
+        createdOrganizationByEmail.clear();
+        completedOrganizationCreates.clear();
         refreshCount = 0;
         sequence = 0;
         leadRevision = 3;

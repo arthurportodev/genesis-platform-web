@@ -88,6 +88,28 @@ describe("cliente HTTP base", () => {
     );
   });
 
+  it("transporta mutação autenticada idempotente sem contexto tenant", async () => {
+    const fetch = vi
+      .fn<typeof globalThis.fetch>()
+      .mockResolvedValue(jsonResponse({ ok: true }, { status: 201 }));
+    const client = createBaseHttpClient({ fetch });
+
+    await client.request("/api/v1/organizations", {
+      kind: "authenticated-idempotent-mutation",
+      method: "POST",
+      body: { name: "Agência Gênesis" },
+      accessToken: "synthetic-access-token",
+      idempotencyKey: "00000000-0000-4000-8000-000000000002",
+    });
+
+    const headers = new Headers(fetch.mock.calls[0][1]?.headers);
+    expect(headers.get("Authorization")).toBe("Bearer synthetic-access-token");
+    expect(headers.get("Idempotency-Key")).toBe(
+      "00000000-0000-4000-8000-000000000002",
+    );
+    expect(headers.has("X-Organization-Id")).toBe(false);
+  });
+
   it("transporta explicitamente o contrato Pipeline V2 de Leads", async () => {
     const fetch = vi
       .fn<typeof globalThis.fetch>()
@@ -372,5 +394,40 @@ describe("cliente HTTP autenticado", () => {
     expect(request.mock.calls[1][1]).toEqual(
       expect.objectContaining({ ...options, accessToken: "new" }),
     );
+  });
+
+  it("preserva a intenção sem tenant ao renovar o access token", async () => {
+    let token = "old";
+    const request = vi
+      .fn()
+      .mockRejectedValueOnce(new AppError("unauthorized", "unauthorized"))
+      .mockResolvedValueOnce({ data: { ok: true }, status: 201 });
+    const client = createAuthenticatedHttpClient(
+      { request },
+      {
+        getAccessToken: () => token,
+        getActiveOrganizationId: () => null,
+        refresh: vi.fn(() => {
+          token = "new";
+          return Promise.resolve(true);
+        }),
+        expireSession: vi.fn(),
+        rebootstrap: vi.fn(),
+      },
+    );
+    const options = {
+      kind: "authenticated-idempotent-mutation" as const,
+      method: "POST" as const,
+      idempotencyKey: "00000000-0000-4000-8000-000000000002",
+      body: { name: "Agência Gênesis" },
+    };
+
+    await client.request("/api/v1/organizations", options);
+
+    expect(request).toHaveBeenCalledTimes(2);
+    expect(request.mock.calls[1][1]).toEqual(
+      expect.objectContaining({ ...options, accessToken: "new" }),
+    );
+    expect(request.mock.calls[1][1]).not.toHaveProperty("organizationId");
   });
 });

@@ -310,21 +310,31 @@ test("seleção e troca de Organization funcionam por teclado", async ({
   ).toContainText("Segunda Organização");
 });
 
-test("zero Organization é estado autenticado válido e bloqueia o shell", async ({
+test("zero Organization cria o primeiro tenant e entra no pipeline padrão", async ({
   page,
 }) => {
   await login(page, "zero@example.test");
   await expect(
-    page.getByRole("heading", { name: "Selecione uma organização" }),
+    page.getByRole("heading", { name: "Crie sua primeira organização" }),
   ).toBeVisible();
-  await expect(page.getByText("Nenhuma organização disponível")).toBeVisible();
   await expect(
     page.getByRole("navigation", { name: "Navegação principal" }),
   ).toHaveCount(0);
-  await page.getByRole("button", { name: "Sair", exact: true }).click();
+  await page.getByLabel("Nome da organização").fill("Agência E2E");
+  await page.getByRole("button", { name: "Criar organização" }).click();
+  await expect(page).toHaveURL(/\/app$/u);
   await expect(
-    page.getByRole("heading", { name: "Acesse sua conta" }),
+    page.getByRole("heading", { name: "Visão geral" }),
   ).toBeVisible();
+  await page.getByRole("link", { name: "Pipeline" }).first().click();
+  await expect(
+    page.getByRole("heading", { name: "Pipeline", exact: true }),
+  ).toBeVisible();
+  const pipeline = page.getByLabel("Pipeline atual", { exact: true });
+  await expect(pipeline).toHaveValue("00000000-0000-4000-8000-000000000101");
+  await expect(pipeline.locator("option:checked")).toHaveText(
+    "Pipeline comercial · padrão",
+  );
 });
 
 test("refresh 401 encerra sessão sem tratar falha de rede como expiração", async ({
