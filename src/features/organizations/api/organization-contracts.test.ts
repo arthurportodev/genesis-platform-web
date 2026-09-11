@@ -31,6 +31,22 @@ describe("createOrganizationInputSchema", () => {
     ).toBe(false);
   });
 
+  it.each([
+    ["C0 control", "Genesis\u0000CRM"],
+    ["surrogate", "Genesis\ud800CRM"],
+    ["Arabic letter mark", "Genesis\u061cCRM"],
+    ["left-to-right mark", "Genesis\u200eCRM"],
+    ["right-to-left mark", "Genesis\u200fCRM"],
+    ["line separator", "Genesis\u2028CRM"],
+    ["right-to-left override", "Genesis\u202eCRM"],
+    ["left-to-right isolate", "Genesis\u2066CRM"],
+    ["pop directional isolate", "Genesis\u2069CRM"],
+  ])("rejects the frozen forbidden-name set: %s", (_label, name) => {
+    expect(createOrganizationInputSchema.safeParse({ name }).success).toBe(
+      false,
+    );
+  });
+
   it("counts Unicode code points after NFC for request and response parity", () => {
     const validName = "😀".repeat(160);
     expect(createOrganizationInputSchema.parse({ name: validName })).toEqual({

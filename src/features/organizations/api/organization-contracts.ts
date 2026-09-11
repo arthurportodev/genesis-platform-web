@@ -1,6 +1,7 @@
 import { z } from "zod";
 
-const forbiddenNameCharacters = /[\p{Cc}\p{Cs}\u2028\u2029]/u;
+const forbiddenNameCharacters =
+  /[\p{Cc}\p{Cs}\u061c\u200e\u200f\u2028-\u202e\u2066-\u2069]/u;
 const organizationNameMaximum = 160;
 
 function hasValidOrganizationNameLength(value: string): boolean {
